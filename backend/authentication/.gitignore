@@ -1,0 +1,17 @@
+node_modules
+
+package-lock.json
+
+# Output
+.output
+/dist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test

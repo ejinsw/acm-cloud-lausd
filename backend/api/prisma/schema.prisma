@@ -9,12 +9,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Student {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   firstName String?
@@ -36,11 +36,11 @@ model Student {
 
   parentEmail String?
   reviews     Review[]
-  sessions    SessionStudentRelation[]
+  sessions    Session[]
 }
 
 model Instructor {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   firstName String?
@@ -65,11 +65,11 @@ model Instructor {
   averageRating     Float?
   reviews           Review[]
   sessions          Session[]
-  subjects          SubjectInstructorRelation[]
+  subjects          Subject[]
 }
 
 model Session {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  id           String    @id @default(uuid())
   name         String
   description  String?
   startTime    DateTime?
@@ -79,63 +79,34 @@ model Session {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  instructorId String                   @db.ObjectId
-  instructor   Instructor               @relation(fields: [instructorId], references: [id])
-  subjects     SubjectSessionRelation[]
-  students     SessionStudentRelation[]
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  students     Student[]
+  subjects     Subject[]
+
+  @@index([instructorId])
 }
 
 model Review {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(uuid())
   rating    Float
   comment   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  studentId String  @db.ObjectId
-  student   Student @relation(fields: [studentId], references: [id])
-
-  instructorId String     @db.ObjectId
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id])
+  instructorId String
   instructor   Instructor @relation(fields: [instructorId], references: [id])
-}
 
-model SessionStudentRelation {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  studentId String   @db.ObjectId
-  sessionId String   @db.ObjectId
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id])
-  session Session @relation(fields: [sessionId], references: [id])
+  @@index([studentId])
+  @@index([instructorId])
 }
 
 model Subject {
-  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  id   String @id @default(uuid())
   name String @unique
 
-  instructors SubjectInstructorRelation[]
-  sessions    SubjectSessionRelation[]
-}
-
-model SubjectInstructorRelation {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  instructorId String   @db.ObjectId
-  subjectId    String   @db.ObjectId
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  instructor Instructor @relation(fields: [instructorId], references: [id])
-  subject    Subject    @relation(fields: [subjectId], references: [id])
-}
-
-model SubjectSessionRelation {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionId String   @db.ObjectId
-  subjectId String   @db.ObjectId
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  session Session @relation(fields: [sessionId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
+  instructors Instructor[]
+  sessions    Session[]
 }

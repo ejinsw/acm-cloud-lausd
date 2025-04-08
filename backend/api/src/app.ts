@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
-// import serverless from "serverless-http";
+import serverless from "serverless-http";
 
 import studentRouter from "./routes/studentRouter";
 import instructorRouter from "./routes/instructorRouter";
@@ -39,12 +39,12 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 /**
  * FOR SERVER
  */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// const PORT = process.env.PORT || 8080;
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
 
-export default app;
+// export default app;
 
 // FOR SERVERLESS
 // If we decide to deploy on AWS Lambda
@@ -57,5 +57,5 @@ export default app;
 // ```
 // with
 // ```
-// export const handler = serverless(app);
+export const handler = serverless(app);
 // ```

@@ -4,7 +4,9 @@
   "main": "app.ts",
   "scripts": {
     "start": "node dist/app.js",
-    "dev": "tsc && nodemon"
+    "dev": "serverless offline start",
+    "build": "tsc",
+    "deploy": "serverless deploy"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +37,8 @@
     "prisma": "^6.2.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "serverless-offline": "12.0.4",
+    "serverless-plugin-typescript": "2.1.5"
   }
 }

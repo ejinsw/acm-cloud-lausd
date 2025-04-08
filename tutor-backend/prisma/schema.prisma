@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  firstName String?
+  lastName  String?
+  email     String?   @unique
+  birthdate DateTime?
+  grade     Int?
+
+  // Address
+  street    String?
+  apartment String?
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+
+  // School
+  schoolName String?
+
+  parentEmail String?
+  reviews     Review[]
+  sessions    SessionStudentRelation[]
+}
+
+model Instructor {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  firstName String?
+  lastName  String?
+  email     String?   @unique
+  birthdate DateTime?
+  address   String?
+  grade     Int?
+
+  // Address
+  street    String?
+  apartment String?
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+
+  // School
+  schoolName String?
+
+  certificationUrls String[]
+  averageRating     Float?
+  reviews           Review[]
+  sessions          Session[]
+  subjects          SubjectInstructorRelation[]
+}
+
+model Session {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String?
+  startTime    DateTime?
+  endTime      DateTime?
+  zoomLink     String?
+  maxAttendees Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  instructorId String                   @db.ObjectId
+  instructor   Instructor               @relation(fields: [instructorId], references: [id])
+  subjects     SubjectSessionRelation[]
+  students     SessionStudentRelation[]
+}
+
+model Review {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  rating    Float
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String  @db.ObjectId
+  student   Student @relation(fields: [studentId], references: [id])
+
+  instructorId String     @db.ObjectId
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+}
+
+model SessionStudentRelation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  studentId String   @db.ObjectId
+  sessionId String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model Subject {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String @unique
+
+  instructors SubjectInstructorRelation[]
+  sessions    SubjectSessionRelation[]
+}
+
+model SubjectInstructorRelation {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  instructorId String   @db.ObjectId
+  subjectId    String   @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  instructor Instructor @relation(fields: [instructorId], references: [id])
+  subject    Subject    @relation(fields: [subjectId], references: [id])
+}
+
+model SubjectSessionRelation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String   @db.ObjectId
+  subjectId String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+}

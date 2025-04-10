@@ -1,9 +1,11 @@
-service: find-a-tutor-api
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: lausd-project
+service: backend-api
 
 provider:
   name: aws
   runtime: nodejs20.x
-  stage: ${opt:stage, 'dev'}
+  stage: dev
   region: 'us-west-1'
 
 plugins:
@@ -12,18 +14,14 @@ plugins:
 
 functions:
   app:
-    handler: app.handler
+    handler: src/app.handler
     events:
-      - http:
+      - httpAPI:
           path: /{proxy+}
-          method: ANY
-          cors: true
-      - http:
-          path: /
           method: ANY
           cors: true
 
 custom:
   serverless-offline:
-    httpPort: 3001
-    host: 0.0.0.0
+    httpPort: 8080
+    host: localhost

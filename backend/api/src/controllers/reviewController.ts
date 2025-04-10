@@ -12,7 +12,8 @@ import { prisma } from "../config/prisma";
  */
 export const getAllReviews = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const reviews = await prisma.review.findMany();
+    res.json({ reviews });
   }
 );
 
@@ -24,7 +25,13 @@ export const getAllReviews = expressAsyncHandler(
  */
 export const getReviewById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+    const review = await prisma.review.findUnique({
+      where: {
+        id: id,
+      }
+    })
+    res.json({ review });
   }
 );
 

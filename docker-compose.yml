@@ -9,13 +9,12 @@ services:
       - "8080:8080"
     environment:
       - NODE_ENV=development
-      # Add other environment variables your backend needs
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/postgres
     volumes:
       - ./backend/api:/app
       - /app/node_modules
-    # Add extra_hosts to support serverless-offline in Docker
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      - postgres
 
   frontend:
     build:
@@ -25,13 +24,26 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      # Add your frontend environment variables here
       - NEXT_PUBLIC_API_URL=http://localhost:8080
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
 
 networks:
   default:

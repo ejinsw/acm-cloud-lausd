@@ -4,14 +4,11 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Install serverless globally
-RUN npm install -g serverless@3.40.0
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with legacy peer deps
-RUN npm install --legacy-peer-deps
+# Install dependencies
+RUN npm install
 
 # Copy the rest of the application
 COPY . .
@@ -19,11 +16,8 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build TypeScript
-RUN npm run build
+# Expose port 8080
+EXPOSE 8080
 
-# Expose port 3001 for serverless-offline
-EXPOSE 3001
-
-# Start serverless-offline
+# Start with nodemon for hot reloading
 CMD ["npm", "run", "dev"]

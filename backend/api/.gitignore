@@ -15,3 +15,6 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+
+.serverless
+.build

@@ -1,219 +1,301 @@
-# Tutoring API Documentation
+# Backend API - ACM Cloud LAUSD
 
-This API provides a backend for managing users, students, instructors, subjects, sessions, and reviews in an online tutoring platform.
+The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 
-## **Table of Contents**
-- [Getting Started](#getting-started)
-- [API Endpoints](#api-endpoints)
-  - [Users](#users)
-  - [Students](#students)
-  - [Instructors](#instructors)
-  - [Subjects](#subjects)
-  - [Sessions](#sessions)
-  - [Reviews](#reviews)
+## API Endpoints
 
----
+### Authentication
+- `POST /auth/register` - Register a new user
+  - Body: `{ email, password, firstName, lastName, role }`
+  - Returns: JWT token and user info
 
-## **Getting Started**
-### **Installation**
-Clone the repository and install dependencies:
+- `POST /auth/login` - Login user
+  - Body: `{ email, password }`
+  - Returns: JWT token and user info
 
-```
-git clone https://github.com/ejinsw/find-a-tutor-backend.git
-cd find-a-tutor
-npm install
-```
+- `POST /auth/refresh` - Refresh JWT token
+  - Headers: `Authorization: Bearer <refresh_token>`
+  - Returns: New JWT token
 
-### **Environment Variables**
-Create a `.env` file and add the required database connection details:
+### Users
+- `GET /users/me` - Get current user profile
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: User profile
 
-```
-DATABASE_URL="mongodb+srv://ejinsw:Bokchoy1@cluster0.gf5yt.mongodb.net/Tutor?retryWrites=true&w=majority&appName=Cluster0"
-```
+- `PUT /users/me` - Update current user profile
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ firstName, lastName, email }`
+  - Returns: Updated user profile
 
-### **Run the Server**
-```
-npm run dev
-```
+### Students
+- `GET /students` - List all students
+  - Query params: `page, limit, search`
+  - Returns: Paginated list of students
 
----
+- `GET /students/:id` - Get student by ID
+  - Returns: Student details
 
-## **API Endpoints**
+- `POST /students` - Create new student
+  - Body: `{ userId, grade, school, subjects }`
+  - Returns: Created student
 
-### **Users**
-#### **(Coming Soon)**
-Endpoints for user authentication and profile management.
+- `PUT /students/:id` - Update student
+  - Body: `{ grade, school, subjects }`
+  - Returns: Updated student
 
----
+### Instructors
+- `GET /instructors` - List all instructors
+  - Query params: `page, limit, search, subjects`
+  - Returns: Paginated list of instructors
 
-### **Students**
-#### **Get Student by ID**
-- **Route:** `GET /students/:id`
-- **Description:** Retrieves details of a specific student.
-- **Params:**
-  - `id` (string) - Student's unique identifier.
+- `GET /instructors/:id` - Get instructor by ID
+  - Returns: Instructor details
 
-#### **Update Student by ID**
-- **Route:** `PUT /students/:id`
-- **Description:** Updates student information.
-- **Query Params:**
-  - `firstName` (string) - Updated first name.
-  - `lastName` (string) - Updated last name.
-  - `email` (string) - Updated email.
-  - `password` (string) - Updated password.
-  - `grade` (number) - Updated grade level.
-  - `address` (string) - Updated address.
-  - `phoneNumber` (string) - Updated phone number.
+- `POST /instructors` - Create new instructor
+  - Body: `{ userId, subjects, bio, certifications }`
+  - Returns: Created instructor
 
-#### **Delete Student by ID**
-- **Route:** `DELETE /students/:id`
-- **Description:** Deletes a student by ID.
+- `PUT /instructors/:id` - Update instructor
+  - Body: `{ subjects, bio, certifications }`
+  - Returns: Updated instructor
 
----
+### Sessions
+- `GET /sessions` - List all sessions
+  - Query params: `page, limit, instructorId, studentId, status`
+  - Returns: Paginated list of sessions
 
-### **Instructors**
-#### **Get All Instructors**
-- **Route:** `GET /instructors`
-- **Description:** Retrieves all instructors. Supports filtering by name and subject.
-- **Query Params:**
-  - `name` (string) - Filter by instructor's name.
-  - `subject` (string) - Filter by subject.
+- `GET /sessions/:id` - Get session by ID
+  - Returns: Session details
 
-#### **Get Instructor by ID**
-- **Route:** `GET /instructors/:id`
-- **Description:** Retrieves details of a specific instructor.
+- `POST /sessions` - Create new session
+  - Body: `{ instructorId, subject, startTime, endTime, maxStudents }`
+  - Returns: Created session
 
-#### **Create Instructor**
-- **Route:** `POST /instructors`
-- **Description:** Creates a new instructor.
-- **Body Params:**
-  - `userId` (string) - Associated user ID.
-  - `certificationUrls` (array of strings) - List of certification links.
-  - `subjects` (array of strings) - Subjects the instructor teaches.
-  - `averageRating` (number) - Instructor's rating (default 0).
+- `PUT /sessions/:id` - Update session
+  - Body: `{ subject, startTime, endTime, maxStudents, status }`
+  - Returns: Updated session
 
-#### **Update Instructor by ID**
-- **Route:** `PUT /instructors/:id`
-- **Description:** Updates instructor details.
-- **Body Params:**
-  - `certificationUrls` (array of strings) - Updated certification links.
-  - `subjects` (array of strings) - Updated subjects.
-  - `averageRating` (number) - Updated rating.
+- `POST /sessions/:id/join` - Join a session
+  - Body: `{ studentId }`
+  - Returns: Updated session
 
-#### **Delete Instructor by ID**
-- **Route:** `DELETE /instructors/:id`
-- **Description:** Deletes an instructor by ID.
+### Reviews
+- `GET /reviews` - List all reviews
+  - Query params: `page, limit, instructorId, studentId`
+  - Returns: Paginated list of reviews
 
----
+- `POST /reviews` - Create new review
+  - Body: `{ sessionId, rating, comment }`
+  - Returns: Created review
 
-### **Subjects**
-#### **Get All Subjects**
-- **Route:** `GET /subjects`
-- **Description:** Retrieves all subjects.
+## Development
 
-#### **Get Subject by Name**
-- **Route:** `GET /subjects/:name`
-- **Description:** Retrieves details of a specific subject by name.
+### Prerequisites
+- Node.js 20 or later
+- Docker Desktop (for containerized development)
+- PostgreSQL (for local development without Docker)
 
-#### **Create Subject**
-- **Route:** `POST /subjects`
-- **Description:** Creates a new subject.
-- **Body Params:**
-  - `name` (string) - Name of the subject.
+### Local Development with Docker
 
-#### **Update Subject by ID**
-- **Route:** `PUT /subjects/:id`
-- **Description:** Updates subject details.
-- **Body Params:**
-  - `name` (string) - Updated subject name.
+1. **Start the Development Environment**
+   ```bash
+   docker-compose up --build
+   ```
+   The API will be available at http://localhost:8080
 
-#### **Delete Subject by ID**
-- **Route:** `DELETE /subjects/:id`
-- **Description:** Deletes a subject by ID.
+2. **Hot Reloading**
+   - Changes to the code will automatically reload the server
+   - No need to restart the container
 
----
+### Local Development without Docker
 
-### **Sessions**
-#### **Get All Sessions**
-- **Route:** `GET /sessions`
-- **Description:** Retrieves all sessions. Supports filtering by tutor name, session name, and subject.
-- **Query Params:**
-  - `tutorName` (string) - Filter by instructor's name.
-  - `name` (string) - Filter by session name.
-  - `subject` (string) - Filter by subject.
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-#### **Get Session by ID**
-- **Route:** `GET /sessions/:id`
-- **Description:** Retrieves details of a specific session.
+2. **Set Up Database**
+   - Create a PostgreSQL database
+   - Update `.env` with your database URL
 
-#### **Create Session**
-- **Route:** `POST /sessions`
-- **Description:** Creates a new session.
-- **Body Params:**
-  - `name` (string) - Session name.
-  - `description` (string) - Session description.
-  - `startTime` (Date) - Start time.
-  - `endTime` (Date) - End time.
-  - `zoomLink` (string) - Meeting link.
-  - `maxAttendees` (number) - Maximum number of attendees.
-  - `instructorId` (string) - Instructor's ID.
-  - `subjects` (array of strings) - Subjects covered.
+3. **Run Migrations**
+   ```bash
+   npx prisma migrate dev
+   ```
 
-#### **Update Session by ID**
-- **Route:** `PUT /sessions/:id`
-- **Description:** Updates session details.
-- **Body Params:**
-  - `name` (string) - Updated name.
-  - `description` (string) - Updated description.
-  - `startTime` (Date) - Updated start time.
-  - `endTime` (Date) - Updated end time.
-  - `zoomLink` (string) - Updated meeting link.
-  - `maxAttendees` (number) - Updated maximum attendees.
+4. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
 
-#### **Delete Session by ID**
-- **Route:** `DELETE /sessions/:id`
-- **Description:** Deletes a session by ID.
+## Project Structure
 
----
+- `src/` - Source code
+  - `app.ts` - Main Express application
+  - `routes/` - API routes
+  - `controllers/` - Route controllers
+  - `models/` - Data models
+  - `middleware/` - Express middleware
+- `prisma/` - Database schema and migrations
 
-### **Reviews**
-#### **Get All Reviews**
-- **Route:** `GET /reviews`
-- **Description:** Retrieves all reviews. Supports filtering by student or instructor.
-- **Query Params:**
-  - `studentId` (string) - Filter by reviews written by a specific student.
-  - `instructorId` (string) - Filter by reviews received by a specific instructor.
+## Technologies Used
 
-#### **Get Review by ID**
-- **Route:** `GET /reviews/:id`
-- **Description:** Retrieves details of a specific review.
+- Express.js
+- TypeScript
+- PostgreSQL
+- Prisma ORM
+- Serverless Framework (for deployment)
 
-#### **Create Review**
-- **Route:** `POST /reviews`
-- **Description:** Creates a new review.
-- **Body Params:**
-  - `rating` (number) - Rating (1-5).
-  - `comment` (string) - Review comment.
-  - `studentId` (string) - ID of the reviewing student.
-  - `instructorId` (string) - ID of the reviewed instructor.
+## Database Management
 
-#### **Update Review by ID**
-- **Route:** `PUT /reviews/:id`
-- **Description:** Updates a review.
-- **Body Params:**
-  - `rating` (number) - Updated rating.
-  - `comment` (string) - Updated comment.
+1. **Prisma Studio**
+   ```bash
+   npx prisma studio
+   ```
+   Access at http://localhost:5555
 
-#### **Delete Review by ID**
-- **Route:** `DELETE /reviews/:id`
-- **Description:** Deletes a review by ID.
+2. **Migrations**
+   ```bash
+   # Create new migration
+   npx prisma migrate dev --name migration_name
 
----
+   # Apply migrations
+   npx prisma migrate deploy
+   ```
 
-## **License**
-...
+## AWS Configuration
 
----
+### Prerequisites
+1. AWS Account with Access Portal access
+2. AWS CLI installed
+3. Serverless Framework installed globally:
+   ```bash
+   npm install -g serverless
+   ```
 
-## **Author**
-Developed by ACM UCLA Cloud Consulting.
+### AWS Access Portal Setup
+1. **Access AWS Console**
+   - Log in to your organization's AWS Access Portal
+   - Select the appropriate AWS account and role
+   - Ensure you have the necessary permissions for:
+     - Lambda functions
+     - API Gateway
+     - Systems Manager Parameter Store
+     - CloudWatch Logs
+
+2. **Configure AWS CLI with SSO**
+   ```bash
+   aws configure sso
+   ```
+   Follow the prompts to:
+   - Enter SSO start URL (provided by your organization)
+   - Select AWS account
+   - Select role
+   - Set default region (e.g., us-west-2)
+   - Set default output format (json)
+
+3. **Verify SSO Configuration**
+   ```bash
+   aws sts get-caller-identity
+   ```
+
+### Serverless Framework Configuration
+1. **Install Serverless Framework**
+   ```bash
+   npm install -D serverless serverless-offline
+   ```
+
+2. **Create serverless.yml**
+   ```yaml
+   service: acm-cloud-lausd-api
+
+   provider:
+     name: aws
+     runtime: nodejs20.x
+     region: us-west-2
+     environment:
+       NODE_ENV: production
+       DATABASE_URL: ${ssm:/acm-cloud-lausd/DATABASE_URL}
+       JWT_SECRET: ${ssm:/acm-cloud-lausd/JWT_SECRET}
+       JWT_REFRESH_SECRET: ${ssm:/acm-cloud-lausd/JWT_REFRESH_SECRET}
+
+   functions:
+     api:
+       handler: src/handler.handler
+       events:
+         - http:
+             path: /{proxy+}
+             method: any
+             cors: true
+
+   plugins:
+     - serverless-offline
+     - serverless-prisma-plugin
+
+   custom:
+     prisma:
+       stages:
+         - production
+   ```
+
+3. **Set Up AWS Parameter Store**
+   ```bash
+   # Store database URL
+   aws ssm put-parameter \
+     --name "/acm-cloud-lausd/DATABASE_URL" \
+     --value "postgresql://user:password@host:5432/dbname" \
+     --type SecureString
+
+   # Store JWT secrets
+   aws ssm put-parameter \
+     --name "/acm-cloud-lausd/JWT_SECRET" \
+     --value "your-jwt-secret" \
+     --type SecureString
+
+   aws ssm put-parameter \
+     --name "/acm-cloud-lausd/JWT_REFRESH_SECRET" \
+     --value "your-refresh-secret" \
+     --type SecureString
+   ```
+
+### Deployment
+1. **Build the Application**
+   ```bash
+   npm run build
+   ```
+
+2. **Deploy to AWS**
+   ```bash
+   serverless deploy
+   ```
+
+3. **Verify Deployment**
+   ```bash
+   serverless info
+   ```
+
+### Post-Deployment
+1. **Set Up Custom Domain (Optional)**
+   ```bash
+   serverless create_domain
+   ```
+
+2. **Configure CORS**
+   - Update `serverless.yml` with your frontend domain
+   ```yaml
+   cors:
+     origins:
+       - https://your-frontend-domain.com
+     headers:
+       - Content-Type
+       - Authorization
+   ```
+
+3. **Monitor Logs**
+   ```bash
+   serverless logs -f api
+   ```
+
+## Environment Variables
+
+Create a `.env`

@@ -1,5 +1,5 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
-org: acmcloudlausd
+org: lausd-project
 service: backend-api
 
 provider:
@@ -16,7 +16,7 @@ functions:
   app:
     handler: src/app.handler
     events:
-      - http:
+      - httpAPI:
           path: /{proxy+}
           method: ANY
           cors: true

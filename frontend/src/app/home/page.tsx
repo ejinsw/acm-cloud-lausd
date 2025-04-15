@@ -15,12 +15,14 @@
  *
  */
 
+import { AccountManagement } from "./components/AccountManagement";
 import { GoalStatement } from "./GoalStatement";
 import { Hero } from "./Hero";
 
 export default function Page() {
   return (
     <section>
+      <AccountManagement />
       <Hero />
       <h1> hello world</h1>
       <GoalStatement />

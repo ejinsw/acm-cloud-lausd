@@ -10,10 +10,21 @@ import { prisma } from "../config/prisma";
  */
 export const getStudentById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
+    
     res.json({ message: "Hello World!" });
   }
 );
-
+/**
+ * Check if student exists by email
+ * 
+ * @route Get/student/:email
+ * @param {string} email - The email of the student
+ */
+export const checkStudentByEmail = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    res.json({ message: "Hello World!" });
+  }
+)
 /**
  * Create a new student profile.
  *

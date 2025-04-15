@@ -17,7 +17,7 @@
     "@mantine/hooks": "^7.16.2",
     "@mantine/nprogress": "^7.16.2",
     "dayjs": "^1.11.13",
-    "next": "15.1.6",
+    "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-imask": "^7.6.1"

@@ -8,20 +8,11 @@ provider:
   stage: dev
   region: 'us-west-1'
 
-plugins:
-  - serverless-offline
-  - serverless-plugin-typescript
-
 functions:
   app:
     handler: src/app.handler
     events:
-      - httpAPI:
+      - http:
           path: /{proxy+}
           method: ANY
           cors: true
-
-custom:
-  serverless-offline:
-    httpPort: 8080
-    host: localhost

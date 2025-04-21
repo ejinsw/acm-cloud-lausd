@@ -19,8 +19,7 @@ export const getAllInstructors = expressAsyncHandler(
       lastName: string | null;
       email: string | null;
     }[];
-    if(subjectFilter != null)
-    {
+    if (subjectFilter != null) {
       instructors = await prisma.instructor.findMany({
         where: {
           subjects: {
@@ -42,8 +41,7 @@ export const getAllInstructors = expressAsyncHandler(
         }
       });
     }
-    else
-    {
+    else {
       instructors = await prisma.instructor.findMany({
         select:
         {
@@ -65,12 +63,11 @@ export const getAllInstructors = expressAsyncHandler(
  */
 export const getInstructorById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
- 
+
     const filter = req.query.id;
     //should check if its null or not valid first
-    if(filter == null)
-    {
-      res.status(400).json({error: "No ID was given"});
+    if (filter == null) {
+      res.status(400).json({ error: "No ID was given" });
     }
     const inst = await prisma.instructor.findFirst({
       where: {
@@ -83,21 +80,71 @@ export const getInstructorById = expressAsyncHandler(
         email: true
       }
     });
-    res.json({instructor: inst});
+    res.json({ instructor: inst });
   }
 );
 /**
  * Create a new instructor profile.
  * 
  * @route POST /instructors
- * @body {string} userId - The ID of the user associated with the instructor.
+ * @body {string} userId - The ID of the user associated with the instructor, as in the sub from the auth0 token
  * @body {string[]} certificationUrls - List of URLs pointing to certification documents.
  * @body {string[]} subjects - List of subjects the instructor teaches.
- * @body {number} averageRating - The initial average rating of the instructor (default to 0).
+ * @body {string} firstName - The first name of the instructor.
+ * @body {string} lastName - The last name of the instructor.
+ * @body {string} email - The email of the instructor.
+ * @body {Date} dateOfBirth - The date of birth of the instructor. 
+ * @body {string} phoneNumber - The phone number of the instructor.    There should be a phone number in the database 
+ * @body {string} address - The address of the instructor.
+ * @body {string} city - The city of the instructor.
+ * @body {string} state - The state of the instructor.
+ * @body {string} zipCode - The zip code of the instructor.
+ * @body {string} country - The country of the instructor.
+ * @body {string} schoolName - The name of the school the instructor teaches at.
  */
 export const createInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    //valdie the data and make sure all queries are filled 
+    const { userId, certificationUrls, subjects, firstName, lastName, email, dateOfBirth, phoneNumber, address, city, state, zipCode, country, schoolName } = req.body;
+    if (!userId || !certificationUrls || !subjects) {
+      res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+
+
+    const existingUser = await prisma.instructor.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (existingUser) {
+      res.status(400).json({ message: "User already exists." });
+      return;
+    }
+    //need to create instructor profile in the database 
+    const newUser = await prisma.instructor.create({
+      data: {
+        id: userId,
+        certificationUrls: certificationUrls,
+        subjects: subjects,
+        averageRating: 0,
+        firstName: firstName ?? null,
+        lastName: lastName ?? null,
+        email: email ?? null,
+        birthdate: dateOfBirth ?? null,
+        //phoneNumber: phoneNumber,
+        address: address ?? null,
+        city: city ?? null,
+        state: state ?? null,
+        zip: zipCode ?? null,
+        country: country ?? null,
+        schoolName: schoolName ?? null,
+      }
+    })
+
+
+    res.json({ user: newUser });
   }
 );
 

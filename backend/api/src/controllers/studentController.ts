@@ -10,7 +10,19 @@ import { prisma } from "../config/prisma";
  */
 export const getStudentById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+    const student = await prisma.student.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!student) {
+      res.status(404).json({ message: "Student not found." });
+      return;
+    }
+
+    res.json({ student });
   }
 );
 
@@ -95,17 +107,55 @@ export const createStudent = expressAsyncHandler(
  *
  * @route PUT /student/:id
  * @param {string} id - The unique identifier of the student.
- * @query {string} [firstName] - The updated first name (optional).
- * @query {string} [lastName] - The updated last name (optional).
- * @query {string} [email] - The updated email address (optional).
- * @query {string} [password] - The updated password (optional).
- * @query {number} [grade] - The updated grade level (optional).
- * @query {string} [address] - The updated address (optional).
- * @query {string} [phoneNumber] - The updated phone number (optional).
+ * @body {string} [firstName] - The updated first name (optional).
+ * @body {string} [lastName] - The updated last name (optional).
+ * @body {string} [email] - The updated email address (optional).
+ * @body {number} [grade] - The updated grade level (optional).
+ * @body {string} [apartment] - The updated apartment (optional).
+ * @body {string} [city] - The updated city (optional).
+ * @body {string} [state] - The updated state (optional).
+ * @body {string} [country] - The updated country (optional).
+ * @body {string} [zip] - The updated zip code (optional).
+ * @body {string} [street] - The updated street address (optional).
  */
 export const updateStudent = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+    const { firstName, lastName, email, grade, apartment, city, state, country, zip, street, parentEmail, schoolName } = req.body;
+
+    if (!id) {
+      res.status(400).json({ message: "Missing required fields." });
+      return;
+    }
+
+    const existingStudent = await prisma.student.findUnique({
+      where: { id },
+    });
+
+    if (!existingStudent) {
+      res.status(404).json({ message: "Student not found." });
+      return;
+    }
+
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: {
+        firstName: firstName ?? existingStudent.firstName,
+        lastName: lastName ?? existingStudent.lastName,
+        email: email ?? existingStudent.email,
+        grade: grade ?? existingStudent.grade,
+        apartment: apartment ?? existingStudent.apartment,
+        city: city ?? existingStudent.city,
+        state: state ?? existingStudent.state,
+        country: country ?? existingStudent.country,
+        zip: zip ?? existingStudent.zip,
+        street: street ?? existingStudent.street,
+        parentEmail: parentEmail ?? existingStudent.parentEmail,
+        schoolName: schoolName ?? existingStudent.schoolName,
+      },
+    });
+
+    res.json({ student: updatedStudent });
   }
 );
 
@@ -117,6 +167,26 @@ export const updateStudent = expressAsyncHandler(
  */
 export const deleteStudent = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+
+    if (!id) {
+      res.status(400).json({ message: "Missing required fields." });
+      return;
+    }
+
+    const existingStudent = await prisma.student.findUnique({
+      where: { id },
+    });
+
+    if (!existingStudent) {
+      res.status(404).json({ message: "Student not found." });
+      return;
+    }
+
+    await prisma.student.delete({
+      where: { id },
+    });
+
+    res.json({ message: "Student deleted successfully." });
   }
 );

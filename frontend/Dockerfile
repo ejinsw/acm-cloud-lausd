@@ -1,5 +1,5 @@
 # Use Node.js 20 as the base image
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -7,13 +7,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with a clean slate
+RUN npm cache clean --force && \
+    npm install
 
 # Copy the rest of the application
 COPY . .
 
-# Set environment variable to ignore build errors
+# Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=development
 ENV NEXT_PUBLIC_API_URL=http://localhost:8080

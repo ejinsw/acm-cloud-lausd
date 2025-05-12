@@ -16,20 +16,22 @@ import {
   Image,
   Badge,
   Avatar,
+  Stack,
 } from "@mantine/core";
 import Link from "next/link";
-import { 
-  ArrowRight, 
-  BookOpen, 
-  Calendar, 
-  CheckCircle, 
-  Sparkles, 
-  User, 
+import {
+  ArrowRight,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  User,
   Video,
   Users,
   Star,
   Search,
-  GraduationCap
+  GraduationCap,
+  Clock,
+  HeartHandshake,
 } from "lucide-react";
 import { routes } from "./routes";
 
@@ -38,123 +40,136 @@ const features = [
   {
     icon: <BookOpen size={24} />,
     title: "Expert Tutors",
-    description: "Connect with qualified tutors specialized in various subjects.",
+    description:
+      "Connect with qualified tutors specialized in various subjects.",
+    color: "blue",
   },
   {
     icon: <Video size={24} />,
     title: "Virtual Learning",
     description: "Join interactive sessions from the comfort of your home.",
+    color: "violet",
   },
   {
     icon: <Calendar size={24} />,
     title: "Flexible Scheduling",
     description: "Book sessions at times that work best for your schedule.",
+    color: "teal",
   },
   {
     icon: <Star size={24} />,
     title: "Quality Education",
     description: "Access high-quality educational resources and materials.",
+    color: "yellow",
   },
 ];
 
 // Popular subjects
 const subjects = [
-  { name: "Mathematics", sessions: 45, icon: <BookOpen size={18} /> },
-  { name: "Science", sessions: 38, icon: <BookOpen size={18} /> },
-  { name: "English", sessions: 32, icon: <BookOpen size={18} /> },
-  { name: "History", sessions: 24, icon: <BookOpen size={18} /> },
-  { name: "Spanish", sessions: 20, icon: <BookOpen size={18} /> },
-  { name: "Programming", sessions: 18, icon: <BookOpen size={18} /> },
+  { name: "Mathematics", icon: <BookOpen size={18} />, color: "blue" },
+  { name: "Science", icon: <BookOpen size={18} />, color: "green" },
+  { name: "English", icon: <BookOpen size={18} />, color: "violet" },
+  { name: "History", icon: <BookOpen size={18} />, color: "orange" },
+  { name: "Spanish", icon: <BookOpen size={18} />, color: "red" },
+  { name: "Programming", icon: <BookOpen size={18} />, color: "cyan" },
 ];
 
-// Featured tutors
-const tutors = [
-  {
-    name: "Dr. Sarah Johnson",
-    subjects: ["Mathematics", "Physics"],
-    sessions: 120,
-    rating: 4.9,
-    avatar: "https://ui-avatars.com/api/?name=Sarah+Johnson&background=0D8ABC&color=fff",
-  },
-  {
-    name: "Prof. James Smith",
-    subjects: ["English Literature", "Writing"],
-    sessions: 85,
-    rating: 4.7,
-    avatar: "https://ui-avatars.com/api/?name=James+Smith&background=8E44AD&color=fff",
-  },
-  {
-    name: "Miguel Hernandez",
-    subjects: ["Spanish", "Portuguese"],
-    sessions: 74,
-    rating: 4.8,
-    avatar: "https://ui-avatars.com/api/?name=Miguel+Hernandez&background=27AE60&color=fff",
-  },
-  {
-    name: "Dr. Robert Chen",
-    subjects: ["Chemistry", "Biology"],
-    sessions: 96,
-    rating: 4.9,
-    avatar: "https://ui-avatars.com/api/?name=Robert+Chen&background=F39C12&color=fff",
-  },
+// Stats data
+const stats = [
+  { value: "500+", label: "Active Tutors", icon: <Users size={24} /> },
+  { value: "10k+", label: "Students", icon: <GraduationCap size={24} /> },
+  { value: "50k+", label: "Sessions", icon: <Clock size={24} /> },
+  { value: "98%", label: "Satisfaction", icon: <HeartHandshake size={24} /> },
 ];
 
 export default function Home() {
   return (
     <main>
       {/* Hero Section */}
-      <Box py={100} style={{ backgroundColor: "#f8f9fa" }}>
+      <Box
+        py={100}
+        style={{
+          background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         <Container size="lg">
           <Grid gutter={60}>
             <Grid.Col span={{ base: 12, md: 6 }}>
-              <Title order={1} size="h1" fw={900} mb="md">
-                Empower Your Education with LAUSD Tutoring
-              </Title>
-              <Text size="lg" c="dimmed" mb="xl">
-                Connect with expert tutors, join interactive sessions, and achieve academic excellence
-                with our personalized learning platform.
-              </Text>
-              <Group>
-                <Button 
-                  component={Link} 
-                  href={routes.exploreSessions} 
-                  size="lg" 
-                  rightSection={<Search size={16} />}
+              <Stack gap="xl">
+                <Title
+                  order={1}
+                  size="h1"
+                  fw={900}
+                  mb="md"
+                  style={{ lineHeight: 1.2 }}
                 >
-                  Find Sessions
-                </Button>
-                <Button 
-                  component={Link} 
-                  href={routes.signUp} 
-                  size="lg" 
-                  variant="outline"
-                  rightSection={<ArrowRight size={16} />}
-                >
-                  Sign Up
-                </Button>
-              </Group>
-              <Group mt="lg">
-                <Group gap={5}>
-                  <CheckCircle size={16} color="#20c997" />
-                  <Text size="sm">Expert tutors</Text>
+                  Empower Your Education with{" "}
+                  <Text component="span" c="blue" inherit>
+                    LAUSD Tutoring
+                  </Text>
+                </Title>
+                <Text size="xl" c="dimmed" mb="xl" style={{ lineHeight: 1.6 }}>
+                  Connect with expert tutors, join interactive sessions, and
+                  achieve academic excellence with our personalized learning
+                  platform.
+                </Text>
+                <Group>
+                  <Button
+                    component={Link}
+                    href={routes.exploreSessions}
+                    size="lg"
+                    rightSection={<Search size={16} />}
+                    radius="md"
+                  >
+                    Find Sessions
+                  </Button>
+                  <Button
+                    component={Link}
+                    href={routes.signUp}
+                    size="lg"
+                    variant="outline"
+                    rightSection={<ArrowRight size={16} />}
+                    radius="md"
+                  >
+                    Sign Up
+                  </Button>
                 </Group>
-                <Group gap={5}>
-                  <CheckCircle size={16} color="#20c997" />
-                  <Text size="sm">Flexible scheduling</Text>
+                <Group mt="lg" gap="xl">
+                  <Group gap={5}>
+                    <CheckCircle size={16} color="#20c997" />
+                    <Text size="sm" fw={500}>
+                      Expert tutors
+                    </Text>
+                  </Group>
+                  <Group gap={5}>
+                    <CheckCircle size={16} color="#20c997" />
+                    <Text size="sm" fw={500}>
+                      Flexible scheduling
+                    </Text>
+                  </Group>
+                  <Group gap={5}>
+                    <CheckCircle size={16} color="#20c997" />
+                    <Text size="sm" fw={500}>
+                      Personalized learning
+                    </Text>
+                  </Group>
                 </Group>
-                <Group gap={5}>
-                  <CheckCircle size={16} color="#20c997" />
-                  <Text size="sm">Personalized learning</Text>
-                </Group>
-              </Group>
+              </Stack>
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Center h="100%">
                 <Image
-                  src="https://placehold.co/600x400/e6f7ff/0a85ff?text=Tutoring+Illustration"
-                  alt="LAUSD Tutoring"
+                  src="https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=1200&auto=format&fit=crop"
+                  alt="High school students in a modern classroom"
                   w="100%"
                   h={400}
+                  radius="md"
+                  style={{
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+                    objectFit: "cover",
+                  }}
                 />
               </Center>
             </Grid.Col>
@@ -162,259 +177,216 @@ export default function Home() {
         </Container>
       </Box>
 
-      {/* Features Section */}
-      <Box py={80}>
+      {/* Stats Section */}
+      <Box py={60} style={{ backgroundColor: "white" }}>
         <Container size="lg">
-          <Title order={2} ta="center" mb="lg">
-            Why Choose LAUSD Tutoring?
-          </Title>
-          <Text size="lg" c="dimmed" ta="center" mb={50} mx="auto" maw={700}>
-            Our platform offers a comprehensive learning experience with features designed
-            to help students achieve academic success.
-          </Text>
-
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing={30}>
-            {features.map((feature) => (
-              <Card key={feature.title} shadow="md" radius="md" p="lg">
-                <ThemeIcon size={50} radius="md" mb="md">
-                  {feature.icon}
-                </ThemeIcon>
-                <Text fw={500} size="lg" mb="xs">
-                  {feature.title}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  {feature.description}
-                </Text>
-              </Card>
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing={30}>
+            {stats.map((stat) => (
+              <Paper key={stat.label} p="md" radius="md" withBorder>
+                <Group gap="xs" align="center">
+                  <ThemeIcon size={40} radius="md" variant="light">
+                    {stat.icon}
+                  </ThemeIcon>
+                  <div>
+                    <Text size="xl" fw={700} lh={1}>
+                      {stat.value}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {stat.label}
+                    </Text>
+                  </div>
+                </Group>
+              </Paper>
             ))}
           </SimpleGrid>
         </Container>
       </Box>
 
-      {/* How It Works */}
+      {/* Features Section */}
       <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
         <Container size="lg">
-          <Title order={2} ta="center" mb="lg">
-            How It Works
-          </Title>
-          <Text size="lg" c="dimmed" ta="center" mb={50} mx="auto" maw={700}>
-            Get started with LAUSD Tutoring in just a few simple steps
-          </Text>
-
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing={30}>
-            <Paper shadow="md" radius="md" p="xl" withBorder>
-              <ThemeIcon size={60} radius="md" mb="md">
-                <User size={30} />
-              </ThemeIcon>
-              <Title order={3} size="h4" mb="xs">
-                1. Create Account
+          <Stack gap="xl" align="center">
+            <div>
+              <Title order={2} ta="center" mb="md">
+                Why Choose LAUSD Tutoring?
               </Title>
-              <Text size="sm" c="dimmed">
-                Sign up for an account to access our tutoring platform
+              <Text size="lg" c="dimmed" ta="center" mx="auto" maw={700}>
+                Our platform offers a comprehensive learning experience with
+                features designed to help students achieve academic success.
               </Text>
-            </Paper>
+            </div>
 
-            <Paper shadow="md" radius="md" p="xl" withBorder>
-              <ThemeIcon size={60} radius="md" mb="md">
-                <Search size={30} />
-              </ThemeIcon>
-              <Title order={3} size="h4" mb="xs">
-                2. Find Sessions
-              </Title>
-              <Text size="sm" c="dimmed">
-                Browse and book sessions based on your learning needs
-              </Text>
-            </Paper>
-
-            <Paper shadow="md" radius="md" p="xl" withBorder>
-              <ThemeIcon size={60} radius="md" mb="md">
-                <GraduationCap size={30} />
-              </ThemeIcon>
-              <Title order={3} size="h4" mb="xs">
-                3. Start Learning
-              </Title>
-              <Text size="sm" c="dimmed">
-                Join interactive virtual sessions with expert tutors
-              </Text>
-            </Paper>
-          </SimpleGrid>
-          
-          <Center mt={40}>
-            <Button 
-              component={Link} 
-              href={routes.signUp}
-              size="lg"
-              rightSection={<ArrowRight size={16} />}
-            >
-              Get Started
-            </Button>
-          </Center>
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing={30}>
+              {features.map((feature) => (
+                <Card
+                  key={feature.title}
+                  shadow="md"
+                  radius="md"
+                  p="lg"
+                  withBorder
+                >
+                  <ThemeIcon
+                    size={50}
+                    radius="md"
+                    mb="md"
+                    color={feature.color}
+                  >
+                    {feature.icon}
+                  </ThemeIcon>
+                  <Text fw={500} size="lg" mb="xs">
+                    {feature.title}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {feature.description}
+                  </Text>
+                </Card>
+              ))}
+            </SimpleGrid>
+          </Stack>
         </Container>
       </Box>
 
       {/* Popular Subjects */}
       <Box py={80}>
         <Container size="lg">
-          <Title order={2} ta="center" mb="lg">
-            Popular Subjects
-          </Title>
-          <Text size="lg" c="dimmed" ta="center" mb={50} mx="auto" maw={700}>
-            Explore our most popular tutoring subjects with expert instructors
-          </Text>
+          <Stack gap="xl" align="center">
+            <div>
+              <Title order={2} ta="center" mb="md">
+                Popular Subjects
+              </Title>
+              <Text size="lg" c="dimmed" ta="center" mx="auto" maw={700}>
+                Explore our wide range of subjects and find the perfect tutor
+                for your needs
+              </Text>
+            </div>
 
-          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing={20}>
-            {subjects.map((subject) => (
-              <Paper 
-                key={subject.name} 
-                shadow="sm" 
-                radius="md" 
-                p="md" 
-                withBorder 
-                ta="center"
-                component={Link}
-                href={`${routes.exploreSessions}?subject=${subject.name.toLowerCase()}`}
-                style={{ 
-                  display: 'block',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  transition: 'transform 0.2s',
-                }}
-              >
-                <ThemeIcon size={40} radius="md" mb="sm" mx="auto">
-                  {subject.icon}
-                </ThemeIcon>
-                <Text fw={500} mb={5}>
-                  {subject.name}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {subject.sessions} sessions
-                </Text>
-              </Paper>
-            ))}
-          </SimpleGrid>
-
-          <Center mt={40}>
-            <Button 
-              component={Link} 
-              href={routes.exploreSessions}
-              variant="outline"
-              rightSection={<ArrowRight size={16} />}
-            >
-              View All Subjects
-            </Button>
-          </Center>
+            <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing={20}>
+              {subjects.map((subject) => (
+                <Card
+                  key={subject.name}
+                  shadow="sm"
+                  radius="md"
+                  p="md"
+                  withBorder
+                >
+                  <Group gap="xs">
+                    <ThemeIcon size={30} radius="md" color={subject.color}>
+                      {subject.icon}
+                    </ThemeIcon>
+                    <div>
+                      <Text fw={500} size="sm">
+                        {subject.name}
+                      </Text>
+                    </div>
+                  </Group>
+                </Card>
+              ))}
+            </SimpleGrid>
+          </Stack>
         </Container>
       </Box>
 
-      {/* Featured Tutors */}
-      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+      {/* How It Works */}
+      <Box py={80}>
         <Container size="lg">
-          <Title order={2} ta="center" mb="lg">
-            Featured Tutors
-          </Title>
-          <Text size="lg" c="dimmed" ta="center" mb={50} mx="auto" maw={700}>
-            Meet our experienced and highly-rated tutoring professionals
-          </Text>
+          <Stack gap="xl" align="center">
+            <div>
+              <Title order={2} ta="center" mb="md">
+                How It Works
+              </Title>
+              <Text size="lg" c="dimmed" ta="center" mx="auto" maw={700}>
+                Get started with LAUSD Tutoring in just a few simple steps
+              </Text>
+            </div>
 
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing={20}>
-            {tutors.map((tutor) => (
-              <Card key={tutor.name} shadow="sm" radius="md" padding="lg" withBorder>
-                <Card.Section p="md" ta="center">
-                  <Avatar src={tutor.avatar} size={80} radius={80} mx="auto" mt={20} />
-                  <Text fw={500} size="lg" mt="md">
-                    {tutor.name}
-                  </Text>
-                  <Group justify="center" mt={5}>
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={14}
-                        fill={i < Math.floor(tutor.rating) ? "#FFD700" : "none"}
-                        color={i < Math.floor(tutor.rating) ? "#FFD700" : "#CCC"}
-                      />
-                    ))}
-                    <Text size="sm">{tutor.rating.toFixed(1)}</Text>
-                  </Group>
-                </Card.Section>
+            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing={30}>
+              <Paper shadow="md" radius="md" p="xl" withBorder>
+                <ThemeIcon size={60} radius="md" mb="md" color="blue">
+                  <User size={30} />
+                </ThemeIcon>
+                <Title order={3} size="h4" mb="xs">
+                  1. Create Account
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Sign up for an account to access our tutoring platform
+                </Text>
+              </Paper>
 
-                <Group gap={7} mt="md" mb="xs">
-                  {tutor.subjects.map((subject) => (
-                    <Badge key={subject} size="sm">
-                      {subject}
-                    </Badge>
-                  ))}
-                </Group>
+              <Paper shadow="md" radius="md" p="xl" withBorder>
+                <ThemeIcon size={60} radius="md" mb="md" color="violet">
+                  <Search size={30} />
+                </ThemeIcon>
+                <Title order={3} size="h4" mb="xs">
+                  2. Find Sessions
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Browse and book sessions based on your learning needs
+                </Text>
+              </Paper>
 
-                <Group mt="md" justify="space-between">
-                  <Group gap={5}>
-                    <Users size={14} />
-                    <Text size="sm">{tutor.sessions} sessions</Text>
-                  </Group>
-                  <Button
-                    component={Link}
-                    href={routes.exploreSessions}
-                    variant="light"
-                    size="xs"
-                  >
-                    View Profile
-                  </Button>
-                </Group>
-              </Card>
-            ))}
-          </SimpleGrid>
+              <Paper shadow="md" radius="md" p="xl" withBorder>
+                <ThemeIcon size={60} radius="md" mb="md" color="teal">
+                  <GraduationCap size={30} />
+                </ThemeIcon>
+                <Title order={3} size="h4" mb="xs">
+                  3. Start Learning
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Join interactive virtual sessions with expert tutors
+                </Text>
+              </Paper>
+            </SimpleGrid>
 
-          <Center mt={40}>
-            <Button 
-              component={Link} 
-              href={routes.exploreSessions}
-              variant="outline"
-              rightSection={<ArrowRight size={16} />}
-            >
-              View All Tutors
-            </Button>
-          </Center>
+            <Center mt={40}>
+              <Button
+                component={Link}
+                href={routes.signUp}
+                size="lg"
+                rightSection={<ArrowRight size={16} />}
+                radius="md"
+              >
+                Get Started
+              </Button>
+            </Center>
+          </Stack>
         </Container>
       </Box>
 
       {/* CTA Section */}
-      <Box py={100}>
+      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
         <Container size="lg">
-          <Paper shadow="xl" radius="lg" p={{ base: 30, md: 50 }} style={{ backgroundColor: "#0a85ff" }}>
-            <Grid gutter={40}>
-              <Grid.Col span={{ base: 12, md: 8 }}>
-                <Title order={2} c="white" mb="sm">
-                  Ready to Excel in Your Studies?
+          <Paper radius="md" p={60} withBorder>
+            <Stack gap="xl" align="center">
+              <div style={{ textAlign: "center" }}>
+                <Title order={2} mb="md">
+                  Ready to Start Your Learning Journey?
                 </Title>
-                <Text size="lg" c="white" opacity={0.9} mb="xl">
-                  Join LAUSD Tutoring today and connect with expert tutors for personalized learning
-                  experiences designed to help you succeed.
+                <Text size="lg" c="dimmed" maw={600} mx="auto">
+                  Join thousands of students who have already transformed their
+                  academic experience with LAUSD Tutoring.
                 </Text>
-                <Group>
-                  <Button 
-                    component={Link} 
-                    href={routes.exploreSessions} 
-                    size="lg" 
-                    color="dark"
-                  >
-                    Explore Sessions
-                  </Button>
-                  <Button 
-                    component={Link} 
-                    href={routes.signUp} 
-                    variant="white" 
-                    size="lg"
-                    color="blue"
-                  >
-                    Sign Up Now
-                  </Button>
-                </Group>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, md: 4 }}>
-                <Center h="100%">
-                  <Sparkles size={120} color="white" opacity={0.8} />
-                </Center>
-              </Grid.Col>
-            </Grid>
+              </div>
+              <Group>
+                <Button
+                  component={Link}
+                  href={routes.signUp}
+                  size="lg"
+                  rightSection={<ArrowRight size={16} />}
+                  radius="md"
+                >
+                  Sign Up Now
+                </Button>
+                <Button
+                  component={Link}
+                  href={routes.exploreSessions}
+                  size="lg"
+                  variant="outline"
+                  radius="md"
+                >
+                  Explore Sessions
+                </Button>
+              </Group>
+            </Stack>
           </Paper>
         </Container>
       </Box>

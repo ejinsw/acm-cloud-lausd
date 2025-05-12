@@ -52,7 +52,7 @@ export default function Footer() {
               <Title order={6}>Resources</Title>
               <Anchor component={Link} href={routes.help} underline="never" size="xs">Help Center</Anchor>
               <Anchor component={Link} href={routes.contact} underline="never" size="xs">Contact Us</Anchor>
-              <Anchor component={Link} href={`${routes.help}#faqs`} underline="never" size="xs">FAQs</Anchor>
+              <Anchor component={Link} href={`${routes.help}/faq`} underline="never" size="xs">FAQs</Anchor>
             </Stack>
             
             <Stack gap="xs">

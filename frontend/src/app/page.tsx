@@ -14,8 +14,6 @@ import {
   Box,
   Center,
   Image,
-  Badge,
-  Avatar,
   Stack,
 } from "@mantine/core";
 import Link from "next/link";

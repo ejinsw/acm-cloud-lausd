@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Group, NumberInput, Stepper } from "@mantine/core";
+import { Button, Group, LoadingOverlay, NumberInput, Stepper } from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -19,7 +19,6 @@ export type StudentInfo = {
 
 export default function RegisterStudent({ className }: Props) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const router = useRouter();
 
   const [studentInfo, setStudentInfo] = useState<StudentInfo>({
     userInfo: {
@@ -39,50 +38,86 @@ export default function RegisterStudent({ className }: Props) {
     grade: 0,
     schoolName: "",
   });
+  const [active, setActive] = useState(0);
+
+  const [highestStepVisited, setHighestStepVisited] = useState(active);
+
+  const shouldAllowSelectStep = (step: number) =>
+    highestStepVisited >= step && active !== step;
+
+  const handleStepChange = (nextStep: number) => {
+    const isOutOfBounds = nextStep > 3 || nextStep < 0;
+
+    if (isOutOfBounds) {
+      return;
+    }
+
+    setActive(nextStep);
+    setHighestStepVisited(hSC => Math.max(hSC, nextStep));
+  };
+  // Allow the user to freely go back and forth between visited steps.
+
   // TODO: Attach this function to the form like so <form onSubmit={onSubmit}>
   async function onSubmit() {
     setIsLoading(true); // Start Loading
 
     try {
       // TODO: Remove mock delay for testing
-      const seconds = 1.5;
-      await new Promise(resolve => setTimeout(resolve, seconds * 1000));
-
-      // TODO: Implement API calls with formData (we don't need to worry about this part!)
-      router.push("/student");
+      const res = await fetch('/api/users/student', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(studentInfo),
+      });
+    
+      const data = await res.json();
+      if(res.status != 400)
+      {
+        throw new Error("Couldn't create account");
+        
+      }
+      console.log(res.status);
+      console.log(data.message);
     } catch (error) {
       // Error Handling
       console.error(error);
     } finally {
-      setIsLoading(false);
+      //move to home page
+      setIsLoading(false); //might not need this
+      window.location.href = "home"; //should go to student home
     }
   }
-  const [active, setActive] = useState(0);
-  const nextStep = () =>
-    setActive(current => (current < 3 ? current + 1 : current));
-  const prevStep = () =>
-    setActive(current => (current > 0 ? current - 1 : current));
+  if(isLoading) return <LoadingOverlay zIndex={900} />
   return (
-    
     <div
       className={`max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-white shadow-lg rounded-xl ${className}`}
     >
       <Group justify="center">
-        <h1 className="font-bold text-blue-700 text-3xl pb-4">Register a Student</h1> 
+        <h1 className="font-bold text-blue-700 text-3xl pb-4">
+          Register a Student
+        </h1>
       </Group>
-      
+
       <Stepper active={active} onStepClick={setActive}>
-        <Stepper.Step label="First step" description="Create an account">
+        <Stepper.Step
+          label="First step"
+          description="Create an account"
+          allowStepSelect={shouldAllowSelectStep(0)}
+        >
           <div className="mb-6">
             <AccountInfo setData={setStudentInfo} />
           </div>
         </Stepper.Step>
-        <Stepper.Step label="Second step" description="Input Address">
+        <Stepper.Step
+          label="Second step"
+          description="Input Address"
+          allowStepSelect={shouldAllowSelectStep(1)}
+        >
           <AddressInput setData={setStudentInfo} />
         </Stepper.Step>
         <Stepper.Step
           label="School Information"
           description="Input school information"
+          allowStepSelect={shouldAllowSelectStep(2)}
         >
           <div className="mb-6">
             <label className="block text-gray-700 font-medium mb-2">
@@ -133,13 +168,13 @@ export default function RegisterStudent({ className }: Props) {
         </Stepper.Completed>
       </Stepper>
       <Group justify="center" mt="xl">
-        <Button variant="default" onClick={prevStep}>
+        <Button variant="default" onClick={() => handleStepChange(active - 1)}>
           Back
         </Button>
-        <Button onClick={nextStep}>Next step</Button>
+        <Button onClick={() => handleStepChange(active + 1)}>Next step</Button>
       </Group>
       <Group justify="center">
-      <Link
+        <Link
           className="text-blue-800 text-m font-bold pt-4"
           href={{
             pathname: "/register/teacher",
@@ -149,6 +184,5 @@ export default function RegisterStudent({ className }: Props) {
         </Link>
       </Group>
     </div>
-    
   );
 }

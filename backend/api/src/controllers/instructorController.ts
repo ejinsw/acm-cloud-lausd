@@ -1,7 +1,7 @@
 import expressAsyncHandler from "express-async-handler";
 import { NextFunction, Request, Response } from "express";
 import { prisma } from "../config/prisma";
-
+import { CreateInstructorDto } from "../types/index";
 /**
  * Get all instructors.
  * Supports filtering by name or subject using query parameters:
@@ -103,7 +103,7 @@ export const getInstructorById = expressAsyncHandler(
  * @body {string} schoolName - The name of the school the instructor teaches at.
  */
 export const createInstructor = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request<{}, {}, CreateInstructorDto>, res: Response, next: NextFunction) => {
     //valdie the data and make sure all queries are filled 
     const { userId, certificationUrls, subjects, firstName, lastName, email, dateOfBirth, phoneNumber, address, city, state, zipCode, country, schoolName } = req.body;
     if (!userId || !certificationUrls || !subjects) {
@@ -127,7 +127,7 @@ export const createInstructor = expressAsyncHandler(
       data: {
         id: userId,
         certificationUrls: certificationUrls,
-        subjects: subjects,
+        //subjects: subjects, figure out what subject part of
         averageRating: 0,
         firstName: firstName ?? null,
         lastName: lastName ?? null,

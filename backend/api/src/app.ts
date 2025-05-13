@@ -9,6 +9,7 @@ import serverless from "serverless-http";
 import studentRouter from "./routes/studentRouter";
 import instructorRouter from "./routes/instructorRouter";
 import sessionRouter from "./routes/sessionRouter";
+import authenticationRouter from "./routes/authenticationRouter";
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use(cors());
 app.use("/api", studentRouter);
 app.use("/api", instructorRouter);
 app.use("/api", sessionRouter);
+app.use("/api", authenticationRouter);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

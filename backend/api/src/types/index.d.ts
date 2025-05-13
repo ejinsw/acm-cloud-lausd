@@ -1,13 +1,15 @@
-declare global {
-  declare namespace Express {
-    export interface User {
-      // TODO: Add User fields
-    }
-    // TODO: Add the rest of the schema (...or import types from ORM)
-    export interface Request {
-      user: User;
-    }
-  }
+export interface User {
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  nickname?: string;
+  picture?: string;
+  updated_at?: string;
+  user_id?: string;
+  user_metadata?: {
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+  };
 }
-
-export {};

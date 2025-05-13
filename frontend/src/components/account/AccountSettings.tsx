@@ -50,12 +50,12 @@ interface BaseFormData {
   confirmPassword: string;
 }
 
-interface StudentFormData extends BaseFormData {
+export interface StudentFormData extends BaseFormData {
   parentEmail: string;
   grade: string;
 }
 
-interface InstructorFormData extends BaseFormData {
+export interface InstructorFormData extends BaseFormData {
   bio: string;
   certifications: File[];
   credentials: string;

@@ -13,15 +13,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Student {
-  id        String    @id 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  firstName String?
-  lastName  String?
-  email     String?   @unique
+model User {
+  id        String   @id // Auth0 user_id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  email     String   @unique
+  role      UserRole
+  verified  Boolean  @default(false)
+  firstName String
+  lastName  String
   birthdate DateTime?
-  grade     Int?
 
   // Address
   street    String?
@@ -34,38 +35,29 @@ model Student {
   // School
   schoolName String?
 
-  parentEmail String?
-  reviews     Review[]
-  sessions    Session[]
-}
+  // Profile
+  profilePicture String?
+  bio           String?
 
-model Instructor {
-  id        String    @id 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  firstName String?
-  lastName  String?
-  email     String?   @unique
-  birthdate DateTime?
-  address   String?
-  grade     Int?
+  // Role-specific fields
+  grade            String?  // For students
+  parentFirstName  String?  // For students
+  parentLastName   String?  // For students
+  parentEmail      String?  // For students
+  parentPhone      String?  // For students
+  interests        String[] // For students
+  learningGoals    String[] // For students
+  education        String[] // For instructors
+  experience       String[] // For instructors
+  certificationUrls String[] // For instructors
+  averageRating    Float?   // For instructors
 
-  // Address
-  street    String?
-  apartment String?
-  city      String?
-  state     String?
-  zip       String?
-  country   String?
-
-  // School
-  schoolName String?
-
-  certificationUrls String[]
-  averageRating     Float?
-  reviews           Review[]
-  sessions          Session[]
-  subjects          Subject[]
+  // Relations
+  studentReviews     Review[]  @relation("StudentReviews")
+  instructorReviews  Review[]  @relation("InstructorReviews")
+  instructorSessions Session[] @relation("InstructorSessions")
+  studentSessions    Session[] @relation("StudentSessions")
+  subjects           Subject[] // For instructors
 }
 
 model Session {
@@ -79,9 +71,14 @@ model Session {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // Session Details
+  status      SessionStatus @default(SCHEDULED)
+  materials   String[]
+  objectives  String[]
+
   instructorId String
-  instructor   Instructor @relation(fields: [instructorId], references: [id])
-  students     Student[]
+  instructor   User     @relation("InstructorSessions", fields: [instructorId], references: [id])
+  students     User[]   @relation("StudentSessions")
   subjects     Subject[]
 
   @@index([instructorId])
@@ -95,18 +92,33 @@ model Review {
   updatedAt DateTime @updatedAt
 
   studentId    String
-  student      Student    @relation(fields: [studentId], references: [id])
+  student      User     @relation("StudentReviews", fields: [studentId], references: [id])
   instructorId String
-  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  instructor   User     @relation("InstructorReviews", fields: [instructorId], references: [id])
 
   @@index([studentId])
   @@index([instructorId])
 }
 
 model Subject {
-  id   String @id @default(uuid())
-  name String @unique
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  category    String?
+  level       String?
 
-  instructors Instructor[]
+  instructors User[]
   sessions    Session[]
+}
+
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+}
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }

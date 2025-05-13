@@ -54,7 +54,7 @@ export const createReview = expressAsyncHandler(
       return
     }
     
-  const existingStudent = await prisma.student.findUnique({
+  const existingStudent = await prisma.user.findUnique({
     where: {
       id: studentId
     }
@@ -65,7 +65,7 @@ export const createReview = expressAsyncHandler(
       return
   }
 
-  const existingTeacher = await prisma.instructor.findUnique({
+  const existingTeacher = await prisma.user.findUnique({
     where: {
       id: studentId
     }
@@ -99,10 +99,10 @@ export const updateReview = expressAsyncHandler(
     const {id} = req.params;
     const {rating, comment} = req.body;
 
-    const existingReview = await prisma.student.findUnique({ where: { id } })
+    const existingReview = await prisma.user.findUnique({ where: { id } })
 
     if (!existingReview){
-      res.status(404).json({"message: Review not found"});
+      res.status(404).json({message: "Review not found"});
       return;
     }
 
@@ -135,10 +135,10 @@ export const deleteReview = expressAsyncHandler(
     const {id} = req.params;
     await prisma.review.delete({where: {id}});
 
-    const existingReview = await prisma.student.findUnique({ where: { id } })
+    const existingReview = await prisma.user.findUnique({ where: { id } })
 
     if (!existingReview){
-      res.status(404).json({"message: Review not found"});
+      res.status(404).json({message: "Review not found"});
       return;
     }
 

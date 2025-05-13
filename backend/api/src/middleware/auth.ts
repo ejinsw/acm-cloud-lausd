@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { expressjwt as jwt } from "express-jwt";
+import { expressjwt } from "express-jwt";
 import jwksRsa from "jwks-rsa";
 import { User } from "../types";
 
-export const authenticateToken = jwt({
+export const authenticateToken = expressjwt({
   secret: jwksRsa.expressJwtSecret({
     cache: true,
     rateLimit: true,

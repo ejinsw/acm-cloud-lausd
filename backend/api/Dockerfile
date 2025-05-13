@@ -16,8 +16,8 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Expose port 8080
-EXPOSE 8080
+# Expose the port
+EXPOSE 3000
 
-# Start with nodemon for hot reloading
+# Start the application
 CMD ["npm", "run", "dev"]

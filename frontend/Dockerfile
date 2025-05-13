@@ -1,5 +1,5 @@
 # Use Node.js 20 as the base image
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
@@ -7,9 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with a clean slate
-RUN npm cache clean --force && \
-    npm install
+# Install dependencies
+RUN npm install
 
 # Copy the rest of the application
 COPY . .

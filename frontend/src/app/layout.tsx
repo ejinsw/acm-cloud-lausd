@@ -7,9 +7,11 @@ import { Theme } from '../theme';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { routes } from './routes';
+import { Notifications } from "@mantine/notifications";
 
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
+import '@mantine/notifications/styles.css';
 import './globals.css';
 
 const fontSans = FontSans({
@@ -36,6 +38,7 @@ export default function RootLayout({
       </head>
       <body>
         <MantineProvider theme={Theme} forceColorScheme="light">
+          <Notifications position="top-right" />
           <AppShell
             header={{ height: 60 }}
             navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: true, mobile: !opened } }}

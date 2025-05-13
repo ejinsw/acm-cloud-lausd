@@ -1,17 +1,20 @@
-import { Router } from "express";
+import express from "express";
 import {
+  createReview,
+  getReview,
+  updateReview,
   deleteReview,
   getAllReviews,
-  getReviewById,
-  createReview,
-  updateReview,
 } from "../controllers/reviewController";
-const router = Router();
+import { authenticateToken, checkRole } from "../middleware/auth";
 
-router.get("/reviews", getAllReviews);
-router.get("/review/:id", getReviewById);
-router.post("/reviews", createReview)
-router.put("/review/:id", updateReview);
-router.delete("/review/:id", deleteReview);
+const router = express.Router();
+
+// Protected routes
+router.post("/reviews", authenticateToken, checkRole(["STUDENT"]), createReview);
+router.get("/reviews/:id", authenticateToken, getReview);
+router.put("/reviews/:id", authenticateToken, checkRole(["STUDENT"]), updateReview);
+router.delete("/reviews/:id", authenticateToken, checkRole(["STUDENT"]), deleteReview);
+router.get("/reviews", authenticateToken, getAllReviews);
 
 export default router;

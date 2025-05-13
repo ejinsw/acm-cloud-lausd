@@ -1,11 +1,26 @@
-import { Router } from "express";
-import { createSession, deleteSession, getAllSessions, getSessionById, updateSession } from "../controllers/sessionController";
-const router = Router();
+import express from "express";
+import {
+  createSession,
+  getSession,
+  updateSession,
+  deleteSession,
+  getSessions,
+  joinSession,
+  leaveSession,
+} from "../controllers/sessionController";
+import { authenticateToken, checkRole } from "../middleware/auth";
 
-router.get("/sessions", getAllSessions)
-router.get("/session/:id", getSessionById)
-router.post("/session", createSession)
-router.put("/session/:id", updateSession)
-router.delete("/session/:id", deleteSession)
+const router = express.Router();
+
+// Protected routes
+router.post("/sessions", authenticateToken, checkRole(["INSTRUCTOR"]), createSession);
+router.get("/sessions/:id", authenticateToken, getSession);
+router.put("/sessions/:id", authenticateToken, checkRole(["INSTRUCTOR"]), updateSession);
+router.delete("/sessions/:id", authenticateToken, checkRole(["INSTRUCTOR"]), deleteSession);
+router.get("/sessions", authenticateToken, getSessions);
+
+// Session participation
+router.post("/sessions/:id/join", authenticateToken, checkRole(["STUDENT"]), joinSession);
+router.post("/sessions/:id/leave", authenticateToken, checkRole(["STUDENT"]), leaveSession);
 
 export default router;

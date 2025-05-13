@@ -1,5 +1,19 @@
 import expressAsyncHandler from "express-async-handler";
 import { NextFunction, Request, Response } from "express";
+import { prisma } from "../config/prisma";
+
+// Types
+interface SessionData {
+  name: string;
+  description?: string;
+  startTime?: Date;
+  endTime?: Date;
+  zoomLink?: string;
+  maxAttendees?: number;
+  materials: string[];
+  objectives: string[];
+  subjects: string[];
+}
 
 /**
  * Get all sessions.
@@ -73,5 +87,49 @@ export const updateSession = expressAsyncHandler(
 export const deleteSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     res.json({ message: "Hello World!" });
+  }
+);
+
+/**
+ * @route GET /api/sessions/:id
+ * @desc Get session by ID
+ * @access Private
+ */
+export const getSession = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement get session
+  }
+);
+
+/**
+ * @route GET /api/sessions
+ * @desc Get all sessions
+ * @access Private
+ */
+export const getSessions = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement get all sessions
+  }
+);
+
+/**
+ * @route POST /api/sessions/:id/join
+ * @desc Join a session
+ * @access Private/Student
+ */
+export const joinSession = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement join session
+  }
+);
+
+/**
+ * @route POST /api/sessions/:id/leave
+ * @desc Leave a session
+ * @access Private/Student
+ */
+export const leaveSession = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement leave session
   }
 );

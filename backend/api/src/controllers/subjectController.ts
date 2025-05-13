@@ -1,5 +1,14 @@
 import expressAsyncHandler from "express-async-handler";
 import { NextFunction, Request, Response } from "express";
+import { prisma } from "../config/prisma";
+
+// Types
+interface SubjectData {
+  name: string;
+  description?: string;
+  category?: string;
+  level?: string;
+}
 
 /**
  * Get all subjects.
@@ -26,38 +35,56 @@ export const getSubjectByName = expressAsyncHandler(
 );
 
 /**
- * Create a new subject.
- * 
- * @route POST /subjects
- * @body {string} name - The name of the new subject.
+ * @route POST /api/subjects
+ * @desc Create a new subject
+ * @access Private/Instructor
  */
 export const createSubject = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+  async (req: Request, res: Response) => {
+    // TODO: Implement create subject
   }
 );
 
 /**
- * Update an existing subject by its ID.
- * 
- * @route PUT /subjects/:id
- * @param {string} id - The unique identifier of the subject.
- * @body {string} [name] - The updated name of the subject (optional).
+ * @route GET /api/subjects/:id
+ * @desc Get subject by ID
+ * @access Private
+ */
+export const getSubject = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement get subject
+  }
+);
+
+/**
+ * @route PUT /api/subjects/:id
+ * @desc Update subject
+ * @access Private/Instructor
  */
 export const updateSubject = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+  async (req: Request, res: Response) => {
+    // TODO: Implement update subject
   }
 );
 
 /**
- * Delete a subject by its ID.
- * 
- * @route DELETE /subjects/:id
- * @param {string} id - The unique identifier of the subject to delete.
+ * @route DELETE /api/subjects/:id
+ * @desc Delete subject
+ * @access Private/Instructor
  */
 export const deleteSubject = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+  async (req: Request, res: Response) => {
+    // TODO: Implement delete subject
+  }
+);
+
+/**
+ * @route GET /api/subjects
+ * @desc Get all subjects
+ * @access Private
+ */
+export const getSubjects = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    // TODO: Implement get all subjects
   }
 );

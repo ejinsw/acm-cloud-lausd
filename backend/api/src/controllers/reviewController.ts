@@ -35,6 +35,14 @@ export const getReviewById = expressAsyncHandler(
   }
 );
 
+// Types
+interface ReviewData {
+  rating: number;
+  comment?: string;
+  studentId: string;
+  instructorId: string;
+}
+
 /**
  * Create a new review.
  * 
@@ -142,7 +150,19 @@ export const deleteReview = expressAsyncHandler(
       return;
     }
 
+    res.status(200).json({message: "Review deleted successfully"}); 
+  }
+);
 
-    res.json({ message: "Deleted Review" });
+/**
+ * Get all reviews.
+ * 
+ * @route GET /reviews
+ * @desc Get all reviews
+ * @access Private
+ */
+export const getReview = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    // TODO: Implement get all reviews
   }
 );

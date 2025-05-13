@@ -1,15 +1,20 @@
-import { Router } from "express";
+import express from "express";
 import {
-    deleteSubject,
-  getAllSubjects,
-  getSubjectByName,
+  createSubject,
+  getSubject,
   updateSubject,
+  deleteSubject,
+  getSubjects,
 } from "../controllers/subjectController";
-const router = Router();
+import { authenticateToken, checkRole } from "../middleware/auth";
 
-router.get("/subjects", getAllSubjects);
-router.get("/subject/:name", getSubjectByName);
-router.put("/subject/:id", updateSubject);
-router.delete("/subject/:id", deleteSubject);
+const router = express.Router();
+
+// Protected routes
+router.post("/subjects", authenticateToken, checkRole(["INSTRUCTOR"]), createSubject);
+router.get("/subjects/:id", authenticateToken, getSubject);
+router.put("/subjects/:id", authenticateToken, checkRole(["INSTRUCTOR"]), updateSubject);
+router.delete("/subjects/:id", authenticateToken, checkRole(["INSTRUCTOR"]), deleteSubject);
+router.get("/subjects", authenticateToken, getSubjects);
 
 export default router;

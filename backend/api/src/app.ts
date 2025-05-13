@@ -10,6 +10,7 @@ import studentRouter from "./routes/studentRouter";
 import instructorRouter from "./routes/instructorRouter";
 import sessionRouter from "./routes/sessionRouter";
 import authenticationRouter from "./routes/authenticationRouter";
+import reviewRouter from "./routes/reviewRouter";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.use("/api", studentRouter);
 app.use("/api", instructorRouter);
 app.use("/api", sessionRouter);
 app.use("/api", authenticationRouter);
+app.use("/api", reviewRouter)
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

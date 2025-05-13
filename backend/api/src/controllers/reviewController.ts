@@ -46,7 +46,42 @@ export const getReviewById = expressAsyncHandler(
  */
 export const createReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+
+    const {rating, comment, studentId, instructorId} = req.body;
+
+    if (rating === undefined || rating === null || rating === "" || !comment || !studentId || !instructorId) {
+      res.status(400).json({"message": "Missing required fields!"})
+      return
+    }
+    
+  const existingStudent = await prisma.student.findUnique({
+    where: {
+      id: studentId
+    }
+  })
+
+  if(!existingStudent) {
+    res.status(400).json({"message": "Student doesn't exist"})
+      return
+  }
+
+  const existingTeacher = await prisma.instructor.findUnique({
+    where: {
+      id: studentId
+    }
+  })
+
+    const newReview = await prisma.review.create({
+      data: {
+        rating: parseInt(rating),
+        comment,
+        studentId,
+        instructorId,
+      },
+    });
+
+
+    res.status(201).json(newReview);
   }
 );
 
@@ -60,7 +95,31 @@ export const createReview = expressAsyncHandler(
  */
 export const updateReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+
+    const {id} = req.params;
+    const {rating, comment} = req.body;
+
+    const existingReview = await prisma.student.findUnique({ where: { id } })
+
+    if (!existingReview){
+      res.status(404).json({"message: Review not found"});
+      return;
+    }
+
+    if (rating === undefined || rating === null || rating === "" || !comment) {
+      res.status(400).json({"message": "Missing required fields!"})
+      return
+    }
+
+    const updatedReview = await prisma.review.update({
+      where: {id},
+      data: {
+        ...(rating && {rating}),
+        ...(comment && {comment}), 
+      },
+    });
+
+    res.json(updatedReview);
   }
 );
 
@@ -72,6 +131,18 @@ export const updateReview = expressAsyncHandler(
  */
 export const deleteReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+
+    const {id} = req.params;
+    await prisma.review.delete({where: {id}});
+
+    const existingReview = await prisma.student.findUnique({ where: { id } })
+
+    if (!existingReview){
+      res.status(404).json({"message: Review not found"});
+      return;
+    }
+
+
+    res.json({ message: "Deleted Review" });
   }
 );

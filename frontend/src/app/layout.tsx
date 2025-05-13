@@ -1,46 +1,71 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import "@mantine/core/styles.css";
-import {
-  ColorSchemeScript,
-  mantineHtmlProps,
-  MantineProvider,
-} from "@mantine/core";
-import { Shell } from "./Shell";
+"use client";
+
+import { MantineProvider, AppShell, Burger, Group } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { Inter as FontSans } from "next/font/google";
+import { Theme } from '../theme';
+import Navigation from '../components/Navigation';
+import Footer from '../components/Footer';
+import { routes } from './routes';
+import { Notifications } from "@mantine/notifications";
 import { UserProvider } from "@auth0/nextjs-auth0/client";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import '@mantine/core/styles.css';
+import '@mantine/dates/styles.css';
+import '@mantine/notifications/styles.css';
+import './globals.css';
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const fontSans = FontSans({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
-
-export const metadata: Metadata = {
-  title: "Find-A-Tutor",
-  description: "Helping students connect with teachers.",
-};
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const [opened, { toggle }] = useDisclosure();
+
   return (
-    <html lang="en" {...mantineHtmlProps}>
+    <html lang="en" className={fontSans.variable}>
       <head>
-        <ColorSchemeScript />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta
+          name="description"
+          content="LAUSD Tutoring Platform - Connect with tutors for personalized learning"
+        />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body>
         <UserProvider>
-          <MantineProvider>
-            <Shell>{children}</Shell>
+          <MantineProvider theme={Theme} forceColorScheme="light">
+            <Notifications position="top-right" />
+            <AppShell
+              header={{ height: 60 }}
+              navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: true, mobile: !opened } }}
+              padding="md"
+            >
+              <AppShell.Header>
+                <Group h="100%" px="md" justify="space-between">
+                  <Group>
+                    <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+                    <Navigation.Logo />
+                  </Group>
+                  <Navigation.DesktopNav routes={routes} />
+                  <Navigation.Actions routes={routes} />
+                </Group>
+              </AppShell.Header>
+
+              <AppShell.Navbar p="md">
+                <Navigation.MobileNav routes={routes} />
+              </AppShell.Navbar>
+
+              <AppShell.Main>
+                {children}
+                <Footer />
+              </AppShell.Main>
+            </AppShell>
           </MantineProvider>
         </UserProvider>
       </body>

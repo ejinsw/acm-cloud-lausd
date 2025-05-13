@@ -13,7 +13,7 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Set environment variable to ignore build errors
+# Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=development
 ENV NEXT_PUBLIC_API_URL=http://localhost:8080

@@ -35,8 +35,13 @@
  *
  */
 
+"use client";
+
 import { RegisterInstructor } from "./RegisterInstructor";
 import { RegisterStudent } from "./RegisterStudent";
+import { useUser } from "@auth0/nextjs-auth0/client";
+import { Container, Loader, Text, Center, SegmentedControl, Box } from "@mantine/core";
+import { useState } from "react";
 
 // export type InfoProp = {
 //   addressHandler: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -59,6 +64,7 @@ export type AddressInfo = {
   zip: number;
   country: string;
 };
+
 export type UserInfo = {
   firstName: string;
   lastName: string;
@@ -69,8 +75,42 @@ export type UserInfo = {
 };
 
 export default function Page() {
-  // TODO: Update ternary with some stateful condition (i.e. a switch that toggles a boolean useState())
+  const [isStudent, setIsStudent] = useState(true);
+  const { isLoading, error } = useUser();
+
+  if (isLoading) {
+    return (
+      <Center h="100vh">
+        <Loader size="lg" />
+      </Center>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container size="sm" py="xl">
+        <Text c="red" ta="center">
+          Error loading user data. Please try again later.
+        </Text>
+      </Container>
+    );
+  }
+
   return (
-    <section>{false ? <RegisterStudent /> : <RegisterInstructor />}</section>
+    <Container size="lg" py="xl">
+      <Box mb="xl" ta="center">
+        <SegmentedControl
+          value={isStudent ? "student" : "instructor"}
+          onChange={(value) => setIsStudent(value === "student")}
+          data={[
+            { label: "Student Registration", value: "student" },
+            { label: "Instructor Registration", value: "instructor" },
+          ]}
+        />
+      </Box>
+      <section>
+        {isStudent ? <RegisterStudent /> : <RegisterInstructor />}
+      </section>
+    </Container>
   );
 }

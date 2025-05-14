@@ -1,6 +1,6 @@
 "use client";
 
-import { Group, Select, TextInput, Button, RangeSlider, MultiSelect, Box, Stack } from '@mantine/core';
+import { Group, Select, TextInput, Button, MultiSelect, Box, Stack } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useState } from "react";
 
@@ -105,23 +105,6 @@ export function SearchBar({
                 clearable
               />
             )}
-            
-            <Box style={{ flex: 1 }}>
-              <Group mb={5}>
-                <span>Price Range</span>
-                {searchParams.priceRange && (
-                  <span>${searchParams.priceRange[0]} - ${searchParams.priceRange[1]}</span>
-                )}
-              </Group>
-              <RangeSlider
-                min={0}
-                max={100}
-                step={5}
-                value={searchParams.priceRange || [0, 100]}
-                onChange={(value) => updateParams('priceRange', value)}
-                label={(value) => `$${value}`}
-              />
-            </Box>
             
             <Select
               label="Sort By"

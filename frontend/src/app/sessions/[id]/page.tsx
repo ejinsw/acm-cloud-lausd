@@ -21,7 +21,7 @@ import {
   Flex,
   Box
 } from "@mantine/core";
-import { Calendar, Clock, DollarSign, Send, Star, Video } from "lucide-react";
+import { Calendar, Clock, Send, Star, Video } from "lucide-react";
 
 // Mock session data (would come from API in real app)
 const sessionsMockData = [
@@ -207,11 +207,6 @@ export default function SessionDetailPage() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card withBorder shadow="sm" mb="lg">
             <Title order={3} mb="md">Book This Session</Title>
-            
-            <Group mb="xs">
-              <DollarSign size={20} />
-              <Text>${session.price}/hour</Text>
-            </Group>
             
             <Group mb="xs">
               <Clock size={20} />

@@ -169,17 +169,6 @@ export default function CreateSessionPage() {
                 <Grid>
                   <Grid.Col span={6}>
                     <NumberInput
-                      label="Price per Hour ($)"
-                      placeholder="25"
-                      required
-                      min={5}
-                      max={200}
-                      value={formValues.price}
-                      onChange={(value) => handleChange("price", value as number)}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <NumberInput
                       label="Duration (minutes)"
                       placeholder="60"
                       required

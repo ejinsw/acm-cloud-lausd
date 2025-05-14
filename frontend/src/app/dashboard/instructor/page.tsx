@@ -238,15 +238,6 @@ export default function InstructorDashboard() {
               <Grid mb="xl">
                 <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
                   <Paper p="md" radius="md" withBorder h={130}>
-                    <Text size="xs" c="dimmed" tt="uppercase">Total Earnings</Text>
-                    <Title order={3} fw={700} mt="xs">${revenueData.totalRevenue}</Title>
-                    <Text size="sm" c="dimmed" mt="md">
-                      Last month: ${revenueData.lastMonthRevenue}
-                    </Text>
-                  </Paper>
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-                  <Paper p="md" radius="md" withBorder h={130}>
                     <Text size="xs" c="dimmed" tt="uppercase">Total Students</Text>
                     <Title order={3} fw={700} mt="xs">{revenueData.totalStudents}</Title>
                     <Text size="sm" c="dimmed" mt="md">
@@ -546,10 +537,6 @@ function SessionCard({ session, onDelete }: SessionCardProps) {
         <Group gap="xs">
           <Text size="sm" c="dimmed">Duration:</Text>
           <Text size="sm">{session.duration} min</Text>
-        </Group>
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">Price:</Text>
-          <Text size="sm">${session.price}/hr</Text>
         </Group>
       </Group>
       

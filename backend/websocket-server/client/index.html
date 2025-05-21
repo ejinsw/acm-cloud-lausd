@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat - Basic</title>
+    <style>
+        /* Basic styling for structure and readability */
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 15px; 
+            background-color: #f9f9f9;
+        }
+        div { 
+            margin-bottom: 12px; 
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            background-color: #fff;
+            border-radius: 4px;
+        }
+        h1, h2, h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        label {
+            display: inline-block;
+            margin-right: 5px;
+            margin-bottom: 3px;
+        }
+        input[type="text"], select { 
+            padding: 6px; 
+            margin-right: 8px; 
+            margin-bottom: 8px; 
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        button { 
+            padding: 6px 10px; 
+            margin-right: 5px; 
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #connection-status { 
+            padding: 8px; 
+            border: 1px solid #ccc; 
+            text-align: center;
+            font-weight: bold;
+        }
+        .status-connected { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .status-disconnected { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;}
+        .status-error { background-color: #fff3cd; color: #856404; border-color: #ffeeba;}
+
+        #chat-section { 
+            border: 1px solid #bbb; 
+            padding: 10px; 
+        }
+        #chat-area { 
+            display: flex; 
+            border: none; 
+            padding: 0;
+        }
+        #chat-sidebar { 
+            width: 180px; 
+            padding-right: 10px; 
+            border-right: 1px solid #ddd; 
+            margin-right: 10px;
+            height: 250px; /* Fixed height for user list */
+            overflow-y: auto;
+        }
+        #main-chat { 
+            flex: 1; 
+            border: none; 
+            padding: 0;
+        }
+        #message-container { 
+            height: 200px; 
+            border: 1px solid #ddd; 
+            overflow-y: auto; 
+            padding: 8px; 
+            margin-bottom: 8px;
+            background-color: #fdfdfd;
+        }
+        .message-item { 
+            border-bottom: 1px solid #f0f0f0; 
+            padding: 5px 3px; 
+            margin-bottom: 3px;
+        }
+        .message-item:last-child {
+            border-bottom: none;
+        }
+        .message-item.my-message { 
+            background-color: #e6f2ff; 
+        }
+        .message-item .sender { 
+            font-weight: bold; 
+            font-size: 0.95em;
+            color: #2c3e50;
+        }
+        .message-item .text {
+            margin-left: 5px;
+        }
+        .message-item .timestamp { 
+            font-size: 0.75em; 
+            color: #7f8c8d; 
+            margin-left: 10px;
+        }
+        .message-item.deleted { 
+            font-style: italic; 
+            color: #95a5a6; 
+            background-color: #ecf0f1;
+        }
+        .notification { 
+            font-style: italic; 
+            color: #34495e; 
+            text-align: center; 
+            padding: 5px 0;
+            background-color: #f0f0f0;
+            border-radius: 3px;
+        }
+        ul { 
+            list-style-type: none; 
+            padding-left: 0; 
+            margin-top: 5px;
+        }
+        #available-rooms li, #user-list li {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+         #available-rooms li:last-child, #user-list li:last-child {
+            border-bottom: none;
+        }
+        #available-rooms li button, #user-list li button { 
+            font-size: 0.8em; 
+            padding: 3px 5px; 
+            margin-left: 8px;
+            background-color: #6c757d;
+        }
+         #available-rooms li button:hover, #user-list li button:hover {
+            background-color: #5a6268;
+         }
+        .delete-msg-btn, .kick-user-btn {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .delete-msg-btn:hover, .kick-user-btn:hover {
+            background-color: #e0a800;
+        }
+        #message-input-area {
+            display: flex;
+            border: none;
+            padding: 0;
+        }
+        #message-input {
+            flex-grow: 1;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Teacher Student Chat Room</h1>
+    <div id="connection-status">Connecting...</div>
+
+    <div id="identify-section" style="display: none;">
+        <h2>Sign in</h2>
+        <label for="user-id">User ID:</label>
+        <input type="text" id="user-id" >
+        <br>
+        <label for="username">Username:</label>
+        <input type="text" id="username" >
+        <br>
+        <label for="user-type">User Type:</label>
+        <select id="user-type">
+            <option value="student">Student</option>
+            <option value="instructor">Instructor</option>
+        </select>
+        <br>
+        <button id="identify-btn">Identify</button>
+    </div>
+
+    <div id="room-management-section" style="display: none;">
+        <h2>Room Management</h2>
+        <div>
+            <label for="create-room-input">New Room:</label>
+            <input type="text" id="create-room-input" placeholder="Room Name">
+            <button id="create-room-btn">Create Room</button>
+        </div>
+        <h3>Available Rooms:</h3>
+        <ul id="available-rooms">
+            <li>Loading rooms...</li>
+        </ul>
+    </div>
+
+    <div id="chat-section" style="display: none;">
+        <h2 id="current-room-name" style="display:inline-block; margin-right: 15px;"></h2>
+        <button id="leave-room-btn">Leave Room</button>
+        
+        <div id="chat-area">
+            <div id="chat-sidebar">
+                <h3>Users Online</h3>
+                <ul id="user-list"></ul>
+            </div>
+            <div id="main-chat">
+                <div id="message-container">
+                    </div>
+                <div id="message-input-area">
+                    <input type="text" id="message-input" placeholder="Type your message...">
+                    <button id="send-message-btn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>

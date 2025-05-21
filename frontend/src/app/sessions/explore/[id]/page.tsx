@@ -25,6 +25,7 @@ import { Calendar, Clock, Send, Star, Video } from "lucide-react";
 import { notifications } from "@mantine/notifications";
 import { useRouter } from "next/navigation";
 import { routes } from "@/app/routes";
+import PageWrapper from "@/components/PageWrapper";
 // Mock session data (would come from API in real app)
 const sessionsMockData = [
   {
@@ -65,7 +66,7 @@ const initialMessages = [
   { id: 2, sender: "instructor", text: "Hello! I'm looking forward to our session. Do you have any specific topics you'd like to focus on?", timestamp: new Date(Date.now() - 1800000).toISOString() },
 ];
 
-export default function SessionDetailPage() {
+function SessionDetailContent() {
   const params = useParams();
   const router = useRouter();
   const sessionId = Number(params.id);
@@ -306,5 +307,13 @@ export default function SessionDetailPage() {
         </Grid.Col>
       </Grid>
     </Container>
+  );
+}
+
+export default function SessionDetailPage() {
+  return (
+    <PageWrapper>
+      <SessionDetailContent />
+    </PageWrapper>
   );
 } 

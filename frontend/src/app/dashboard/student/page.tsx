@@ -7,25 +7,27 @@ import {
   Title,
   Paper,
   Tabs,
-  Button,
   Text,
   Group,
   Box,
+  Stack,
+  Button,
   Modal,
   Textarea,
   Rating,
-  Stack,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import Link from "next/link";
 import { Search, Sparkles, GraduationCap, Calendar, BookOpen } from "lucide-react";
+import Link from "next/link";
 import { routes } from "@/app/routes";
 import { ProgressOverview } from "@/components/dashboard/student/ProgressOverview";
 import { StatsGrid } from "@/components/dashboard/student/StatsGrid";
+import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
 import { UpcomingSessionsTab } from "@/components/dashboard/student/UpcomingSessionsTab";
-import { SessionHistoryTab, PastSession } from "@/components/dashboard/student/SessionHistoryTab";
+import { PastSession } from "@/components/dashboard/student/SessionHistoryTab";
 import { AchievementsPanel } from "@/components/dashboard/student/AchievementsPanel";
+import PageWrapper from "@/components/PageWrapper";
 
 // Mock data
 const upcomingSessions = [
@@ -119,7 +121,7 @@ const achievementStats = {
   streak: 8,
 };
 
-export default function StudentDashboard() {
+function StudentDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [sessionToReview, setSessionToReview] = useState<PastSession | null>(null);
@@ -259,5 +261,13 @@ export default function StudentDashboard() {
         </Stack>
       </Modal>
     </Container>
+  );
+}
+
+export default function StudentDashboard() {
+  return (
+    <PageWrapper>
+      <StudentDashboardContent />
+    </PageWrapper>
   );
 } 

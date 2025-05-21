@@ -1,17 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import {
   Container,
   Title,
   Text,
-  Box,
   Paper,
   Stack,
   TextInput,
   PasswordInput,
   Button,
   Group,
-  Divider,
   Select,
   Radio,
   Checkbox,
@@ -22,8 +21,8 @@ import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { routes } from "../../routes";
+import PageWrapper from "@/components/PageWrapper";
 
 interface SignUpFormData {
   email: string;
@@ -52,7 +51,7 @@ const subjects = [
   { value: "computer_science", label: "Computer Science" },
 ];
 
-export default function SignUpPage() {
+function SignUpContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -71,21 +70,13 @@ export default function SignUpPage() {
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
       password: (value) =>
-        value.length < 8
-          ? "Password must be at least 8 characters long"
-          : null,
+        value.length < 8 ? "Password must be at least 8 characters" : null,
       confirmPassword: (value, values) =>
-        value !== values.password ? "Passwords do not match" : null,
+        value !== values.password ? "Passwords did not match" : null,
       firstName: (value) =>
         value.length < 2 ? "First name must be at least 2 characters" : null,
       lastName: (value) =>
         value.length < 2 ? "Last name must be at least 2 characters" : null,
-      grade: (value, values) =>
-        values.role === "student" && !value ? "Please select your grade" : null,
-      subjects: (value, values) =>
-        values.role === "student" && (!value || value.length === 0)
-          ? "Please select at least one subject"
-          : null,
       agreeToTerms: (value) =>
         !value ? "You must agree to the terms and conditions" : null,
     },
@@ -95,25 +86,26 @@ export default function SignUpPage() {
     setLoading(true);
     try {
       // TODO: Implement actual sign-up logic here
-      console.log("Form submitted:", values);
+      console.log("Sign up attempt:", values);
+      
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       
       notifications.show({
         title: "Success!",
         message: "Your account has been created successfully.",
         color: "green",
         icon: <CheckCircle2 size={16} />,
-        autoClose: 5000,
       });
-
-      // Redirect to the appropriate dashboard based on role
-      router.push(values.role === "student" ? routes.studentDashboard : routes.instructorDashboard);
+      
+      // Redirect to sign in page
+      router.push(routes.signIn);
     } catch {
       notifications.show({
         title: "Error",
         message: "Failed to create account. Please try again.",
         color: "red",
         icon: <XCircle size={16} />,
-        autoClose: 5000,
       });
     } finally {
       setLoading(false);
@@ -121,132 +113,119 @@ export default function SignUpPage() {
   };
 
   return (
-    <main>
-      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
-        <Container size="sm">
-          <Paper radius="md" p={40} withBorder>
-            <Stack gap="xl">
-              <div style={{ textAlign: "center" }}>
-                <Title order={1} size="h1" fw={900} mb="md">
-                  Create Your Account
-                </Title>
-                <Text size="lg" c="dimmed">
-                  Join our tutoring platform and start your learning journey
-                </Text>
-              </div>
+    <Container size="sm" py="xl">
+      <Paper radius="md" p="xl" withBorder>
+        <Title order={2} mb="lg" ta="center">
+          Create an account
+        </Title>
 
-              <form onSubmit={form.onSubmit(handleSubmit)}>
-                <Stack gap="md">
-                  <Radio.Group
-                    label="I am a"
-                    description="Select your role on the platform"
-                    {...form.getInputProps("role")}
-                  >
-                    <Group mt="xs">
-                      <Radio value="student" label="Student" />
-                      <Radio value="instructor" label="Instructor" />
-                    </Group>
-                  </Radio.Group>
+        <form onSubmit={form.onSubmit(handleSubmit)}>
+          <Stack>
+            <Group grow>
+              <TextInput
+                label="First name"
+                placeholder="Your first name"
+                required
+                {...form.getInputProps("firstName")}
+              />
+              <TextInput
+                label="Last name"
+                placeholder="Your last name"
+                required
+                {...form.getInputProps("lastName")}
+              />
+            </Group>
 
-                  <Group grow>
-                    <TextInput
-                      label="First Name"
-                      placeholder="Enter your first name"
-                      required
-                      {...form.getInputProps("firstName")}
-                    />
-                    <TextInput
-                      label="Last Name"
-                      placeholder="Enter your last name"
-                      required
-                      {...form.getInputProps("lastName")}
-                    />
-                  </Group>
+            <TextInput
+              label="Email"
+              placeholder="your@email.com"
+              required
+              {...form.getInputProps("email")}
+            />
 
-                  <TextInput
-                    label="Email"
-                    placeholder="Enter your email"
-                    required
-                    {...form.getInputProps("email")}
-                  />
+            <PasswordInput
+              label="Password"
+              placeholder="Create a password"
+              required
+              {...form.getInputProps("password")}
+            />
 
-                  <PasswordInput
-                    label="Password"
-                    placeholder="Create a password"
-                    required
-                    {...form.getInputProps("password")}
-                  />
+            <PasswordInput
+              label="Confirm Password"
+              placeholder="Confirm your password"
+              required
+              {...form.getInputProps("confirmPassword")}
+            />
 
-                  <PasswordInput
-                    label="Confirm Password"
-                    placeholder="Confirm your password"
-                    required
-                    {...form.getInputProps("confirmPassword")}
-                  />
-
-                  {form.values.role === "student" && (
-                    <>
-                      <Select
-                        label="Grade Level"
-                        placeholder="Select your grade"
-                        data={gradeLevels}
-                        required
-                        {...form.getInputProps("grade")}
-                      />
-
-                      <Select
-                        label="Subjects"
-                        placeholder="Select subjects you need help with"
-                        data={subjects}
-                        multiple
-                        required
-                        {...form.getInputProps("subjects")}
-                      />
-                    </>
-                  )}
-
-                  <Checkbox
-                    label={
-                      <>
-                        I agree to the{" "}
-                        <Anchor component={Link} href={routes.terms}>
-                          Terms of Service
-                        </Anchor>{" "}
-                        and{" "}
-                        <Anchor component={Link} href={routes.privacy}>
-                          Privacy Policy
-                        </Anchor>
-                      </>
-                    }
-                    {...form.getInputProps("agreeToTerms", { type: "checkbox" })}
-                  />
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    loading={loading}
-                    radius="md"
-                    mt="md"
-                  >
-                    Create Account
-                  </Button>
-                </Stack>
-              </form>
-
-              <Divider label="or" labelPosition="center" />
-
-              <Group justify="center">
-                <Text size="sm" c="dimmed">
-                  Already have an account?{" "}
-                  <Anchor component={Link} href={routes.signIn}>
-                    Sign in
-                  </Anchor>
-                </Text>
+            <Radio.Group
+              label="I am a"
+              required
+              {...form.getInputProps("role")}
+            >
+              <Group mt="xs">
+                <Radio value="student" label="Student" />
+                <Radio value="instructor" label="Instructor" />
               </Group>
-            </Stack>
-          </Paper>
-        </Container>
-      </Box>
-    </main>
+            </Radio.Group>
+
+            {form.values.role === "student" && (
+              <>
+                <Select
+                  label="Grade Level"
+                  placeholder="Select your grade"
+                  data={gradeLevels}
+                  required
+                  {...form.getInputProps("grade")}
+                />
+
+                <Select
+                  label="Subjects"
+                  placeholder="Select subjects you need help with"
+                  data={subjects}
+                  multiple
+                  required
+                  {...form.getInputProps("subjects")}
+                />
+              </>
+            )}
+
+            <Checkbox
+              label={
+                <>
+                  I agree to the{" "}
+                  <Anchor component={Link} href={routes.terms}>
+                    Terms of Service
+                  </Anchor>{" "}
+                  and{" "}
+                  <Anchor component={Link} href={routes.privacy}>
+                    Privacy Policy
+                  </Anchor>
+                </>
+              }
+              {...form.getInputProps("agreeToTerms", { type: "checkbox" })}
+            />
+
+            <Button type="submit" fullWidth mt="xl" loading={loading}>
+              Create account
+            </Button>
+          </Stack>
+        </form>
+
+        <Text ta="center" mt="md">
+          Already have an account?{" "}
+          <Anchor component={Link} href={routes.signIn} fw={700}>
+            Sign in
+          </Anchor>
+        </Text>
+      </Paper>
+    </Container>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <PageWrapper>
+      <SignUpContent />
+    </PageWrapper>
   );
 } 

@@ -16,8 +16,9 @@ import {
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import Link from "next/link";
+import PageWrapper from "@/components/PageWrapper";
 
-export default function ManualVerificationPage() {
+function ConfirmAccountContent() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -156,5 +157,13 @@ export default function ManualVerificationPage() {
         </Stack>
       </Paper>
     </Container>
+  );
+}
+
+export default function ConfirmAccountPage() {
+  return (
+    <PageWrapper>
+      <ConfirmAccountContent />
+    </PageWrapper>
   );
 } 

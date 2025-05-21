@@ -19,7 +19,7 @@ import {
 } from "@mantine/core";
 import { useParams } from "next/navigation";
 import { Calendar, Clock, Users, Star, BookOpen } from "lucide-react";
-
+import PageWrapper from "@/components/PageWrapper";
 // Mock data - replace with actual API call
 const mockInstructor = {
   id: "1",
@@ -38,7 +38,7 @@ const mockInstructor = {
   profileImage: null,
 };
 
-export default function InstructorProfileViewPage() {
+function InstructorProfileContent() {
   const params = useParams();
   const [instructor] = useState(mockInstructor);
   const [loading, setLoading] = useState(true);
@@ -187,5 +187,13 @@ export default function InstructorProfileViewPage() {
         </Grid.Col>
       </Grid>
     </Container>
+  );
+}
+
+export default function InstructorProfileViewPage() {
+  return (
+    <PageWrapper>
+      <InstructorProfileContent />
+    </PageWrapper>
   );
 } 

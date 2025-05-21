@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Container,
@@ -18,11 +18,10 @@ import {
   Grid,
   PasswordInput,
   FileButton,
-  Loader,
-  Center,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { User, Lock, Bell, Shield } from "lucide-react";
+import PageWrapper from "@/components/PageWrapper";
 
 function ProfileContent() {
   const searchParams = useSearchParams();
@@ -272,14 +271,8 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense
-      fallback={
-        <Center h={400}>
-          <Loader size="lg" />
-        </Center>
-      }
-    >
+    <PageWrapper>
       <ProfileContent />
-    </Suspense>
+    </PageWrapper>
   );
 }

@@ -17,8 +17,9 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { routes } from "@/app/routes";
+import PageWrapper from "@/components/PageWrapper";
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const [formValues, setFormValues] = useState({
     email: "",
@@ -42,18 +43,17 @@ export default function SignInPage() {
   };
 
   return (
-    <Container size="xs" py="xl">
+    <Container size="sm" py="xl">
       <Paper radius="md" p="xl" withBorder>
-        <Title order={2} ta="center" mt="md" mb={50}>
+        <Title order={2} mb="lg" ta="center">
           Welcome back!
         </Title>
 
         <form onSubmit={handleSubmit}>
-          <Stack gap="md">
+          <Stack>
             <TextInput
-              label="Email address"
-              placeholder="hello@example.com"
-              size="md"
+              label="Email"
+              placeholder="your@email.com"
               required
               value={formValues.email}
               onChange={(e) => handleChange("email", e.target.value)}
@@ -62,36 +62,22 @@ export default function SignInPage() {
             <PasswordInput
               label="Password"
               placeholder="Your password"
-              size="md"
               required
               value={formValues.password}
               onChange={(e) => handleChange("password", e.target.value)}
             />
 
-            <Anchor
-              component={Link}
-              href="/forgot-password"
-              size="sm"
-              ta="right"
-            >
-              Forgot password?
-            </Anchor>
-
-            <Button type="submit" size="md" fullWidth mt="xl">
+            <Button type="submit" fullWidth mt="xl">
               Sign in
             </Button>
           </Stack>
         </form>
 
-        <Divider label="Or continue with" labelPosition="center" my="lg" />
+        <Divider my="lg" label="Or continue with" labelPosition="center" />
 
         <Group grow mb="md" mt="md">
-          <Button variant="default" radius="xl">
-            Google
-          </Button>
-          <Button variant="default" radius="xl">
-            Microsoft
-          </Button>
+          <Button variant="default">Google</Button>
+          <Button variant="default">Microsoft</Button>
         </Group>
 
         <Text ta="center" mt="md">
@@ -102,5 +88,13 @@ export default function SignInPage() {
         </Text>
       </Paper>
     </Container>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <PageWrapper>
+      <SignInContent />
+    </PageWrapper>
   );
 } 

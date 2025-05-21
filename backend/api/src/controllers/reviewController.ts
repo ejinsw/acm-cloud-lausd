@@ -141,7 +141,7 @@ export const deleteReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
 
     const {id} = req.params;
-    await prisma.review.delete({where: {id}});
+    
 
     const existingReview = await prisma.user.findUnique({ where: { id } })
 
@@ -149,6 +149,8 @@ export const deleteReview = expressAsyncHandler(
       res.status(404).json({message: "Review not found"});
       return;
     }
+
+    await prisma.review.delete({where: {id}});
 
     res.status(200).json({message: "Review deleted successfully"}); 
   }

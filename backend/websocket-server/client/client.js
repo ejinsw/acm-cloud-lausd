@@ -1,4 +1,3 @@
-// client.js - Enhanced WebSocket Chat Client (Fixed for NEW_MESSAGE handling)
 
 document.addEventListener('DOMContentLoaded', () => {
     const connectionStatus = document.getElementById('connection-status');
@@ -55,17 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'ROOM_JOINED':
                     currentRoom = data.payload;
-                    // Ensure messages array exists if not sent or empty from server
-                    if (!currentRoom.messages) {
+=                    if (!currentRoom.messages) {
                         currentRoom.messages = [];
                     }
                     enterChatRoomUI();
                     break;
                 case 'USER_JOINED':
                     if (currentRoom && currentRoom.id === data.payload.roomId) {
-                        // Ensure users array exists
                         if (!currentRoom.users) currentRoom.users = [];
-                        // Avoid duplicate users if server sends redundant info (optional check)
                         if (!currentRoom.users.find(u => u.id === data.payload.user.id)) {
                             currentRoom.users.push(data.payload.user);
                         }
@@ -74,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     break;
                 case 'NEW_MESSAGE':
-                    // **FIXED HERE:** Use data.payload directly as it IS the message object.
                     if (currentRoom && currentRoom.id === data.payload.roomId) {
                         if (!currentRoom.messages) currentRoom.messages = [];
                         currentRoom.messages.push(data.payload); // data.payload is the message
@@ -134,8 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.onclose = () => {
             connectionStatus.textContent = 'Disconnected from server. Attempting to reconnect...';
             connectionStatus.className = 'status-disconnected';
-            // Don't nullify currentUser here, allow re-identification on reconnect if needed
-            // currentRoom = null; // Keep currentRoom to potentially rejoin
+
             identifySection.style.display = 'block'; // Prompt for re-identification
             roomManagementSection.style.display = 'none';
             chatSection.style.display = 'none';
@@ -154,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ws.send(JSON.stringify({ type, payload }));
         } else {
             console.warn('WebSocket not connected. Cannot send message.');
-            // alert('Not connected to server.'); // Can be noisy
         }
     }
 
@@ -164,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = userTypeSelect.value;
 
         if (userId && username) {
-            // If ws is closed or connecting, wait for open (or handle better with state)
             if (ws && ws.readyState === WebSocket.OPEN) {
                  sendToServer('IDENTIFY_USER', { id: userId, username, type });
             } else {
@@ -221,13 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUserList();
     }
     
-    // Renamed to avoid conflict and clarify purpose
     function handleLeaveRoomUIUpdate() {
         currentRoom = null;
         chatSection.style.display = 'none';
         roomManagementSection.style.display = 'block';
-        // Optionally, fetch updated room list from server if not pushed automatically
-        // sendToServer('GET_ROOM_LIST', {}); // Example, if server supports this
+
     }
     
     leaveRoomBtn.addEventListener('click', () => {
@@ -324,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
             sendToServer('SEND_MESSAGE', {
                 roomId: currentRoom.id,
                 text: messageInput.value.trim()
-                // Sender info is added by the server based on the WebSocket connection
             });
             messageInput.value = '';
         }

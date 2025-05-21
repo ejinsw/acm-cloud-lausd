@@ -1,299 +1,592 @@
-"use client";
+// Add 'use client' at the top
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { 
-  Container, 
-  Grid, 
-  Title, 
-  Text, 
-  Button, 
-  Card, 
-  Group, 
-  Avatar, 
-  Badge, 
-  Tabs, 
-  Textarea,
-  Paper,
-  ActionIcon,
-  ScrollArea,
-  Divider,
-  Flex,
-  Box
-} from "@mantine/core";
-import { Calendar, Clock, Send, Star, Video } from "lucide-react";
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
-// Mock session data (would come from API in real app)
-const sessionsMockData = [
-  {
-    id: 1,
-    title: "Algebra Fundamentals",
-    instructor: {
-      id: 101,
-      name: "Dr. Alex Johnson",
-      avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-      rating: 4.8,
-      bio: "Mathematics professor with 15 years of teaching experience. Specializing in making algebra accessible and engaging for students of all levels.",
-      credentials: "Ph.D. in Mathematics, UCLA",
-    },
-    subject: "Mathematics",
-    level: "Beginner",
-    price: 25,
-    duration: 60,
-    description: "Master the basics of algebra including equations, inequalities, and functions. This session is perfect for students who are struggling with core algebra concepts or want to build a solid foundation.",
-    longDescription: "This comprehensive session covers all the fundamental concepts of algebra that students need to succeed. We'll start with basic operations and gradually move to solving equations, working with inequalities, and understanding functions. The session includes practice problems, visual explanations, and real-world applications to help solidify understanding. Students will leave with a stronger grasp of algebraic concepts and improved problem-solving skills.",
-    tags: ["Algebra", "Math", "Equations"],
-    availability: ["Monday", "Wednesday", "Friday"],
-    prerequisites: "Basic arithmetic skills",
-    materials: "Pencil, paper, and calculator",
-    goals: ["Understand basic algebraic operations", "Solve linear equations", "Graph simple functions"],
-    reviews: [
-      { id: 1, user: "Jamie S.", rating: 5, comment: "Dr. Johnson explained concepts clearly and was very patient with my questions." },
-      { id: 2, user: "Taylor W.", rating: 4, comment: "Very helpful session. I feel much more confident with algebra now." },
-      { id: 3, user: "Alex R.", rating: 5, comment: "Excellent tutor! Made complex topics easy to understand." },
-    ],
-    topics: ["Basic operations", "Linear equations", "Inequalities", "Introduction to functions", "Graphing"],
-  },
-  // More sessions would be here
-];
+// Basic type definitions (refine these based on your actual server data)
+interface User {
+  id: string;
+  username: string;
+  type: 'student' | 'instructor';
+}
 
-// Mock chat messages
-const initialMessages = [
-  { id: 1, sender: "system", text: "Chat session started. You can message your instructor here before, during, or after your scheduled session.", timestamp: new Date(Date.now() - 3600000).toISOString() },
-  { id: 2, sender: "instructor", text: "Hello! I'm looking forward to our session. Do you have any specific topics you'd like to focus on?", timestamp: new Date(Date.now() - 1800000).toISOString() },
-];
+interface MessagePayload {
+  id: string;
+  roomId: string;
+  sender: User; // Assuming sender is an object with id, username, type
+  text: string;
+  timestamp: string; // ISO string or similar
+}
 
-export default function SessionDetailPage() {
-  const params = useParams();
-  const sessionId = Number(params.id);
-  const session = sessionsMockData.find(s => s.id === sessionId) || sessionsMockData[0];
-  
-  const [activeTab, setActiveTab] = useState<string | null>("details");
-  const [messages, setMessages] = useState(initialMessages);
-  const [newMessage, setNewMessage] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  // Scroll to bottom of messages when new ones are added
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-  
-  const handleSendMessage = () => {
-    if (newMessage.trim() === "") return;
-    
-    const newMsg = {
-      id: messages.length + 1,
-      sender: "student",
-      text: newMessage,
-      timestamp: new Date().toISOString(),
+interface RoomUser {
+  id: string;
+  username: string;
+  type: string; // Assuming type can be 'student' or 'instructor'
+}
+
+interface Room {
+  id: string;
+  name: string;
+  users: RoomUser[];
+  messages: MessagePayload[]; // Store full messages
+  userCount?: number;
+}
+
+interface DisplayMessage extends MessagePayload {
+  isMyMessage: boolean;
+  isDeleted?: boolean;
+}
+
+interface NotificationMessage {
+  id: string; // Use Date.now().toString() or a UUID
+  type: 'notification';
+  text: string;
+  timestamp: string;
+}
+
+
+const ChatPage: React.FC = () => {
+  // Connection Status State
+  const [connectionStatusText, setConnectionStatusText] = useState('Connecting...');
+  const [connectionStatusClass, setConnectionStatusClass] = useState(''); // e.g., 'status-connected', 'status-disconnected'
+
+  // UI Section Visibility States
+  const [showIdentifySection, setShowIdentifySection] = useState(false);
+  const [showRoomManagementSection, setShowRoomManagementSection] = useState(false);
+  const [showChatSection, setShowChatSection] = useState(false);
+
+  // Input Field States
+  const [userId, setUserId] = useState('');
+  const [username, setUsername] = useState('');
+  const [userType, setUserType] = useState<'student' | 'instructor'>('student');
+  const [createRoomInput, setCreateRoomInput] = useState('');
+  const [messageInput, setMessageInput] = useState('');
+
+  // Core Application State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<Room | null>(null); // Stores the full room object when joined
+  const [currentRoomDisplayName, setCurrentRoomDisplayName] = useState(''); // For displaying the current room's name
+
+  // Data List States
+  const [availableRooms, setAvailableRooms] = useState<Array<{ id: string; name: string; userCount?: number }>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<DisplayMessage | NotificationMessage>>([]); // Holds both regular and notification messages
+  const [usersInRoomList, setUsersInRoomList] = useState<RoomUser[]>([]); // Users currently in the joined room
+
+  // WebSocket Reference
+  const wsRef = useRef<WebSocket | null>(null);
+  // Ref for scrolling message container
+  const messageContainerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Sends a JSON message to the WebSocket server.
+   * @param type - The message type.
+   * @param payload - The message payload.
+   */
+  const sendToServer = useCallback((type: string, payload: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type, payload }));
+    } else {
+      console.warn('WebSocket not connected. Cannot send message:', type, payload);
+      // Optionally, implement a user-facing notification for this case
+    }
+  }, []);
+
+  /**
+   * Establishes and manages the WebSocket connection.
+   */
+  const connectToServer = useCallback(() => {
+    // Prevent multiple connections if one is already open or connecting
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+        console.log("WebSocket already open or connecting.");
+        return;
+    }
+
+    wsRef.current = new WebSocket('ws://localhost:8080'); // Ensure this URL is correct for your server
+
+    wsRef.current.onopen = () => {
+      setConnectionStatusText('Connected. Please identify yourself.');
+      setConnectionStatusClass('status-connected');
+      setShowIdentifySection(true);
+      setShowRoomManagementSection(false);
+      setShowChatSection(false);
+      // Server might send initial ROOM_LIST_UPDATED here or after identification
     };
-    
-    setMessages([...messages, newMsg]);
-    setNewMessage("");
-    
-    // Simulate instructor response after a delay
-    setTimeout(() => {
-      const response = {
-        id: messages.length + 2,
-        sender: "instructor",
-        text: "Thanks for your message! I'll make sure to address that during our session.",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, response]);
-    }, 2000);
-  };
-  
-  function formatMessageTime(timestamp: string) {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
 
-  return (
-    <Container size="xl" py="xl">
-      <Grid>
-        {/* Left column: Session details */}
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Title order={1} mb="xs">{session.title}</Title>
-          
-          <Group mb="lg">
-            <Badge size="lg" color="blue">{session.subject}</Badge>
-            <Badge size="lg" color="gray">{session.level}</Badge>
-            <Badge size="lg" color="green">
-              <Group gap={4}>
-                <Star size={14} />
-                <span>{session.instructor.rating}/5</span>
-              </Group>
-            </Badge>
-          </Group>
-          
-          <Tabs value={activeTab} onChange={setActiveTab}>
-            <Tabs.List>
-              <Tabs.Tab value="details">Details</Tabs.Tab>
-              <Tabs.Tab value="instructor">Instructor</Tabs.Tab>
-              <Tabs.Tab value="reviews">Reviews ({session.reviews.length})</Tabs.Tab>
-            </Tabs.List>
-            
-            <Tabs.Panel value="details" pt="md">
-              <Text mb="md">{session.longDescription}</Text>
-              
-              <Title order={3} mt="lg" mb="sm">What You&apos;ll Learn</Title>
-              <ul className="list-disc ml-5 mb-4">
-                {session.topics.map((topic, i) => (
-                  <li key={i}><Text>{topic}</Text></li>
-                ))}
-              </ul>
-              
-              <Title order={3} mt="lg" mb="sm">Goals</Title>
-              <ul className="list-disc ml-5 mb-4">
-                {session.goals.map((goal, i) => (
-                  <li key={i}><Text>{goal}</Text></li>
-                ))}
-              </ul>
-              
-              <Grid mt="lg">
-                <Grid.Col span={6}>
-                  <Card withBorder>
-                    <Title order={4} mb="sm">Prerequisites</Title>
-                    <Text>{session.prerequisites}</Text>
-                  </Card>
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <Card withBorder>
-                    <Title order={4} mb="sm">Materials Needed</Title>
-                    <Text>{session.materials}</Text>
-                  </Card>
-                </Grid.Col>
-              </Grid>
-            </Tabs.Panel>
-            
-            <Tabs.Panel value="instructor" pt="md">
-              <Group mb="md">
-                <Avatar src={session.instructor.avatar} size="xl" radius="xl" />
-                <div>
-                  <Title order={3}>{session.instructor.name}</Title>
-                  <Text c="dimmed">{session.instructor.credentials}</Text>
-                  <Group gap={4} mt={5}>
-                    <Star size={16} className="text-yellow-500" />
-                    <Text>{session.instructor.rating}/5 Rating</Text>
-                  </Group>
-                </div>
-              </Group>
-              
-              <Text mb="md">{session.instructor.bio}</Text>
-              
-              <Button variant="outline" leftSection={<Video size={16} />}>
-                View Instructor Profile
-              </Button>
-            </Tabs.Panel>
-            
-            <Tabs.Panel value="reviews" pt="md">
-              {session.reviews.map((review) => (
-                <Paper key={review.id} withBorder p="md" mb="md">
-                  <Group justify="space-between" mb="xs">
-                    <Text fw={600}>{review.user}</Text>
-                    <Group gap={4}>
-                      <Star size={16} className="text-yellow-500" />
-                      <Text>{review.rating}/5</Text>
-                    </Group>
-                  </Group>
-                  <Text>{review.comment}</Text>
-                </Paper>
-              ))}
-            </Tabs.Panel>
-          </Tabs>
-        </Grid.Col>
-        
-        {/* Right column: Booking and chat */}
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder shadow="sm" mb="lg">
-            <Title order={3} mb="md">Book This Session</Title>
-            
-            <Group mb="xs">
-              <Clock size={20} />
-              <Text>{session.duration} minutes</Text>
-            </Group>
-            
-            <Group mb="md">
-              <Calendar size={20} />
-              <Text>Available: {session.availability.join(", ")}</Text>
-            </Group>
-            
-            <Button fullWidth mb="md" color="blue">Schedule Session</Button>
-            <Button fullWidth variant="outline">Contact Instructor</Button>
-          </Card>
-          
-          <Card withBorder shadow="sm">
-            <Title order={3} mb="md">Session Chat</Title>
-            
-            <ScrollArea h={300} mb="md">
-              {messages.map((message) => (
-                <Box
-                  key={message.id}
-                  className={`mb-3 ${
-                    message.sender === "student" 
-                      ? "ml-auto max-w-[80%]" 
-                      : "mr-auto max-w-[80%]"
-                  }`}
-                >
-                  {message.sender === "system" ? (
-                    <Paper p="xs" withBorder className="bg-gray-100 text-center">
-                      <Text size="sm">{message.text}</Text>
-                    </Paper>
-                  ) : (
-                    <Paper 
-                      p="sm" 
-                      withBorder 
-                      className={message.sender === "student" ? "bg-blue-50" : ""}
-                    >
-                      <Flex justify="space-between" align="center" mb={4}>
-                        <Text size="sm" fw={600}>
-                          {message.sender === "instructor" 
-                            ? session.instructor.name 
-                            : "You"}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {formatMessageTime(message.timestamp)}
-                        </Text>
-                      </Flex>
-                      <Text>{message.text}</Text>
-                    </Paper>
-                  )}
-                </Box>
-              ))}
-              <div ref={messagesEndRef} />
-            </ScrollArea>
-            
-            <Divider mb="md" />
-            
-            <Group>
-              <Textarea
-                placeholder="Type your message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.currentTarget.value)}
-                style={{ flex: 1 }}
-                autosize
-                minRows={1}
-                maxRows={4}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
+    wsRef.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data as string);
+        console.log('Received from server:', data);
+
+        switch (data.type) {
+          case 'USER_IDENTIFIED':
+            setCurrentUser(data.payload as User);
+            setConnectionStatusText(`Identified as ${data.payload.username} (${data.payload.type}).`);
+            setShowIdentifySection(false);
+            setShowRoomManagementSection(true);
+            // Server should ideally send ROOM_LIST_UPDATED now if not sent onopen
+            break;
+          case 'ROOM_LIST_UPDATED':
+            setAvailableRooms(data.payload as Array<{ id: string; name: string; userCount?: number }>);
+            break;
+          case 'ROOM_JOINED': {
+            const joinedRoom = data.payload as Room;
+            setCurrentRoom(joinedRoom);
+            setCurrentRoomDisplayName(joinedRoom.name);
+            setUsersInRoomList(joinedRoom.users || []); // Ensure users array exists
+            setChatMessages(
+              (joinedRoom.messages || []).map(msg => ({ // Ensure messages array exists
+                ...msg,
+                isMyMessage: currentUser?.id === msg.sender.id, // Check against potentially stale currentUser
+              }))
+            );
+            setShowRoomManagementSection(false);
+            setShowChatSection(true);
+            break;
+          }
+          case 'USER_JOINED':
+            // Check if the user joined the room this client is currently in
+            if (currentRoom && currentRoom.id === data.payload.roomId) {
+              const joinedUser = data.payload.user as RoomUser;
+              setUsersInRoomList(prevUsers => {
+                if (!prevUsers.find(u => u.id === joinedUser.id)) { // Avoid duplicates
+                  return [...prevUsers, joinedUser];
+                }
+                return prevUsers;
+              });
+              setChatMessages(prev => [...prev, {id: Date.now().toString(), type: 'notification', text: `${joinedUser.username} joined the room.`, timestamp: new Date().toISOString()}]);
+            }
+            break;
+          case 'NEW_MESSAGE':
+            if (currentRoom && currentRoom.id === data.payload.roomId) {
+              const newMessage = data.payload as MessagePayload;
+              setChatMessages(prev => [...prev, { ...newMessage, isMyMessage: currentUser?.id === newMessage.sender.id }]);
+            }
+            break;
+          case 'USER_LEFT':
+            if (currentRoom && currentRoom.id === data.payload.roomId) {
+              const { userId: leftUserId, username: leftUsername } = data.payload;
+              setUsersInRoomList(prevUsers => prevUsers.filter(u => u.id !== leftUserId));
+              setChatMessages(prev => [...prev, {id: Date.now().toString(), type: 'notification', text: `${leftUsername || leftUserId} left the room.`, timestamp: new Date().toISOString()}]);
+            }
+            break;
+          case 'MESSAGE_DELETED':
+            if (currentRoom && currentRoom.id === data.payload.roomId) {
+              const { messageId } = data.payload;
+              setChatMessages(prevMsgs =>
+                prevMsgs.map(msg => {
+                  if (msg.id === messageId && msg.type !== 'notification') { // Ensure it's a DisplayMessage
+                    return { ...(msg as DisplayMessage), text: 'Message deleted.', isDeleted: true, sender: {id:'system', username: 'System', type:'instructor'} };
                   }
-                }}
-              />
-              <ActionIcon 
-                size="lg" 
-                variant="filled" 
-                color="blue"
-                onClick={handleSendMessage}
-                disabled={newMessage.trim() === ""}
-              >
-                <Send size={18} />
-              </ActionIcon>
-            </Group>
-          </Card>
-        </Grid.Col>
-      </Grid>
-    </Container>
+                  return msg;
+                })
+              );
+            }
+            break;
+          case 'YOU_WERE_KICKED':
+            alert(`You were kicked from room "${data.payload.roomName}". Reason: ${data.payload.reason || 'No reason given.'}`);
+            setCurrentRoom(null);
+            setCurrentRoomDisplayName('');
+            setShowChatSection(false);
+            setShowRoomManagementSection(true);
+            setChatMessages([]);
+            setUsersInRoomList([]);
+            break;
+          case 'USER_KICKED':
+             if (currentRoom && currentRoom.id === data.payload.roomId) {
+                const { kickedUserId, kickedUsername } = data.payload;
+                setUsersInRoomList(prevUsers => prevUsers.filter(u => u.id !== kickedUserId));
+                setChatMessages(prev => [...prev, {id: Date.now().toString(), type: 'notification', text: `${kickedUsername} was kicked by an instructor.`, timestamp: new Date().toISOString()}]);
+              }
+            break;
+          case 'YOU_LEFT_ROOM':
+            setCurrentRoom(null);
+            setCurrentRoomDisplayName('');
+            setShowChatSection(false);
+            setShowRoomManagementSection(true);
+            setChatMessages([]);
+            setUsersInRoomList([]);
+            break;
+          case 'ERROR':
+            console.error('Server Error:', data.payload.message);
+            alert(`Error: ${data.payload.message}`); // Consider a less intrusive notification
+            break;
+          case 'SERVER_SHUTDOWN':
+            alert('Server is shutting down. You will be disconnected.');
+            if (wsRef.current) wsRef.current.close();
+            break;
+          default:
+            console.warn('Unknown message type from server:', data.type);
+        }
+      } catch (error) {
+          console.error("Failed to parse WebSocket message or handle it:", event.data, error);
+      }
+    };
+
+    wsRef.current.onclose = () => {
+      setConnectionStatusText('Disconnected. Attempting to reconnect in 5s...');
+      setConnectionStatusClass('status-disconnected');
+      // Reset states that depend on a live connection
+      setCurrentUser(null);
+      setCurrentRoom(null);
+      setShowIdentifySection(true); // Default to identify section on disconnect
+      setShowRoomManagementSection(false);
+      setShowChatSection(false);
+      wsRef.current = null; // Clear the ref to allow a new connection object
+      setTimeout(connectToServer, 5000); // Attempt to reconnect
+    };
+
+    wsRef.current.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+      setConnectionStatusText('Connection error.');
+      setConnectionStatusClass('status-error');
+      // Potentially add more robust error handling or UI feedback
+    };
+  // `currentUser` and `currentRoom` are intentionally omitted from deps here,
+  // as they are context for message handling, not for re-establishing the connection itself.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Effect to establish WebSocket connection on component mount
+  useEffect(() => {
+    connectToServer();
+    // Cleanup function to close WebSocket connection when component unmounts
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // Prevent the onclose handler from firing during unmount (to avoid reconnect attempts)
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connectToServer]); // connectToServer is stable due to useCallback
+
+  // Effect to scroll message container to bottom when new messages are added
+  useEffect(() => {
+    if (messageContainerRef.current) {
+      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]); // Dependency: chatMessages array
+
+  // --- Event Handlers for UI Interactions ---
+  const handleIdentify = () => {
+    if (userId.trim() && username.trim()) {
+      sendToServer('IDENTIFY_USER', { id: userId.trim(), username: username.trim(), type: userType });
+    } else {
+      alert('Please enter User ID and Username.');
+    }
+  };
+
+  const handleCreateRoom = () => {
+    if (createRoomInput.trim() && currentUser) {
+      // Server will use the user associated with the WebSocket connection (currentUser)
+      sendToServer('CREATE_ROOM', { roomName: createRoomInput.trim(), user: currentUser });
+      setCreateRoomInput(''); // Clear input after sending
+    } else if (!currentUser) {
+      alert('Please identify yourself before creating a room.');
+    } else {
+      alert('Please enter a room name.');
+    }
+  };
+
+  const handleJoinRoom = (roomIdToJoin: string) => {
+    if (currentUser) {
+      sendToServer('JOIN_ROOM', { roomId: roomIdToJoin, user: currentUser });
+    } else {
+      alert('Please identify yourself before joining a room.');
+    }
+  };
+
+  const handleLeaveRoom = () => {
+    if (currentRoom && currentUser) {
+      sendToServer('LEAVE_ROOM', { roomId: currentRoom.id, userId: currentUser.id });
+      // UI updates will be triggered by server messages like YOU_LEFT_ROOM
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (messageInput.trim() && currentRoom && currentUser) {
+      sendToServer('SEND_MESSAGE', {
+        roomId: currentRoom.id,
+        text: messageInput.trim(),
+        // Server will determine the sender based on the WebSocket connection
+      });
+      setMessageInput(''); // Clear input after sending
+    }
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (currentRoom && currentUser && currentUser.type === 'instructor') {
+       if (confirm('Are you sure you want to delete this message?')) { // Consider custom modal for confirm
+        sendToServer('DELETE_MESSAGE', { roomId: currentRoom.id, messageId });
+      }
+    }
+  };
+
+  const handleKickUser = (userIdToKick: string) => {
+    if (currentRoom && currentUser && currentUser.type === 'instructor') {
+      // Optionally, find username for a more descriptive confirmation
+      const userToKickDetails = usersInRoomList.find(u => u.id === userIdToKick);
+      const confirmMessage = userToKickDetails
+        ? `Are you sure you want to kick ${userToKickDetails.username}?`
+        : 'Are you sure you want to kick this user?';
+      if (confirm(confirmMessage)) { // Consider custom modal
+        sendToServer('KICK_USER', { roomId: currentRoom.id, userIdToKick });
+      }
+    }
+  };
+
+  // --- JSX for Rendering ---
+  return (
+    <>
+      {/* Global styles using styled-jsx. Ensure this is appropriate for your project structure. */}
+      <style jsx global>{`
+        body {
+            font-family: Arial, sans-serif;
+            margin: 15px;
+            background-color: #f9f9f9;
+        }
+        /* More specific div styling */
+        #identify-section, #room-management-section, #chat-section, #connection-status {
+             margin-bottom: 12px;
+             padding: 8px;
+             border: 1px solid #e0e0e0;
+             background-color: #fff;
+             border-radius: 4px;
+        }
+        h1, h2, h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        label {
+            display: inline-block;
+            margin-right: 5px;
+            margin-bottom: 3px;
+        }
+        input[type="text"], select {
+            padding: 6px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 6px 10px;
+            margin-right: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #connection-status {
+            text-align: center;
+            font-weight: bold;
+        }
+        .status-connected { background-color: #d4edda !important; color: #155724 !important; border-color: #c3e6cb !important; }
+        .status-disconnected { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important;}
+        .status-error { background-color: #fff3cd !important; color: #856404 !important; border-color: #ffeeba !important;}
+
+        #chat-section {
+            border: 1px solid #bbb;
+            padding: 10px;
+        }
+        #chat-area {
+            display: flex;
+            border: none; padding: 0; margin-bottom: 0; background-color: transparent; border-radius: 0;
+        }
+        #chat-sidebar {
+            width: 200px; /* Slightly wider for better readability */
+            padding-right: 10px;
+            border-right: 1px solid #ddd;
+            margin-right: 10px;
+            height: 300px; /* Increased height */
+            overflow-y: auto;
+            padding: 8px;
+            background-color: #fdfdfd; /* Added background for clarity */
+        }
+        #main-chat {
+            flex: 1; border: none; padding: 0; margin-bottom: 0; background-color: transparent;
+        }
+        #message-container {
+            height: 250px; /* Increased height */
+            border: 1px solid #ddd;
+            overflow-y: auto;
+            padding: 8px;
+            margin-bottom: 8px;
+            background-color: #fdfdfd;
+        }
+        .message-item {
+            border-bottom: 1px solid #f0f0f0;
+            padding: 5px 3px;
+            margin-bottom: 3px;
+            background-color: #fff; /* Default background for messages */
+            word-wrap: break-word; /* Ensure long messages wrap */
+        }
+        .message-item:last-child { border-bottom: none; }
+        .message-item.my-message { background-color: #e6f2ff; } /* For messages sent by the current user */
+        .message-item .sender { font-weight: bold; font-size: 0.95em; color: #2c3e50; margin-right: 5px;}
+        .message-item .text { margin-left: 5px; }
+        .message-item .timestamp { font-size: 0.75em; color: #7f8c8d; margin-left: 10px; }
+        .message-item.deleted .text { font-style: italic; color: #95a5a6; }
+        .message-item.deleted { background-color: #ecf0f1; } /* Style for deleted messages */
+
+        .notification-message {
+            font-style: italic;
+            color: #34495e;
+            text-align: center;
+            padding: 5px 0;
+            background-color: #f0f0f0;
+            border-radius: 3px;
+            margin: 4px 0;
+            border-bottom: 1px solid #e0e0e0;
+            word-wrap: break-word;
+        }
+         .notification-message:last-child { border-bottom: none; }
+
+        ul { list-style-type: none; padding-left: 0; margin-top: 5px; }
+        #available-rooms li, #user-list li {
+            padding: 6px 2px; /* Increased padding */
+            border-bottom: 1px solid #eee;
+            display: flex; justify-content: space-between; align-items: center;
+            word-wrap: break-word; /* Ensure long room/user names wrap */
+        }
+         #available-rooms li:last-child, #user-list li:last-child { border-bottom: none; }
+        #available-rooms li button, #user-list li button {
+            font-size: 0.8em; padding: 3px 5px; margin-left: 8px; background-color: #6c757d; flex-shrink: 0; /* Prevent button from shrinking */
+        }
+         #available-rooms li button:hover, #user-list li button:hover { background-color: #5a6268; }
+        .delete-msg-btn, .kick-user-btn { background-color: #ffc107; color: #212529; }
+        .delete-msg-btn:hover, .kick-user-btn:hover { background-color: #e0a800; }
+        #message-input-area { display: flex; border: none; padding: 0; margin-bottom: 0; background-color: transparent; }
+        #message-input { flex-grow: 1; margin-right: 5px; /* Added margin */}
+      `}</style>
+
+      <h1>Teacher Student Chat Room</h1>
+      <div id="connection-status" className={connectionStatusClass}>
+        {connectionStatusText}
+      </div>
+
+      {showIdentifySection && (
+        <div id="identify-section">
+          <h2>Sign in</h2>
+          <div>
+            <label htmlFor="user-id">User ID:</label>
+            <input type="text" id="user-id" value={userId} onChange={(e) => setUserId(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="username">Username:</label>
+            <input type="text" id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="user-type">User Type:</label>
+            <select id="user-type" value={userType} onChange={(e) => setUserType(e.target.value as 'student' | 'instructor')}>
+              <option value="student">Student</option>
+              <option value="instructor">Instructor</option>
+            </select>
+          </div>
+          <button id="identify-btn" onClick={handleIdentify}>Identify</button>
+        </div>
+      )}
+
+      {showRoomManagementSection && (
+        <div id="room-management-section">
+          <h2>Room Management</h2>
+          <div>
+            <label htmlFor="create-room-input">New Room:</label>
+            <input type="text" id="create-room-input" placeholder="Room Name" value={createRoomInput} onChange={(e) => setCreateRoomInput(e.target.value)} />
+            <button id="create-room-btn" onClick={handleCreateRoom}>Create Room</button>
+          </div>
+          <h3>Available Rooms:</h3>
+          <ul id="available-rooms">
+            {availableRooms.length === 0 ? (
+              <li>No rooms available. Create one!</li>
+            ) : (
+              availableRooms.map(room => (
+                <li key={room.id}>
+                  <span>{room.name} ({room.userCount || 0} users)</span>
+                  <button onClick={() => handleJoinRoom(room.id)}>Join</button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+
+      {showChatSection && currentRoom && currentUser && (
+        <div id="chat-section">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h2 id="current-room-name" style={{ margin: 0 }}>
+              {currentRoomDisplayName}
+            </h2>
+            <button id="leave-room-btn" onClick={handleLeaveRoom}>Leave Room</button>
+          </div>
+
+          <div id="chat-area">
+            <div id="chat-sidebar">
+              <h3>Users Online</h3>
+              <ul id="user-list">
+                {usersInRoomList.map(user => (
+                  <li key={user.id}>
+                    <span>{user.username} ({user.type})</span>
+                    {currentUser.type === 'instructor' && user.id !== currentUser.id && (
+                      <button className="kick-user-btn" onClick={() => handleKickUser(user.id)}>Kick</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div id="main-chat">
+              <div id="message-container" ref={messageContainerRef}>
+                {chatMessages.map((msg) => {
+                  if (msg.type === 'notification') {
+                    return (
+                      <div key={msg.id} className="notification-message">
+                        <span className="text">{msg.text}</span>
+                      </div>
+                    );
+                  }
+                  // It's a DisplayMessage
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`message-item ${msg.isMyMessage ? 'my-message' : ''} ${msg.isDeleted ? 'deleted' : ''}`}
+                    >
+                      {!msg.isDeleted && <span className="sender">{msg.sender.username || 'Unknown'}{msg.sender.type ? ` (${msg.sender.type})` : ''}:</span>}
+                      <span className="text">{msg.text}</span>
+                      {!msg.isDeleted && <span className="timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
+                      {currentUser.type === 'instructor' && !msg.isMyMessage && !msg.isDeleted && (
+                        <button
+                          className="delete-msg-btn"
+                          style={{ fontSize: '0.8em', padding: '2px 4px', marginLeft: '10px' }}
+                          onClick={() => handleDeleteMessage(msg.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div id="message-input-area">
+                <input
+                  type="text"
+                  id="message-input"
+                  placeholder="Type your message..."
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                />
+                <button id="send-message-btn" onClick={handleSendMessage}>Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
-} 
+};
+
+export default ChatPage;

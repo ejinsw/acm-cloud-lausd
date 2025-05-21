@@ -23,7 +23,7 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { routes } from "../routes";
+import { routes } from "../../routes";
 
 interface SignUpFormData {
   email: string;

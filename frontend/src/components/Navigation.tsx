@@ -63,12 +63,6 @@ function DesktopNav({ routes }: NavigationProps) {
         <Text fw={pathname.includes('/sessions/explore') ? 700 : 400}>Explore</Text>
       </Link>
       
-      {isAuthenticated && userRole === "student" && (
-        <Link href={routes.mySession()} style={{ textDecoration: "none", color: "inherit" }}>
-          <Text fw={pathname.includes('/sessions/my') ? 700 : 400}>My Sessions</Text>
-        </Link>
-      )}
-      
       {isAuthenticated && userRole === "instructor" && (
         <Menu offset={0} position="bottom-end" withArrow>
           <Menu.Target>
@@ -80,9 +74,6 @@ function DesktopNav({ routes }: NavigationProps) {
           <Menu.Dropdown>
             <Menu.Item component={Link} href={routes.instructorDashboard}>
               Dashboard
-            </Menu.Item>
-            <Menu.Item component={Link} href={routes.mySession()}>
-              My Sessions
             </Menu.Item>
             <Menu.Item component={Link} href={routes.createSession}>
               Create New Session
@@ -122,16 +113,6 @@ function MobileNav({ routes }: NavigationProps) {
         active={pathname.includes('/sessions/explore')}
       />
       
-      {isAuthenticated && userRole === "student" && (
-        <NavLink
-          label="My Sessions"
-          leftSection={<BookOpen size={18} />}
-          component={Link}
-          href={routes.mySession()}
-          active={pathname.includes('/sessions/my')}
-        />
-      )}
-      
       {isAuthenticated && userRole === "instructor" && (
         <>
           <NavLink
@@ -140,14 +121,6 @@ function MobileNav({ routes }: NavigationProps) {
             component={Link}
             href={routes.instructorDashboard}
             active={pathname === routes.instructorDashboard}
-          />
-          
-          <NavLink
-            label="My Sessions"
-            leftSection={<BookOpen size={18} />}
-            component={Link}
-            href={routes.mySession()}
-            active={pathname.includes('/sessions/my')}
           />
           
           <NavLink

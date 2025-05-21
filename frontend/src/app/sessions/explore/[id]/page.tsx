@@ -22,7 +22,9 @@ import {
   Box
 } from "@mantine/core";
 import { Calendar, Clock, Send, Star, Video } from "lucide-react";
-
+import { notifications } from "@mantine/notifications";
+import { useRouter } from "next/navigation";
+import { routes } from "@/app/routes";
 // Mock session data (would come from API in real app)
 const sessionsMockData = [
   {
@@ -65,6 +67,7 @@ const initialMessages = [
 
 export default function SessionDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const sessionId = Number(params.id);
   const session = sessionsMockData.find(s => s.id === sessionId) || sessionsMockData[0];
   
@@ -107,6 +110,15 @@ export default function SessionDetailPage() {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+
+  const handleRequestSession = () => {
+    console.log("Requesting session...");
+    notifications.show({
+      title: "Session Requested",
+      message: `Your session request has been sent to ${session.instructor.name}.`,
+      color: "blue",
+    });
+  };
 
   return (
     <Container size="xl" py="xl">
@@ -181,7 +193,7 @@ export default function SessionDetailPage() {
               
               <Text mb="md">{session.instructor.bio}</Text>
               
-              <Button variant="outline" leftSection={<Video size={16} />}>
+              <Button variant="outline" leftSection={<Video size={16} />} onClick={() => router.push(routes.instructorProfile(session.instructor.id.toString()))}>
                 View Instructor Profile
               </Button>
             </Tabs.Panel>
@@ -218,8 +230,7 @@ export default function SessionDetailPage() {
               <Text>Available: {session.availability.join(", ")}</Text>
             </Group>
             
-            <Button fullWidth mb="md" color="blue">Schedule Session</Button>
-            <Button fullWidth variant="outline">Contact Instructor</Button>
+            <Button fullWidth color="blue" onClick={handleRequestSession}>Request Session</Button>
           </Card>
           
           <Card withBorder shadow="sm">

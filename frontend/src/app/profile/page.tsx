@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Container,
@@ -18,11 +18,13 @@ import {
   Grid,
   PasswordInput,
   FileButton,
+  Loader,
+  Center,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { User, Lock, Bell, Shield } from "lucide-react";
 
-export default function ProfilePage() {
+function ProfileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -30,6 +32,7 @@ export default function ProfilePage() {
   const initialTab = searchParams.get("tab") || "profile";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
   const [photo, setPhoto] = useState<File | null>(null);
+
   // Update URL when tab changes
   useEffect(() => {
     if (activeTab) {
@@ -88,8 +91,12 @@ export default function ProfilePage() {
               <Grid>
                 <Grid.Col span={{ base: 12, md: 4 }}>
                   <Stack align="center" gap="md">
-                    <Avatar src={user.avatar} size={120} radius={120} />
-                    <FileButton onChange={setPhoto ?? photo} accept="image/*">
+                    <Avatar 
+                      src={photo ? URL.createObjectURL(photo) : user.avatar} 
+                      size={120} 
+                      radius={120} 
+                    />
+                    <FileButton onChange={setPhoto} accept="image/*">
                       {(props) => (
                         <Button variant="light" size="sm" {...props}>
                           Change Photo
@@ -260,5 +267,19 @@ export default function ProfilePage() {
         </Tabs>
       </Paper>
     </Container>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <Center h={400}>
+          <Loader size="lg" />
+        </Center>
+      }
+    >
+      <ProfileContent />
+    </Suspense>
   );
 }

@@ -22,10 +22,39 @@ interface UserProfile {
  * - `subject`: Filter by subjects taught by the instructor.
  * 
  * @route GET /instructors
+ * @body {string} [name]
+ * @body {string} [subject]
  */
 export const getAllInstructors = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+
+    const {name, subject} = req.query;
+
+    const instructors = await prisma.user.findMany({
+      where: { 
+        role: "INSTRUCTOR",
+        AND: [
+          name ? {
+            OR: [
+              {firstName: {contains: String(name), mode: "insensitive"}},
+              {lastName: {contains: String(name), mode: "insensitive"}},
+            ],
+          } : {},
+          subject ? {subjects:{
+            some:{
+              name:{contains: String(subject), mode:"insensitive"},
+            },
+          },
+        } : {},
+
+        ],
+        
+      },
+      include: {subjects: true,},
+
+
+  });
+    res.json({ instructors });
   }
 );
 
@@ -37,7 +66,23 @@ export const getAllInstructors = expressAsyncHandler(
  */
 export const getInstructorById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    
+    const {id} = req.params;
+    const instructor = await prisma.user.findUnique({
+      where: {id},
+      include: {
+        subjects: true,
+        instructorReviews: true,
+        instructorSessions: true,
+      },
+    });
+
+    if (!instructor || instructor.role !== "INSTRUCTOR"){
+      res.status(404);
+      throw new Error("Instructor not found");
+    }
+
+    res.json({instructor});
   }
 );
 
@@ -52,7 +97,44 @@ export const getInstructorById = expressAsyncHandler(
  */
 export const updateInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+    const { certificationUrls, subjects, averageRating } = req.body;
+  
+    const existingInstructor = await prisma.user.findUnique({
+      where: { id },
+      include: { subjects: true }
+    });
+
+    if (!existingInstructor || existingInstructor.role !== "INSTRUCTOR") {
+      res.status(404);
+      throw new Error("Instructor not found");
+    }
+
+    // Update the instructor
+    const updatedInstructor = await prisma.user.update({
+      where: { id },
+      data: {
+        // Update certification URLs if provided
+        ...(certificationUrls && { certificationUrls }),
+        // Update average rating if provided
+        ...(averageRating !== undefined && { averageRating }),
+        // Update subjects if provided
+        ...(subjects && {
+          subjects: {
+            // Clear existing subjects and connect new ones
+            disconnect: existingInstructor.subjects.map(subject => ({ id: subject.id })),
+            connect: subjects.map((subjectId: string) => ({ id: subjectId }))
+          }
+        })
+      },
+      include: {
+        subjects: true,
+        instructorReviews: true,
+        instructorSessions: true,
+      },
+    });
+
+    res.json({ instructor: updatedInstructor });
   }
 );
 
@@ -64,7 +146,20 @@ export const updateInstructor = expressAsyncHandler(
  */
 export const deleteInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    const { id } = req.params;
+
+    const existingInstructor = await prisma.user.findUnique({ where: { id } });
+
+    if (!existingInstructor || existingInstructor.role !== "INSTRUCTOR") {
+      res.status(404);
+      throw new Error("Instructor not found");
+    }
+
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    res.json({ message: "Instructor deleted successfully" });
   }
 );
 
@@ -75,7 +170,28 @@ export const deleteInstructor = expressAsyncHandler(
  */
 export const getUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement get user profile
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subjects: true,
+        instructorReviews: true,
+        instructorSessions: true,
+        studentSessions: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    res.json(user);
   }
 );
 
@@ -86,7 +202,81 @@ export const getUserProfile = expressAsyncHandler(
  */
 export const updateUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement update user profile
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!existingUser) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    const {
+      firstName, lastName, email, birthdate,
+      street, apartment, city, state, zip, country,
+      schoolName, profilePicture, bio,
+      // Student fields
+      grade, parentFirstName, parentLastName, parentEmail, parentPhone,
+      interests, learningGoals,
+      // Instructor fields
+      education, experience, certificationUrls, averageRating, subjects
+    } = req.body;
+
+    const updateData = {
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(email && { email }),
+      ...(birthdate && { birthdate: new Date(birthdate) }),
+      ...(street && { street }),
+      ...(apartment && { apartment }),
+      ...(city && { city }),
+      ...(state && { state }),
+      ...(zip && { zip }),
+      ...(country && { country }),
+      ...(schoolName && { schoolName }),
+      ...(profilePicture && { profilePicture }),
+      ...(bio && { bio }),
+      ...(existingUser.role === "STUDENT" && {
+        ...(grade && { grade }),
+        ...(parentFirstName && { parentFirstName }),
+        ...(parentLastName && { parentLastName }),
+        ...(parentEmail && { parentEmail }),
+        ...(parentPhone && { parentPhone }),
+        ...(interests && { interests }),
+        ...(learningGoals && { learningGoals })
+      }),
+      ...(existingUser.role === "INSTRUCTOR" && {
+        ...(education && { education }),
+        ...(experience && { experience }),
+        ...(certificationUrls && { certificationUrls }),
+        ...(typeof averageRating === 'number' && { averageRating }),
+        ...(subjects && {
+          subjects: {
+            set: [], // Clear existing subjects
+            connect: subjects.map((subjectId: string) => ({ id: subjectId }))
+          }
+        })
+      })
+    };
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: {
+        subjects: true,
+        instructorReviews: true,
+        instructorSessions: true,
+        studentSessions: true,
+      },
+    });
+
+    res.json(updatedUser);
   }
 );
 
@@ -97,7 +287,26 @@ export const updateUserProfile = expressAsyncHandler(
  */
 export const deleteUser = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement delete user
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    await prisma.user.delete({
+      where: { id: userId }
+    });
+
+    res.json({ message: "User account deleted successfully" });
   }
 );
 
@@ -108,7 +317,37 @@ export const deleteUser = expressAsyncHandler(
  */
 export const getStudents = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement get all students
+    if (req.user?.role !== "INSTRUCTOR") {
+      res.status(403);
+      throw new Error("Not authorized - Instructor access only");
+    }
+
+    const students = await prisma.user.findMany({
+      where: { role: "STUDENT" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        grade: true,
+        schoolName: true,
+        interests: true,
+        learningGoals: true,
+        studentSessions: {
+          include: {
+            instructor: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.json({ students });
   }
 );
 
@@ -119,7 +358,47 @@ export const getStudents = expressAsyncHandler(
  */
 export const getInstructors = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement get all instructors
+    if (req.user?.role !== "STUDENT") {
+      res.status(403);
+      throw new Error("Not authorized - Student access only");
+    }
+
+    const instructors = await prisma.user.findMany({
+      where: { role: "INSTRUCTOR" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        bio: true,
+        education: true,
+        experience: true,
+        averageRating: true,
+        subjects: {
+          select: {
+            id: true,
+            name: true,
+            level: true
+          }
+        },
+        instructorReviews: {
+          select: {
+            id: true,
+            rating: true,
+            comment: true,
+            createdAt: true,
+            student: {
+              select: {
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.json({ instructors });
   }
 );
 
@@ -130,7 +409,51 @@ export const getInstructors = expressAsyncHandler(
  */
 export const getUserSessions = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement get user sessions
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        instructorSessions: {
+          include: {
+            students: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            },
+            subjects: true
+          }
+        },
+        studentSessions: {
+          include: {
+            instructor: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            },
+            subjects: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    const sessions = user.role === "INSTRUCTOR" ? user.instructorSessions : user.studentSessions;
+    res.json({ sessions });
   }
 );
 
@@ -141,6 +464,45 @@ export const getUserSessions = expressAsyncHandler(
  */
 export const getUserReviews = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    // TODO: Implement get user reviews
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    }
+
+    const reviews = user.role === "INSTRUCTOR" 
+      ? await prisma.review.findMany({
+          where: { instructorId: userId },
+          include: {
+            student: {
+              select: {
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        })
+      : await prisma.review.findMany({
+          where: { studentId: userId },
+          include: {
+            instructor: {
+              select: {
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        });
+
+    res.json({ reviews });
   }
 );

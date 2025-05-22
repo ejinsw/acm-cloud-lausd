@@ -107,7 +107,7 @@ export const updateReview = expressAsyncHandler(
     const {id} = req.params;
     const {rating, comment} = req.body;
 
-    const existingReview = await prisma.user.findUnique({ where: { id } })
+    const existingReview = await prisma.review.findUnique({ where: { id } })
 
     if (!existingReview){
       res.status(404).json({message: "Review not found"});
@@ -143,7 +143,7 @@ export const deleteReview = expressAsyncHandler(
     const {id} = req.params;
     await prisma.review.delete({where: {id}});
 
-    const existingReview = await prisma.user.findUnique({ where: { id } })
+    const existingReview = await prisma.review.findUnique({ where: { id } })
 
     if (!existingReview){
       res.status(404).json({message: "Review not found"});

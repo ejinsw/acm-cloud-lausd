@@ -52,9 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'ROOM_LIST_UPDATED':
                     updateAvailableRooms(data.payload);
                     break;
-                case 'ROOM_JOINED':
+                case 'ROOM_JOINED':3
                     currentRoom = data.payload;
-=                    if (!currentRoom.messages) {
+                   if (!currentRoom.messages) {
                         currentRoom.messages = [];
                     }
                     enterChatRoomUI();

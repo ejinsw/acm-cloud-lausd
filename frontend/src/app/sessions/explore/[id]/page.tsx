@@ -101,7 +101,7 @@ const ChatPage: React.FC = () => {
         return;
     }
 
-    wsRef.current = new WebSocket('ws://localhost:8080'); // Ensure this URL is correct for your server
+    wsRef.current = new WebSocket(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:9999'); // Ensure this URL is correct for your server
 
     wsRef.current.onopen = () => {
       setConnectionStatusText('Connected. Please identify yourself.');

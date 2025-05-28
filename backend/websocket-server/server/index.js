@@ -1,12 +1,13 @@
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { Profanity, CensorType } = require('@2toad/profanity');
+const dotenv = require('dotenv');
 
-const server = new WebSocket.Server({ port: 8080 });
+dotenv.config();
 
-const profanity = new Profanity();
+const server = new WebSocket.Server({ port: process.env.PORT || 9999 });
 
- profanity.setOptions({ censorType: CensorType.FirstChar }); 
+const profanity = new Profanity({ censorType: CensorType.FirstChar, languages: ['en', 'es', 'fr'] });
 
 
 // In-memory storage
@@ -15,7 +16,7 @@ const users = {};
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; 
 
-console.log('WebSocket chat server started on port 8080');
+console.log(`WebSocket chat server started on port ${process.env.PORT || 9999}`);
 
 // --- Helper Functions ---
 function sanitizeInput(text) {

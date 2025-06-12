@@ -3,6 +3,7 @@ import { expressjwt } from "express-jwt";
 import jwksRsa from "jwks-rsa";
 import { User } from "../types";
 
+//this needs to change to cognito
 export const authenticateToken = expressjwt({
   secret: jwksRsa.expressJwtSecret({
     cache: true,

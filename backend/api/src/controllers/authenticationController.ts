@@ -6,6 +6,7 @@ import {
   InitiateAuthCommand,
   ResendConfirmationCodeCommand,
   SignUpCommand,
+  GlobalSignOutCommand
 } from "@aws-sdk/client-cognito-identity-provider";
 import { prisma } from "../config/prisma";
 import crypto from "crypto";
@@ -78,11 +79,11 @@ export const signup = expressAsyncHandler(
     try {
       const hash = generateSecretHash(
         email,
-        process.env.COGNITO_CLIENT_ID!,
-        process.env.COGNITO_CLIENT_SECRET!
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
       );
       const command = new SignUpCommand({
-        ClientId: process.env.COGNITO_CLIENT_ID!,
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
         SecretHash: hash,
         Username: email,
         Password: password,
@@ -93,8 +94,7 @@ export const signup = expressAsyncHandler(
 
       const response = await cognito.send(command);
 
-      if(!response.UserSub)
-      {
+      if (!response.UserSub) {
         res.status(401).json("No user sub");
         return;
       }
@@ -114,7 +114,7 @@ export const signup = expressAsyncHandler(
               parentEmail: parentEmail,
               street: street,
               apartment: apartment,
-              city : city,
+              city: city,
               state: state,
               zip: zip,
               country: country,
@@ -241,7 +241,7 @@ export const login = expressAsyncHandler(
 
 /**
  * @route POST /api/auth/verify-email
- * @desc Verify user's email on Auth0 and in our database (on verified success)
+ * @desc Verify user's email on Cognito and in our database (on verified success)
  * @access Public
  * @body {
  *   code: string;
@@ -250,7 +250,25 @@ export const login = expressAsyncHandler(
  */
 export const verifyEmail = expressAsyncHandler(
   async (req: Request<{}, {}, VerifyEmailBody>, res: Response, next: NextFunction) => {
-    // TODO: Implement email verification
+    const { email, code } = req.body;
+    if (!email || !code) {
+      res.status(422).json({ message: "No code or email sent" });
+      return;
+    }
+
+    try {
+      const command = new ConfirmSignUpCommand({
+        ClientId: process.env.COGNITO_CLIENT_ID,
+        Username: email,
+        ConfirmationCode: code
+      });
+
+      await cognito.send(command);
+
+      res.status(200).json({ message: "Email verified successfully." });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   }
 );
 
@@ -264,7 +282,28 @@ export const verifyEmail = expressAsyncHandler(
  */
 export const resendVerification = expressAsyncHandler(
   async (req: Request<{}, {}, ResendVerificationBody>, res: Response, next: NextFunction) => {
-    // TODO: Implement resend verification email
+    const { email } = req.body;
+    if (!email) {
+      res.status(422).json({ message: "No email given" });
+      return;
+    }
+
+    try {
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: process.env.COGNITO_CLIENT_ID,
+        Username: email
+      });
+
+      const response = await cognito.send(command);
+
+      res.status(200).json({
+        message: "Verification email resent.",
+        deliveryMedium: response.CodeDeliveryDetails?.DeliveryMedium,
+        destination: response.CodeDeliveryDetails?.Destination
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   }
 );
 
@@ -282,13 +321,39 @@ export const getUserData = expressAsyncHandler(
 
 /**
  * @route POST /api/auth/logout
- * @desc Logout user from Auth0
+ * @desc Logout user from Cogntio
  * @access Private
  * @header Authorization: Bearer <token>
  */
 export const logout = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // TODO: Implement user logout
+    try {
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        res.status(401).json({ error: "Authorization header missing or invalid" });
+
+        return;
+      }
+
+      const accessToken = authHeader.split(" ")[1];
+
+      const command = new GlobalSignOutCommand({
+        AccessToken: accessToken
+      });
+
+      await cognito.send(command);
+
+      res.status(200).json({ message: "Successfully logged out" });
+
+    } catch (err: any) {
+      if (err.name === "NotAuthorizedException") {
+        res.status(401).json({ error: "Invalid or expired token" });
+        return;
+      }
+
+      res.status(500).json({ error: err.message });
+    }
   }
 );
 

@@ -63,6 +63,7 @@ const generateSecretHash = (username: string, clientId: string, clientSecret: st
  *   password: string;
  *   firstName: string;
  *   lastName: string;
+ *   date; Date;
  *   role: "student" | "instructor";
  *   grade?: string; // Optional for students
  *   subjects?: string[]; // Optional for instructors
@@ -72,8 +73,8 @@ export const signup = expressAsyncHandler(
   async (req: Request<{}, {}, SignupBody>, res: Response, next: NextFunction) => {
 
     const { firstName, lastName, role, grade, subjects, password, email, parentEmail, birthdate, street, apartment, city, state, zip, country, schoolName } = req.body;
-    if (!firstName || !lastName || !email || !password || !birthdate || !schoolName) {
-      res.status(400).json({ error: "Email, name, password, birthdate, and schoolName are required." });
+    if (!firstName || !lastName || !email || !password || !birthdate || !schoolName || !role) {
+      res.status(400).json({ error: "Email, first name, last name, password, birthdate, and schoolName are required." });
       return;
     }
     try {
@@ -199,12 +200,12 @@ export const login = expressAsyncHandler(
     try {
       const hash = generateSecretHash(
         email,
-        process.env.COGNITO_CLIENT_ID!,
-        process.env.COGNITO_CLIENT_SECRET!
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
       );
 
       const command = new InitiateAuthCommand({
-        ClientId: process.env.COGNITO_CLIENT_ID!,
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
         AuthFlow: "USER_PASSWORD_AUTH",
         AuthParameters: {
           USERNAME: email,
@@ -257,10 +258,17 @@ export const verifyEmail = expressAsyncHandler(
     }
 
     try {
+      const hash = generateSecretHash(
+        email,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
+      );
+
       const command = new ConfirmSignUpCommand({
-        ClientId: process.env.COGNITO_CLIENT_ID,
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID,
         Username: email,
-        ConfirmationCode: code
+        ConfirmationCode: code,
+        SecretHash: hash
       });
 
       await cognito.send(command);
@@ -289,9 +297,16 @@ export const resendVerification = expressAsyncHandler(
     }
 
     try {
+      const hash = generateSecretHash(
+        email,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
+      );
+
       const command = new ResendConfirmationCodeCommand({
-        ClientId: process.env.COGNITO_CLIENT_ID,
-        Username: email
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID,
+        Username: email,
+        SecretHash: hash
       });
 
       const response = await cognito.send(command);
@@ -357,9 +372,10 @@ export const logout = expressAsyncHandler(
   }
 );
 
+
 /**
  * @route GET /api/auth/tokens
- * @desc Get all active tokens for a user from Auth0
+ * @desc Get all active tokens for a user from Cognito
  * @access Private
  * @header Authorization: Bearer <token>
  */

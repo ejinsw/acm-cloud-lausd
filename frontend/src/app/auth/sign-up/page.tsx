@@ -16,14 +16,19 @@ import {
   Radio,
   Checkbox,
   Anchor,
+  Image,
 } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import { Dropzone, FileWithPath } from "@mantine/dropzone";
+import { IconUpload, IconX, IconPhoto } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { routes } from "../routes";
+import { routes } from "../../routes";
+//import AllSchoolsDropdown from "./component/SchoolListDropdown";
 
 interface SignUpFormData {
   email: string;
@@ -34,10 +39,16 @@ interface SignUpFormData {
   role: "student" | "instructor";
   grade?: string;
   subjects?: string[];
+  schoolName: string;
   agreeToTerms: boolean;
+  birthdate: Date | null;
+  instructorId?: FileWithPath | null;
+  parentEmail?: string;
 }
 
 const gradeLevels = [
+  { value: "7", label: "7th Grade" },
+  { value: "8", label: "8th Grade" },
   { value: "9", label: "9th Grade" },
   { value: "10", label: "10th Grade" },
   { value: "11", label: "11th Grade" },
@@ -51,6 +62,7 @@ const subjects = [
   { value: "history", label: "History" },
   { value: "computer_science", label: "Computer Science" },
 ];
+
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -66,7 +78,11 @@ export default function SignUpPage() {
       role: "student",
       grade: "",
       subjects: [],
+      schoolName: "",
       agreeToTerms: false,
+      birthdate: null,
+      instructorId: null,
+      parentEmail: "",
     },
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
@@ -80,6 +96,8 @@ export default function SignUpPage() {
         value.length < 2 ? "First name must be at least 2 characters" : null,
       lastName: (value) =>
         value.length < 2 ? "Last name must be at least 2 characters" : null,
+      schoolName: (value) =>
+        !value ? "Please select your school" : null,
       grade: (value, values) =>
         values.role === "student" && !value ? "Please select your grade" : null,
       subjects: (value, values) =>
@@ -88,6 +106,14 @@ export default function SignUpPage() {
           : null,
       agreeToTerms: (value) =>
         !value ? "You must agree to the terms and conditions" : null,
+      birthdate: (value) =>
+        !value ? "Please select your birthdate" : null,
+      instructorId: (value, values) =>
+        values.role === "instructor" && !value ? "Please upload your school ID" : null,
+      parentEmail: (value, values) =>
+        values.role === "student" && (!value || !/^\S+@\S+$/.test(value))
+          ? "Please enter a valid parent email address"
+          : null,
     },
   });
 
@@ -163,12 +189,32 @@ export default function SignUpPage() {
                     />
                   </Group>
 
+                  <DatePickerInput
+                    label="Birthdate"
+                    placeholder="Select your birthdate"
+                    required
+                    minDate={new Date(new Date().setFullYear(new Date().getFullYear() - 100))}
+                    maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 13))}
+                    {...form.getInputProps("birthdate")}
+                  />
+
                   <TextInput
                     label="Email"
                     placeholder="Enter your email"
                     required
                     {...form.getInputProps("email")}
                   />
+
+                  <div>
+                    {/* <Text size="sm" fw={500} mb={5}>School</Text> */}
+                    {/* <AllSchoolsDropdown onChange={(value) => form.setFieldValue('schoolName', value)} /> */}
+                    <TextInput
+                      label="School Name"
+                      placeholder="Enter the school you go to"
+                      required
+                      {...form.getInputProps("schoolName")}
+                    />
+                  </div>
 
                   <PasswordInput
                     label="Password"
@@ -202,7 +248,60 @@ export default function SignUpPage() {
                         required
                         {...form.getInputProps("subjects")}
                       />
+
+                      <TextInput
+                        label="Parent/Guardian Email"
+                        placeholder="Enter parent/guardian email address"
+                        required
+                        description="Information on meetings and sessions will be sent to this email as well"
+                        {...form.getInputProps("parentEmail")}
+                      />
                     </>
+                  )}
+
+                  {form.values.role === "instructor" && (
+                    <Stack>
+                      <Text size="sm" fw={500}>School ID Upload</Text>
+                      <Text size="xs" c="dimmed" mb={5}>Upload your school-issued ID (max 5MB)</Text>
+                      <Dropzone
+                        onDrop={(files) => form.setFieldValue("instructorId", files[0])}
+                        maxFiles={1}
+                        accept={["image/jpeg", "image/png", "image/jpg"]}
+                        maxSize={5 * 1024 ** 2}
+                      >
+                        <Group justify="center" gap="xl" style={{ minHeight: 100, pointerEvents: "none" }}>
+                          <Dropzone.Accept>
+                            <IconUpload size={32} stroke={1.5} />
+                          </Dropzone.Accept>
+                          <Dropzone.Reject>
+                            <IconX size={32} stroke={1.5} />
+                          </Dropzone.Reject>
+                          <Dropzone.Idle>
+                            {form.values.instructorId ? (
+                              <Image
+                                src={URL.createObjectURL(form.values.instructorId)}
+                                alt="School ID preview"
+                                w={150}
+                                h={150}
+                                fit="contain"
+                                radius="md"
+                              />
+                            ) : (
+                              <IconPhoto size={32} stroke={1.5} />
+                            )}
+                          </Dropzone.Idle>
+
+                          <div>
+                            <Text size="xl" inline>
+                              {form.values.instructorId ? "File uploaded successfully" : "Drag your school ID here or click to select"}
+                            </Text>
+                            <Text size="sm" c="dimmed" inline mt={7}>
+                              {form.values.instructorId ? "Click or drag to replace" : "File should not exceed 5MB"}
+                            </Text>
+                          </div>
+                        </Group>
+                      </Dropzone>
+                    </Stack>
                   )}
 
                   <Checkbox

@@ -14,7 +14,7 @@ env:
 
 jobs:
   test-frontend:
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
@@ -42,7 +42,7 @@ jobs:
       run: npm run build
 
   test-api:
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend/api
@@ -84,7 +84,7 @@ jobs:
         DATABASE_URL: postgresql://admin:password@localhost:5432/postgres
 
   test-websocket:
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend/websocket-server/server
@@ -108,7 +108,7 @@ jobs:
   deploy-infrastructure:
     needs: [test-frontend, test-api, test-websocket]
     if: github.ref == 'refs/heads/main'
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
@@ -248,7 +248,7 @@ jobs:
   notify-deployment:
     needs: [deploy-lambda-functions]
     if: github.ref == 'refs/heads/main'
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     
     steps:
     - name: Notify deployment success

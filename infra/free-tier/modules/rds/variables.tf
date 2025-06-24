@@ -1,9 +1,3 @@
-variable "aws_region" {
-  description = "AWS region to deploy resources"
-  type        = string
-  default     = "us-west-1"
-}
-
 variable "project_name" {
   description = "Name of the project"
   type        = string
@@ -28,14 +22,17 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "lambda_memory" {
-  description = "Memory allocation for Lambda functions"
-  type        = number
-  default     = 128 # Free tier optimized
+variable "subnet_ids" {
+  description = "Subnet IDs for the RDS instance"
+  type        = list(string)
 }
 
-variable "lambda_timeout" {
-  description = "Timeout for Lambda functions"
-  type        = number
-  default     = 30 # Free tier optimized
-} 
+variable "vpc_id" {
+  description = "VPC ID for the RDS instance"
+  type        = string
+}
+
+variable "security_group_id" {
+  description = "Security group ID for the application"
+  type        = string
+}

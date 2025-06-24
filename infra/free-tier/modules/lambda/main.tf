@@ -1,15 +1,25 @@
 resource "aws_lambda_function" "main" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-function"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
-  runtime         = "nodejs18.x"
-  timeout         = var.lambda_timeout
-  memory_size     = var.lambda_memory
+  function_name = var.function_name
+  role          = aws_iam_role.lambda_role.arn
+  
+  # Use ZIP file when use_container is false
+  filename         = var.use_container ? null : data.archive_file.lambda_zip[0].output_path
+  source_code_hash = var.use_container ? null : data.archive_file.lambda_zip[0].output_base64sha256
+  
+  # Use container when use_container is true
+  package_type = var.use_container ? "Image" : null
+  image_uri    = var.use_container ? var.image_uri : null
+  
+  # Use runtime when use_container is false
+  runtime = var.use_container ? null : "nodejs18.x"
+  handler = var.use_container ? null : "index.handler"
+
+  timeout     = var.lambda_timeout
+  memory_size = var.lambda_memory
 
   vpc_config {
     subnet_ids         = var.subnet_ids
-    security_group_ids = [aws_security_group.lambda.id]
+    security_group_ids = [var.security_group_id]
   }
 
   environment {
@@ -23,31 +33,25 @@ resource "aws_lambda_function" "main" {
   }
 
   tags = {
-    Name        = "${var.project_name}-lambda"
+    Name        = "${var.project_name}-${var.function_name}"
     Environment = var.environment
   }
 }
 
-resource "aws_security_group" "lambda" {
-  name        = "${var.project_name}-lambda-sg"
-  description = "Security group for Lambda function"
-  vpc_id      = var.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-lambda-sg"
-    Environment = var.environment
+# Create ZIP file for Lambda (only when use_container = false)
+data "archive_file" "lambda_zip" {
+  count       = var.use_container ? 0 : 1
+  type        = "zip"
+  output_path = "${path.module}/${var.function_name}.zip"
+  
+  source {
+    content = var.lambda_code
+    filename = "index.js"
   }
 }
 
 resource "aws_iam_role" "lambda_role" {
-  name = "${var.project_name}-lambda-role"
+  name = "${var.project_name}-${var.function_name}-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -73,13 +77,34 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+# ECR permissions (only when use_container = true)
+resource "aws_iam_role_policy" "lambda_ecr" {
+  count = var.use_container ? 1 : 0
+  name  = "${var.project_name}-${var.function_name}-ecr-policy"
+  role  = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${aws_lambda_function.main.function_name}"
   retention_in_days = 7  # Free tier optimized
 
   tags = {
-    Name        = "${var.project_name}-lambda-logs"
+    Name        = "${var.project_name}-${var.function_name}-logs"
     Environment = var.environment
   }
 } 

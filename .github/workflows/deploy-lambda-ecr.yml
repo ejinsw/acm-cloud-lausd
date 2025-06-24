@@ -1,0 +1,204 @@
+name: Deploy Lambda Functions to ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - staging
+        - prod
+      function:
+        description: 'Function to deploy (or all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - api
+        - websocket
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/api/**'
+      - 'backend/websocket-server/**'
+      - '.github/workflows/deploy-lambda-ecr.yml'
+
+env:
+  AWS_REGION: us-west-1
+  PROJECT_NAME: acm-cloud-lausd
+
+jobs:
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function: ${{ github.event.inputs.function == 'all' && fromJSON('["api", "websocket"]') || fromJSON(format('["{0}"]', github.event.inputs.function)) }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build and push ${{ matrix.function }} Lambda image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-${{ matrix.function }}-${{ github.event.inputs.environment || 'dev' }}
+        IMAGE_TAG: ${{ github.sha }}
+        ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+      run: |
+        # Get ECR repository URL
+        REPO_URL=$(aws ecr describe-repositories \
+          --repository-names "$ECR_REPOSITORY" \
+          --region ${{ env.AWS_REGION }} \
+          --query 'repositories[0].repositoryUri' \
+          --output text)
+        
+        if [ -z "$REPO_URL" ]; then
+          echo "Error: ECR repository $ECR_REPOSITORY not found"
+          exit 1
+        fi
+        
+        # Set build context and Dockerfile based on function
+        if [ "${{ matrix.function }}" = "api" ]; then
+          BUILD_CONTEXT="backend/api"
+          DOCKERFILE="backend/api/Dockerfile.lambda"
+        elif [ "${{ matrix.function }}" = "websocket" ]; then
+          BUILD_CONTEXT="backend/websocket-server/server"
+          DOCKERFILE="backend/websocket-server/server/Dockerfile.lambda"
+        fi
+        
+        # Build the image with cache
+        docker buildx build \
+          --platform linux/amd64 \
+          --file $DOCKERFILE \
+          --tag $REPO_URL:$IMAGE_TAG \
+          --tag $REPO_URL:latest \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
+          --push \
+          $BUILD_CONTEXT
+        
+        echo "Successfully built and pushed ${{ matrix.function }} Lambda image"
+        echo "Image URI: $REPO_URL:$IMAGE_TAG"
+
+  deploy-lambda-functions:
+    needs: [build-and-push-images]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function: ${{ github.event.inputs.function == 'all' && fromJSON('["api", "websocket"]') || fromJSON(format('["{0}"]', github.event.inputs.function)) }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Update ${{ matrix.function }} Lambda function
+      env:
+        ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+      run: |
+        # Get ECR repository URL
+        REPO_URL=$(aws ecr describe-repositories \
+          --repository-names "lambda-${{ env.PROJECT_NAME }}-${{ matrix.function }}-$ENVIRONMENT" \
+          --region ${{ env.AWS_REGION }} \
+          --query 'repositories[0].repositoryUri' \
+          --output text)
+        
+        # Get Lambda function name
+        FUNCTION_NAME="${{ env.PROJECT_NAME }}-${{ matrix.function }}-$ENVIRONMENT"
+        
+        # Update Lambda function with new image
+        aws lambda update-function-code \
+          --function-name $FUNCTION_NAME \
+          --image-uri $REPO_URL:${{ github.sha }}
+        
+        # Wait for update to complete
+        aws lambda wait function-updated \
+          --function-name $FUNCTION_NAME
+        
+        echo "Successfully updated ${{ matrix.function }} Lambda function"
+        echo "Function: $FUNCTION_NAME"
+        echo "Image: $REPO_URL:${{ github.sha }}"
+
+  verify-deployment:
+    needs: [deploy-lambda-functions]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Verify Lambda function updates
+      env:
+        ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+      run: |
+        # Verify API Lambda
+        API_FUNCTION="${{ env.PROJECT_NAME }}-api-$ENVIRONMENT"
+        API_CONFIG=$(aws lambda get-function --function-name $API_FUNCTION --query 'Configuration.{FunctionName:FunctionName,LastUpdateStatus:LastUpdateStatus,ImageUri:Code.ImageUri}' --output json)
+        echo "API Lambda Status: $API_CONFIG"
+        
+        # Verify WebSocket Lambda
+        WS_FUNCTION="${{ env.PROJECT_NAME }}-websocket-$ENVIRONMENT"
+        WS_CONFIG=$(aws lambda get-function --function-name $WS_FUNCTION --query 'Configuration.{FunctionName:FunctionName,LastUpdateStatus:LastUpdateStatus,ImageUri:Code.ImageUri}' --output json)
+        echo "WebSocket Lambda Status: $WS_CONFIG"
+        
+        # Check if both functions are successfully updated
+        API_STATUS=$(echo $API_CONFIG | jq -r '.LastUpdateStatus')
+        WS_STATUS=$(echo $WS_CONFIG | jq -r '.LastUpdateStatus')
+        
+        if [ "$API_STATUS" = "Successful" ] && [ "$WS_STATUS" = "Successful" ]; then
+          echo "✅ All Lambda functions updated successfully!"
+        else
+          echo "❌ Some Lambda functions failed to update"
+          echo "API Status: $API_STATUS"
+          echo "WebSocket Status: $WS_STATUS"
+          exit 1
+        fi
+
+  notify-completion:
+    needs: [verify-deployment]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Deployment Summary
+      run: |
+        if [ "${{ needs.verify-deployment.result }}" = "success" ]; then
+          echo "🎉 Lambda deployment completed successfully!"
+          echo "Environment: ${{ github.event.inputs.environment || 'dev' }}"
+          echo "Functions: ${{ github.event.inputs.function || 'all' }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.event_name }}"
+        else
+          echo "❌ Lambda deployment failed!"
+          echo "Check the logs above for details."
+          exit 1
+        fi 

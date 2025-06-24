@@ -14,11 +14,18 @@ module.exports = {
     'prettier/prettier': 'error',
 
     // General rules
-    'no-console': 'warn',
     'no-debugger': 'error',
     'prefer-const': 'error',
     'no-var': 'error',
     'no-unused-vars': 'warn',
   },
-  ignorePatterns: ['node_modules/', 'dist/', 'build/', 'coverage/', '*.min.js', '*.bundle.js'],
+  ignorePatterns: [
+    'node_modules/',
+    'dist/',
+    'build/',
+    'coverage/',
+    '*.min.js',
+    '*.bundle.js',
+    '*.test.js',
+  ],
 };

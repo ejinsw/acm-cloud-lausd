@@ -26,35 +26,28 @@ interface UserProfile {
  * @body {string} [subject]
  */
 export const getAllInstructors = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-
+ async (req: Request, res: Response, next: NextFunction) => {
     const {name, subject} = req.query;
-
+    const where: any = {role: "INSTRUCTOR"};
+    if (name){
+      where.OR = [
+        {firstName: {contains: name, mode: "insensitive"}},
+        {lastName: {contains: name, mode: "insensitive"}},
+      ]
+    }
+    if (subject){
+      where.subjects = {
+        some: {name: {contains: subject, mode: "insensitive"}}
+      }
+    }
     const instructors = await prisma.user.findMany({
-      where: { 
-        role: "INSTRUCTOR",
-        AND: [
-          name ? {
-            OR: [
-              {firstName: {contains: String(name), mode: "insensitive"}},
-              {lastName: {contains: String(name), mode: "insensitive"}},
-            ],
-          } : {},
-          subject ? {subjects:{
-            some:{
-              name:{contains: String(subject), mode:"insensitive"},
-            },
-          },
-        } : {},
-
-        ],
-        
+      where,
+      include: {
+        subjects: true,
+        instructorReviews: true,
+        instructorSessions: true,
       },
-      include: {subjects: true,},
-
-
-  });
-    res.json({ instructors });
+    });
   }
 );
 
@@ -66,23 +59,20 @@ export const getAllInstructors = expressAsyncHandler(
  */
 export const getInstructorById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    
-    const {id} = req.params;
+    const { id } = req.params;
     const instructor = await prisma.user.findUnique({
-      where: {id},
+      where: { id },
       include: {
         subjects: true,
         instructorReviews: true,
         instructorSessions: true,
       },
     });
-
-    if (!instructor || instructor.role !== "INSTRUCTOR"){
-      res.status(404);
-      throw new Error("Instructor not found");
+    if (!instructor || instructor.role !== "INSTRUCTOR") {
+      res.status(404).json({ message: "Instructor not found" });
+      return;
     }
-
-    res.json({instructor});
+    res.json({ instructor });
   }
 );
 
@@ -98,35 +88,35 @@ export const getInstructorById = expressAsyncHandler(
 export const updateInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const { certificationUrls, subjects, averageRating } = req.body;
-  
-    const existingInstructor = await prisma.user.findUnique({
-      where: { id },
-      include: { subjects: true }
+    const data = { ...req.body };
+
+    // Instructors cannot update schoolName
+    if ('schoolName' in data) delete data.schoolName;
+
+    // Only allow instructor-specific and common fields
+    const allowedFields = [
+      // Common fields
+      'email', 'role', 'verified', 'firstName', 'lastName', 'birthdate',
+      'street', 'apartment', 'city', 'state', 'zip', 'country',
+      'profilePicture', 'bio',
+      // Instructor-specific
+      'education', 'experience', 'certificationUrls', 'averageRating', 'subjects'
+    ];
+    Object.keys(data).forEach(key => {
+      if (!allowedFields.includes(key)) delete data[key];
     });
 
-    if (!existingInstructor || existingInstructor.role !== "INSTRUCTOR") {
-      res.status(404);
-      throw new Error("Instructor not found");
+    // Handle subjects relation if present
+    if (data.subjects) {
+      data.subjects = {
+        set: [],
+        connect: data.subjects.map((subjectId: string) => ({ id: subjectId }))
+      };
     }
 
-    // Update the instructor
     const updatedInstructor = await prisma.user.update({
       where: { id },
-      data: {
-        // Update certification URLs if provided
-        ...(certificationUrls && { certificationUrls }),
-        // Update average rating if provided
-        ...(averageRating !== undefined && { averageRating }),
-        // Update subjects if provided
-        ...(subjects && {
-          subjects: {
-            // Clear existing subjects and connect new ones
-            disconnect: existingInstructor.subjects.map(subject => ({ id: subject.id })),
-            connect: subjects.map((subjectId: string) => ({ id: subjectId }))
-          }
-        })
-      },
+      data,
       include: {
         subjects: true,
         instructorReviews: true,
@@ -145,21 +135,20 @@ export const updateInstructor = expressAsyncHandler(
  * @param {string} id - The unique identifier of the instructor to delete.
  */
 export const deleteInstructor = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     const { id } = req.params;
-
-    const existingInstructor = await prisma.user.findUnique({ where: { id } });
-
+    
+    const existingInstructor = await prisma.user.findUnique({ 
+      where: { id },
+    });
+    
     if (!existingInstructor || existingInstructor.role !== "INSTRUCTOR") {
-      res.status(404);
-      throw new Error("Instructor not found");
+      res.status(404).json({ message: "Instructor not found" });
+      return;
     }
 
-    await prisma.user.delete({
-      where: { id }
-    });
-
-    res.json({ message: "Instructor deleted successfully" });
+    await prisma.user.delete({ where: { id } });
+    res.status(200).json({ message: "Instructor deleted successfully" });
   }
 );
 
@@ -170,28 +159,19 @@ export const deleteInstructor = expressAsyncHandler(
  */
 export const getUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?.id;
+    // TODO: Implement get user profile
+    const userId = (req.user as { sub: string })?.sub;
     if (!userId) {
       res.status(401);
       throw new Error("Not authorized");
     }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        subjects: true,
-        instructorReviews: true,
-        instructorSessions: true,
-        studentSessions: true,
-      },
-    });
-
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       res.status(404);
       throw new Error("User not found");
     }
 
-    res.json(user);
+    res.json({ user });
   }
 );
 
@@ -202,72 +182,65 @@ export const getUserProfile = expressAsyncHandler(
  */
 export const updateUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?.id;
+    const userId = (req.user as { sub: string })?.sub;
     if (!userId) {
       res.status(401);
       throw new Error("Not authorized");
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!existingUser) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
       res.status(404);
       throw new Error("User not found");
     }
 
-    const {
-      firstName, lastName, email, birthdate,
-      street, apartment, city, state, zip, country,
-      schoolName, profilePicture, bio,
-      // Student fields
-      grade, parentFirstName, parentLastName, parentEmail, parentPhone,
-      interests, learningGoals,
-      // Instructor fields
-      education, experience, certificationUrls, averageRating, subjects
-    } = req.body;
+    const data = { ...req.body };
 
-    const updateData = {
-      ...(firstName && { firstName }),
-      ...(lastName && { lastName }),
-      ...(email && { email }),
-      ...(birthdate && { birthdate: new Date(birthdate) }),
-      ...(street && { street }),
-      ...(apartment && { apartment }),
-      ...(city && { city }),
-      ...(state && { state }),
-      ...(zip && { zip }),
-      ...(country && { country }),
-      ...(schoolName && { schoolName }),
-      ...(profilePicture && { profilePicture }),
-      ...(bio && { bio }),
-      ...(existingUser.role === "STUDENT" && {
-        ...(grade && { grade }),
-        ...(parentFirstName && { parentFirstName }),
-        ...(parentLastName && { parentLastName }),
-        ...(parentEmail && { parentEmail }),
-        ...(parentPhone && { parentPhone }),
-        ...(interests && { interests }),
-        ...(learningGoals && { learningGoals })
-      }),
-      ...(existingUser.role === "INSTRUCTOR" && {
-        ...(education && { education }),
-        ...(experience && { experience }),
-        ...(certificationUrls && { certificationUrls }),
-        ...(typeof averageRating === 'number' && { averageRating }),
-        ...(subjects && {
-          subjects: {
-            set: [], // Clear existing subjects
-            connect: subjects.map((subjectId: string) => ({ id: subjectId }))
-          }
-        })
-      })
-    };
+    if (user.role === "INSTRUCTOR") {
+      // Instructors cannot update schoolName
+      if ('schoolName' in data) delete data.schoolName;
+      // Only allow instructor-specific and common fields
+      const allowedFields = [
+        'email', 'role', 'verified', 'firstName', 'lastName', 'birthdate',
+        'street', 'apartment', 'city', 'state', 'zip', 'country',
+        'profilePicture', 'bio',
+        'education', 'experience', 'certificationUrls', 'averageRating', 'subjects'
+      ];
+      Object.keys(data).forEach(key => {
+        if (!allowedFields.includes(key)) delete data[key];
+      });
+      // Handle subjects relation if present
+      if (data.subjects) {
+        data.subjects = {
+          set: [],
+          connect: data.subjects.map((subjectId: string) => ({ id: subjectId }))
+        };
+      }
+    } else if (user.role === "STUDENT") {
+      // Students cannot update these fields
+      [
+        'email', 'birthdate', 'schoolName', 'firstName', 'lastName'
+      ].forEach(field => {
+        if (field in data) delete data[field];
+      });
+      // Only allow student-specific and common fields
+      const allowedFields = [
+        // Common fields
+        'role', 'verified',
+        'street', 'apartment', 'city', 'state', 'zip', 'country',
+        'profilePicture', 'bio',
+        // Student-specific
+        'grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone',
+        'interests', 'learningGoals'
+      ];
+      Object.keys(data).forEach(key => {
+        if (!allowedFields.includes(key)) delete data[key];
+      });
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: updateData,
+      data,
       include: {
         subjects: true,
         instructorReviews: true,
@@ -276,7 +249,7 @@ export const updateUserProfile = expressAsyncHandler(
       },
     });
 
-    res.json(updatedUser);
+    res.json({ user: updatedUser });
   }
 );
 
@@ -287,26 +260,22 @@ export const updateUserProfile = expressAsyncHandler(
  */
 export const deleteUser = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401);
-      throw new Error("Not authorized");
+    // TODO: Implement delete user
+
+    const userId = (req.user as { sub: string })?.sub;
+    if(!userId){
+      res.status(401).json({message: "Unauthorized"});
+      return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } })
 
-    if (!user) {
-      res.status(404);
-      throw new Error("User not found");
+    if (!existingUser){
+      res.status(404).json({message: "User not found"});
+      return;
     }
-
-    await prisma.user.delete({
-      where: { id: userId }
-    });
-
-    res.json({ message: "User account deleted successfully" });
+    await prisma.user.delete({where: {id: userId}});
+    res.status(200).json({message: "User deleted successfully"});
   }
 );
 
@@ -317,37 +286,23 @@ export const deleteUser = expressAsyncHandler(
  */
 export const getStudents = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    if (req.user?.role !== "INSTRUCTOR") {
+    // TODO: Implement get all students
+    const userId = (req.user as { sub: string })?.sub;
+    if (!userId) {
+      res.status(401);
+      throw new Error("Not authorized");
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.role !== "INSTRUCTOR") {
       res.status(403);
-      throw new Error("Not authorized - Instructor access only");
+      throw new Error("Access denied");
     }
 
     const students = await prisma.user.findMany({
       where: { role: "STUDENT" },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        grade: true,
-        schoolName: true,
-        interests: true,
-        learningGoals: true,
-        studentSessions: {
-          include: {
-            instructor: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true
-              }
-            }
-          }
-        }
-      }
+      include: { studentSessions: true },
     });
 
-    res.json({ students });
   }
 );
 

@@ -120,19 +120,31 @@ export default function SignUpPage() {
   const handleSubmit = async (values: SignUpFormData) => {
     setLoading(true);
     try {
-      // TODO: Implement actual sign-up logic here
-      console.log("Form submitted:", values);
-      
+      const response = await fetch('/api/auth/sign-up', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create account');
+      }
+
       notifications.show({
         title: "Success!",
-        message: "Your account has been created successfully.",
+        message: "Your account has been created successfully. Now verify",
         color: "green",
         icon: <CheckCircle2 size={16} />,
         autoClose: 5000,
       });
 
-      // Redirect to the appropriate dashboard based on role
-      router.push(values.role === "student" ? routes.studentDashboard : routes.instructorDashboard);
+      // Store email for verification step
+      localStorage.setItem("pendingVerificationEmail", values.email);
+
+      // Redirect to the email verification page
+      router.push(routes.emailVerification);
     } catch {
       notifications.show({
         title: "Error",

@@ -70,22 +70,29 @@ export default function SignInPage() {
   const handleSubmit = async (values: SignInFormData) => {
     setLoading(true);
     try {
-      // TODO: Implement actual sign-in logic here
-      console.log("Form submitted:", values);
-      
-      // Simulate getting an auth token from the server
-      //authenticate here
-      const authToken = "sample-auth-token"; // This would come from your backend
-      
-      // Store the token based on remember me preference
-      if (values.rememberMe) {
-        // Store in localStorage for persistent login
-        localStorage.setItem("authToken", authToken);
-      } else {
-        // Store in sessionStorage for session-only login
-        sessionStorage.setItem("authToken", authToken);
+      // Call the Next.js API route for sign-in
+      const response = await fetch('/api/auth/sign-in', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sign in. Incorrect username or password');
       }
-      
+
+      // Store the token based on remember me preference
+
+
+
+      // if (values.rememberMe) {
+      //   localStorage.setItem("authToken", authToken);
+      // } else {
+      //   sessionStorage.setItem("authToken", authToken);
+      // }
+
       notifications.show({
         title: "Success!",
         message: "You have been signed in successfully.",

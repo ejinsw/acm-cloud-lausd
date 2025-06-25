@@ -6,7 +6,9 @@ import {
   InitiateAuthCommand,
   ResendConfirmationCodeCommand,
   SignUpCommand,
-  GlobalSignOutCommand
+  GlobalSignOutCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand
 } from "@aws-sdk/client-cognito-identity-provider";
 import { prisma } from "../config/prisma";
 import crypto from "crypto";
@@ -221,6 +223,8 @@ export const login = expressAsyncHandler(
         return;
       }
 
+      //get role
+      await prisma.user.findFirst()
       res.json({
         email: email,
         idToken: response.AuthenticationResult.IdToken,
@@ -272,7 +276,7 @@ export const verifyEmail = expressAsyncHandler(
       });
 
       await cognito.send(command);
-
+      
       res.status(200).json({ message: "Email verified successfully." });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -382,5 +386,117 @@ export const logout = expressAsyncHandler(
 export const getActiveTokens = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     // TODO: Implement get active tokens
+  }
+);
+
+/**
+ * @route POST /api/auth/refresh-token
+ * @desc Refresh access token using a refresh token
+ * @access Public
+ * @body {
+ *   refreshToken: string;
+ * }
+ */
+export const refreshToken = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      res.status(400).json({ error: "Refresh token is required" });
+      return;
+    }
+    try {
+      const command = new InitiateAuthCommand({
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        AuthFlow: "REFRESH_TOKEN_AUTH",
+        AuthParameters: {
+          REFRESH_TOKEN: refreshToken,
+        },
+      });
+      const response = await cognito.send(command);
+      if (!response.AuthenticationResult) {
+        res.status(401).json({ error: "Invalid refresh token" });
+        return;
+      }
+      res.json({
+        accessToken: response.AuthenticationResult.AccessToken,
+        idToken: response.AuthenticationResult.IdToken,
+        expiresIn: response.AuthenticationResult.ExpiresIn,
+        tokenType: response.AuthenticationResult.TokenType,
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+/**
+ * @route POST /api/auth/forgot-password
+ * @desc Initiate forgot password flow (send reset code to email)
+ * @access Public
+ * @body {
+ *   email: string;
+ * }
+ */
+export const forgotPassword = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: "Email is required" });
+      return;
+    }
+    try {
+      const hash = generateSecretHash(
+        email,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
+      );
+      const command = new ForgotPasswordCommand({
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        Username: email,
+        SecretHash: hash,
+      });
+      await cognito.send(command);
+      res.status(200).json({ message: "Password reset code sent to email." });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+/**
+ * @route POST /api/auth/reset-password
+ * @desc Reset password using code sent to email
+ * @access Public
+ * @body {
+ *   email: string;
+ *   code: string;
+ *   newPassword: string;
+ * }
+ */
+export const resetPassword = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      res.status(400).json({ error: "Email, code, and new password are required" });
+      return;
+    }
+    try {
+      const hash = generateSecretHash(
+        email,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
+      );
+      const command = new ConfirmForgotPasswordCommand({
+        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+        Username: email,
+        ConfirmationCode: code,
+        Password: newPassword,
+        SecretHash: hash,
+      });
+      await cognito.send(command);
+      res.status(200).json({ message: "Password has been reset successfully." });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   }
 );

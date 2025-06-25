@@ -82,6 +82,7 @@ const ChatPage: React.FC = () => {
    * @param type - The message type.
    * @param payload - The message payload.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sendToServer = useCallback((type: string, payload: any) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type, payload }));
@@ -174,7 +175,7 @@ const ChatPage: React.FC = () => {
               const { messageId } = data.payload;
               setChatMessages(prevMsgs =>
                 prevMsgs.map(msg => {
-                  if (msg.id === messageId && msg.type !== 'notification') { // Ensure it's a DisplayMessage
+                  if (msg.id === messageId && (msg as NotificationMessage).type !== 'notification') { // Ensure it's a DisplayMessage
                     return { ...(msg as DisplayMessage), text: 'Message deleted.', isDeleted: true, sender: {id:'system', username: 'System', type:'instructor'} };
                   }
                   return msg;
@@ -541,7 +542,7 @@ const ChatPage: React.FC = () => {
             <div id="main-chat">
               <div id="message-container" ref={messageContainerRef}>
                 {chatMessages.map((msg) => {
-                  if (msg.type === 'notification') {
+                  if ((msg as NotificationMessage).type === 'notification') {
                     return (
                       <div key={msg.id} className="notification-message">
                         <span className="text">{msg.text}</span>
@@ -552,12 +553,12 @@ const ChatPage: React.FC = () => {
                   return (
                     <div
                       key={msg.id}
-                      className={`message-item ${msg.isMyMessage ? 'my-message' : ''} ${msg.isDeleted ? 'deleted' : ''}`}
+                      className={`message-item ${(msg as DisplayMessage).isMyMessage ? 'my-message' : ''} ${(msg as DisplayMessage).isDeleted ? 'deleted' : ''}`}
                     >
-                      {!msg.isDeleted && <span className="sender">{msg.sender.username || 'Unknown'}{msg.sender.type ? ` (${msg.sender.type})` : ''}:</span>}
-                      <span className="text">{msg.text}</span>
-                      {!msg.isDeleted && <span className="timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
-                      {currentUser.type === 'instructor' && !msg.isMyMessage && !msg.isDeleted && (
+                      {!(msg as DisplayMessage).isDeleted && <span className="sender">{(msg as DisplayMessage).sender.username || 'Unknown'}{(msg as DisplayMessage).sender.type ? ` (${(msg as DisplayMessage).sender.type})` : ''}:</span>}
+                      <span className="text">{(msg as DisplayMessage).text}</span>
+                      {!(msg as DisplayMessage).isDeleted && <span className="timestamp">{new Date((msg as DisplayMessage).timestamp).toLocaleTimeString()}</span>}
+                      {currentUser.type === 'instructor' && !(msg as DisplayMessage).isMyMessage && !(msg as DisplayMessage).isDeleted && (
                         <button
                           className="delete-msg-btn"
                           style={{ fontSize: '0.8em', padding: '2px 4px', marginLeft: '10px' }}

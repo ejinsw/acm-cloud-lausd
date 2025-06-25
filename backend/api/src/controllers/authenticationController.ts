@@ -1,6 +1,6 @@
-import expressAsyncHandler from "express-async-handler";
-import { NextFunction, Request, Response } from "express";
-import { getAuth0ManagementClient } from "../config/auth0";
+import expressAsyncHandler from 'express-async-handler';
+import { NextFunction, Request, Response } from 'express';
+import { getAuth0ManagementClient } from '../config/auth0';
 
 // Request body interfaces
 interface SignupBody {
@@ -8,7 +8,7 @@ interface SignupBody {
   password: string;
   firstName: string;
   lastName: string;
-  role: "student" | "instructor";
+  role: 'student' | 'instructor';
   grade?: string; // Optional for students
   subjects?: string[]; // Optional for instructors
 }

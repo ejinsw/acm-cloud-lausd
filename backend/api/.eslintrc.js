@@ -21,5 +21,13 @@ module.exports = {
     'no-var': 'error',
     'no-unused-vars': 'off', // Turn off base rule as it can report incorrect errors
   },
-  ignorePatterns: ['node_modules/', 'dist/', 'build/', 'coverage/', '*.min.js', '*.bundle.js'],
+  ignorePatterns: [
+    'node_modules/',
+    'dist/',
+    'build/',
+    'coverage/',
+    '*.min.js',
+    '*.bundle.js',
+    'tests/',
+  ],
 };

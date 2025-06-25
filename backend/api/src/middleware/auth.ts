@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from "express";
-import { expressjwt } from "express-jwt";
-import jwksRsa from "jwks-rsa";
-import { User } from "../types";
+import { Request, Response, NextFunction } from 'express';
+import { expressjwt } from 'express-jwt';
+import jwksRsa from 'jwks-rsa';
+import { User } from '../types';
 
 export const authenticateToken = expressjwt({
   secret: jwksRsa.expressJwtSecret({
@@ -12,19 +12,19 @@ export const authenticateToken = expressjwt({
   }),
   audience: process.env.AUTH0_AUDIENCE,
   issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-  algorithms: ["RS256"],
+  algorithms: ['RS256'],
 });
 
 export const checkRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const userRole = (req.user as User)?.user_metadata?.role;
-    
+
     if (!userRole || !roles.includes(userRole)) {
       return res.status(403).json({
-        message: "You do not have permission to access this resource",
+        message: 'You do not have permission to access this resource',
       });
     }
-    
+
     next();
   };
-}; 
+};

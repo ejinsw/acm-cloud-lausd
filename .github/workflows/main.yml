@@ -131,7 +131,11 @@ jobs:
     
     - name: Terraform Plan
       working-directory: ./infra/free-tier
-      run: terraform plan -out=tfplan
+      run: |
+        terraform plan -out=tfplan \
+        -var="db_username=${{ secrets.TF_DB_USERNAME }}" \
+        -var="db_password=${{ secrets.TF_DB_PASSWORD }}"
+  
     
     - name: Terraform Apply
       working-directory: ./infra/free-tier

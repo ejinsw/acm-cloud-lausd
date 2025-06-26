@@ -17,6 +17,7 @@ import {
   Checkbox,
   Anchor,
   Image,
+  MultiSelect,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
@@ -44,6 +45,7 @@ interface SignUpFormData {
   birthdate: Date | null;
   instructorId?: FileWithPath | null;
   parentEmail?: string;
+  credentialedSubjects?: string[];
 }
 
 const gradeLevels = [
@@ -56,11 +58,21 @@ const gradeLevels = [
 ];
 
 const subjects = [
-  { value: "math", label: "Mathematics" },
-  { value: "science", label: "Science" },
-  { value: "english", label: "English" },
-  { value: "history", label: "History" },
-  { value: "computer_science", label: "Computer Science" },
+  { value: "Mathematics", label: "Mathematics" },
+  { value: "Science", label: "Science" },
+  { value: "English", label: "English" },
+  { value: "History", label: "History" },
+  { value: "Computer Science", label: "Computer Science" },
+  { value: "Calculus", label: "Calculus" },
+  { value: "Algebra", label: "Algebra" },
+  { value: "Statistics", label: "Statistics" },
+  { value: "Geometry", label: "Geometry" },
+  { value: "Physics", label: "Physics" },
+  { value: "Chemistry", label: "Chemistry" },
+  { value: "Biology", label: "Biology" },
+  { value: "Spanish", label: "Spanish" },
+  { value: "French", label: "French" },
+  { value: "Programming", label: "Programming" }
 ];
 
 
@@ -83,6 +95,7 @@ export default function SignUpPage() {
       birthdate: null,
       instructorId: null,
       parentEmail: "",
+      credentialedSubjects: [],
     },
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
@@ -104,6 +117,10 @@ export default function SignUpPage() {
         values.role === "student" && (!value || value.length === 0)
           ? "Please select at least one subject"
           : null,
+      credentialedSubjects: (value, values) =>
+        values.role === "instructor" && (!value || value.length === 0)
+          ? "Please select at least one subject you are credentialed to teach"
+          : null,
       agreeToTerms: (value) =>
         !value ? "You must agree to the terms and conditions" : null,
       birthdate: (value) =>
@@ -120,12 +137,25 @@ export default function SignUpPage() {
   const handleSubmit = async (values: SignUpFormData) => {
     setLoading(true);
     try {
+      // Debug logging to see what we're getting
+      console.log("Form values:", values);
+      console.log("Credentialed subjects:", values.credentialedSubjects);
+      console.log("Student subjects:", values.subjects);
+      
+      const submitData = {
+        ...values,
+        subjects: values.role === "instructor" ? values.credentialedSubjects : values.subjects,
+      };
+
+      console.log("Submit data:", submitData);
+      console.log("Subjects being sent:", submitData.subjects);
+
       const response = await fetch('/api/auth/sign-up', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(submitData),
       });
 
       if (!response.ok) {
@@ -252,12 +282,12 @@ export default function SignUpPage() {
                         {...form.getInputProps("grade")}
                       />
 
-                      <Select
+                      <MultiSelect
                         label="Subjects"
                         placeholder="Select subjects you need help with"
                         data={subjects}
-                        multiple
                         required
+                        searchable
                         {...form.getInputProps("subjects")}
                       />
 
@@ -273,6 +303,16 @@ export default function SignUpPage() {
 
                   {form.values.role === "instructor" && (
                     <Stack>
+                      <MultiSelect
+                        label="Credentialed Subjects"
+                        placeholder="Select subjects you are credentialed to teach"
+                        data={subjects}
+                        required
+                        description="Select all subjects you are qualified and credentialed to teach"
+                        searchable
+                        {...form.getInputProps("credentialedSubjects")}
+                      />
+
                       <Text size="sm" fw={500}>School ID Upload</Text>
                       <Text size="xs" c="dimmed" mb={5}>Upload your school-issued ID (max 5MB)</Text>
                       <Dropzone

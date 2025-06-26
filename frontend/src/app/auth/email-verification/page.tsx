@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Container,
@@ -20,15 +20,19 @@ import { routes } from "../../routes";
 export default function EmailVerificationPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
 
-  const email = localStorage.getItem("pendingVerificationEmail");
+  useEffect(() => {
+    setEmail(localStorage.getItem("pendingVerificationEmail"));
+  }, []);
 
   const form = useForm({
     initialValues: {
       code: "",
     },
     validate: {
-      code: value => (value.length === 6 ? null : "Code must be 6 digits"),
+      code: (value) => (value.length === 6 ? null : "Code must be 6 digits"),
     },
   });
 
@@ -40,7 +44,7 @@ export default function EmailVerificationPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: email, code: values.code }),
+        body: JSON.stringify({ code: values.code, email }),
       });
 
       if (!response.ok) {
@@ -55,6 +59,7 @@ export default function EmailVerificationPage() {
         autoClose: 5000,
       });
 
+      localStorage.removeItem("pendingVerificationEmail");
       router.push(routes.signIn);
     } catch {
       notifications.show({
@@ -66,6 +71,36 @@ export default function EmailVerificationPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!email) return;
+    setResending(true);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) throw new Error("Failed to resend code");
+      notifications.show({
+        title: "Verification Code Resent",
+        message: "A new verification code has been sent to your email.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Failed to resend verification code.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
+    } finally {
+      setResending(false);
     }
   };
 
@@ -102,6 +137,18 @@ export default function EmailVerificationPage() {
                     fullWidth
                   >
                     Verify Email
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    loading={resending}
+                    radius="md"
+                    mt="sm"
+                    fullWidth
+                    onClick={handleResend}
+                    disabled={resending}
+                  >
+                    Resend Code
                   </Button>
                 </Stack>
               </form>

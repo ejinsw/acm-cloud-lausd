@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  
   try {
     const body = await req.json();
-
-    const backendRes = await fetch(`http://backend:8080/api/auth/signup`, {
+    const backendRes = await fetch(`http://backend:8080/api/auth/resend-verification`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -13,10 +11,8 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
     });
     const data = await backendRes.json();
-    
     return new NextResponse(JSON.stringify(data), { status: backendRes.status });
-  } catch (error) {
-    console.error("Sign-up API error:", error);
+  } catch {
     return new NextResponse(JSON.stringify({ message: 'Internal server error' }), { status: 500 });
   }
 }

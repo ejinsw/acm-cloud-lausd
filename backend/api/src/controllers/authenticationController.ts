@@ -75,6 +75,7 @@ export const signup = expressAsyncHandler(
   async (req: Request<{}, {}, SignupBody>, res: Response, next: NextFunction) => {
 
     const { firstName, lastName, role, grade, subjects, password, email, parentEmail, birthdate, street, apartment, city, state, zip, country, schoolName } = req.body;
+    
     if (!firstName || !lastName || !email || !password || !birthdate || !schoolName || !role) {
       res.status(400).json({ error: "Email, first name, last name, password, birthdate, and schoolName are required." });
       return;
@@ -85,6 +86,9 @@ export const signup = expressAsyncHandler(
         process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
         process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
       );
+      
+      console.log("Attempting to create user with email:", email);
+      
       const command = new SignUpCommand({
         ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
         SecretHash: hash,
@@ -95,8 +99,10 @@ export const signup = expressAsyncHandler(
         ],
       });
 
+      console.log("Create on cognito");
       const response = await cognito.send(command);
 
+      console.log("Finished creating on cognito");
       if (!response.UserSub) {
         res.status(401).json("No user sub");
         return;
@@ -105,7 +111,7 @@ export const signup = expressAsyncHandler(
       //call the database
       try {
         if (role === "student") {
-
+          console.log("Create student");
           await prisma.user.create({
             data: {
               id: response.UserSub,
@@ -131,16 +137,19 @@ export const signup = expressAsyncHandler(
         } else {
           const subjects_to_add = await prisma.subject.findMany({
             where: {
-              name: { in: subjects }
+              name: {
+                in: subjects ? (Array.isArray(subjects) ? subjects : [subjects]) : []
+              }
             },
             select: { id: true }
           });
 
           if (subjects_to_add.length !== (subjects?.length ?? 0)) {
+            console.log("Here");
             res.status(400).json({ error: "One or more subjects not found" });
             return;
           }
-
+          console.log("Create instructor");
           await prisma.user.create({
             data: {
               id: response.UserSub,
@@ -172,8 +181,19 @@ export const signup = expressAsyncHandler(
 
       }
 
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("Cognito signup error:", error);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      
+      if (error.name === "UsernameExistsException") {
+        res.status(409).json({ 
+          error: "A user with this email already exists. Please try signing in instead.",
+          code: "USER_EXISTS"
+        });
+        return;
+      }
+      
       res.status(500).json({ error: "Internal server error" });
       return;
     }

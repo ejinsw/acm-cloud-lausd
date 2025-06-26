@@ -20,6 +20,7 @@ router.post("/auth/login", login);
 router.post("/auth/verify-email", verifyEmail);
 router.post("/auth/resend-verification", resendVerification);
 
+
 // Protected routes
 router.post("/auth/logout", authenticateToken, logout);
 router.get("/auth/tokens", authenticateToken, getActiveTokens);

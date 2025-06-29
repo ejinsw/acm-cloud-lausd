@@ -12,7 +12,15 @@ import { prisma } from '../config/prisma';
  */
 export const getAllReviews = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const reviews = await prisma.review.findMany();
+    const { studentId, instructorId } = req.query;
+    const where: any = {};
+    if (studentId) {
+      where.studentId = studentId;
+    }
+    if (instructorId) {
+      where.instructorId = instructorId;
+    }
+    const reviews = await prisma.review.findMany({ where });
     res.json({ reviews });
   }
 );
@@ -170,5 +178,6 @@ export const deleteReview = expressAsyncHandler(
 export const getReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     // TODO: Implement get all reviews
+    
   }
 );

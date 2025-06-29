@@ -12,15 +12,7 @@ import { prisma } from '../config/prisma';
  */
 export const getAllReviews = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { studentId, instructorId } = req.query;
-    const where: any = {};
-    if (studentId) {
-      where.studentId = studentId;
-    }
-    if (instructorId) {
-      where.instructorId = instructorId;
-    }
-    const reviews = await prisma.review.findMany({ where });
+    const reviews = await prisma.review.findMany();
     res.json({ reviews });
   }
 );

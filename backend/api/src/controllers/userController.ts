@@ -313,7 +313,7 @@ export const getStudents = expressAsyncHandler(
  */
 export const getInstructors = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    if ((req.user as { role: string })?.role !== "STUDENT") {
+    if (req.user?.role !== "STUDENT") {
       res.status(403);
       throw new Error("Not authorized - Student access only");
     }
@@ -364,7 +364,7 @@ export const getInstructors = expressAsyncHandler(
  */
 export const getUserSessions = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const userId = (req.user as { id: string })?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401);
       throw new Error("Not authorized");
@@ -419,7 +419,7 @@ export const getUserSessions = expressAsyncHandler(
  */
 export const getUserReviews = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const userId = (req.user as { id: string })?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401);
       throw new Error("Not authorized");

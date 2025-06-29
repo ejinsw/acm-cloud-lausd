@@ -48,6 +48,8 @@ export const getAllInstructors = expressAsyncHandler(
         instructorSessions: true,
       },
     });
+    
+    res.json({ instructors });
   }
 );
 
@@ -303,6 +305,7 @@ export const getStudents = expressAsyncHandler(
       include: { studentSessions: true },
     });
 
+    res.json({ students });
   }
 );
 

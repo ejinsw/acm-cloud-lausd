@@ -16,20 +16,6 @@ resource "aws_apigatewayv2_stage" "websocket" {
   name   = var.environment
   auto_deploy = true
 
-  access_log_settings {
-    destination_arn = aws_cloudwatch_log_group.websocket_api.arn
-    format = jsonencode({
-      requestId      = "$context.requestId"
-      ip            = "$context.identity.sourceIp"
-      requestTime   = "$context.requestTime"
-      routeKey      = "$context.routeKey"
-      status        = "$context.status"
-      protocol      = "$context.protocol"
-      responseLength = "$context.responseLength"
-      integrationError = "$context.integrationErrorMessage"
-    })
-  }
-
   tags = {
     Name        = "${var.project_name}-websocket-stage"
     Environment = var.environment

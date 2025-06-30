@@ -22,16 +22,26 @@ provider "aws" {
 module "vpc" {
   source = "./modules/vpc"
 
+  # Standard variables
   project_name = var.project_name
   environment  = var.environment
+
+  # VPC variables
+  cidr_block = "172.31.0.0/16"
+  private_subnet_cidr_zone = ["172.31.0.0/19", "172.31.32.0/19"]
+  public_subnet_cidr_zone = ["172.31.64.0/19", "172.31.96.0/19"]
+  availability_zones = ["us-west-1a", "us-west-1b"]
 }
 
 # ECR Repository for API Lambda
 module "ecr_api" {
   source = "./modules/ecr"
 
+  # Standard variables
   project_name  = var.project_name
   environment   = var.environment
+
+  # ECR variables
   function_name = "api"
 }
 
@@ -39,19 +49,25 @@ module "ecr_api" {
 module "ecr_websocket" {
   source = "./modules/ecr"
 
+  # Standard variables
   project_name  = var.project_name
   environment   = var.environment
+
+  # ECR variables
   function_name = "websocket"
 }
 
-# RDS Database (Free Tier)
+# RDS Database
 module "rds" {
   source = "./modules/rds"
 
+  # Standard variables
   project_name     = var.project_name
   environment      = var.environment
+
+  # RDS variables
   vpc_id           = module.vpc.vpc_id
-  subnet_ids       = module.vpc.private_subnet_ids
+  subnet_ids       = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   db_username      = var.db_username
   db_password      = var.db_password
   security_group_id = module.vpc.security_group_id
@@ -61,13 +77,16 @@ module "rds" {
 module "lambda_api" {
   source = "./modules/lambda"
 
+  # Standard variables
   project_name      = var.project_name
   environment       = var.environment
+
+  # Lambda variables
   function_name     = "api"
   use_container     = true  # Use ECR container
   image_uri         = "${module.ecr_api.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = module.vpc.private_subnet_ids
+  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   security_group_id = module.vpc.security_group_id
   db_username       = var.db_username
   db_password       = var.db_password
@@ -83,13 +102,16 @@ module "lambda_api" {
 module "lambda_websocket" {
   source = "./modules/lambda"
 
+  # Standard variables
   project_name      = var.project_name
   environment       = var.environment
+
+  # Lambda variables
   function_name     = "websocket"
   use_container     = true  # Use ECR container
   image_uri         = "${module.ecr_websocket.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = module.vpc.private_subnet_ids
+  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   security_group_id = module.vpc.security_group_id
   db_username       = var.db_username
   db_password       = var.db_password
@@ -105,8 +127,11 @@ module "lambda_websocket" {
 module "api_gateway" {
   source = "./modules/api_gateway"
 
+  # Standard variables
   project_name         = var.project_name
   environment          = var.environment
+
+  # API Gateway variables
   lambda_arn           = module.lambda_api.function_arn
   lambda_function_name = module.lambda_api.function_name
 }
@@ -115,8 +140,11 @@ module "api_gateway" {
 module "websocket_gateway" {
   source = "./modules/websocket_gateway"
 
+  # Standard variables
   project_name         = var.project_name
   environment          = var.environment
+
+  # API Gateway variables
   lambda_arn           = module.lambda_websocket.function_arn
   lambda_function_name = module.lambda_websocket.function_name
 }

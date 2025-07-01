@@ -27,10 +27,10 @@ module "vpc" {
   environment  = var.environment
 
   # VPC variables
-  cidr_block = "172.31.0.0/16"
-  private_subnet_cidr_zone = ["172.31.0.0/19", "172.31.32.0/19"]
-  public_subnet_cidr_zone = ["172.31.64.0/19", "172.31.96.0/19"]
-  availability_zones = ["us-west-1a", "us-west-1b"]
+  cidr_block = "10.0.0.0/16"
+  private_subnet_cidr_zone = ["10.0.0.0/19", "10.0.32.0/19"]
+  public_subnet_cidr_zone = ["10.0.64.0/19", "10.0.96.0/19"]
+  availability_zones = ["us-west-1a", "us-west-1c"]
 }
 
 # ECR Repository for API Lambda
@@ -71,6 +71,8 @@ module "rds" {
   db_username      = var.db_username
   db_password      = var.db_password
   security_group_id = module.vpc.security_group_id
+
+  depends_on = [module.vpc]
 }
 
 # API Lambda Function
@@ -86,7 +88,7 @@ module "lambda_api" {
   use_container     = true  # Use ECR container
   image_uri         = "${module.ecr_api.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
+  subnet_ids        = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   security_group_id = module.vpc.security_group_id
   db_username       = var.db_username
   db_password       = var.db_password
@@ -111,7 +113,7 @@ module "lambda_websocket" {
   use_container     = true  # Use ECR container
   image_uri         = "${module.ecr_websocket.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
+  subnet_ids        = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   security_group_id = module.vpc.security_group_id
   db_username       = var.db_username
   db_password       = var.db_password

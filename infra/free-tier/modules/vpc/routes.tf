@@ -1,10 +1,6 @@
 resource "aws_route_table" "private" {
     vpc_id = aws_vpc.main.id
 
-    route {
-        cidr_block = "0.0.0.0/0"
-    }
-
     tags = merge(local.standard_tags, {
         Name = "${local.base_name}-private-route-table"
     })

@@ -2,7 +2,7 @@
 
 This directory contains modular GitHub Actions workflows for the ACM Cloud LAUSD project. The workflows are designed to be focused, reusable, and maintainable.
 
-## Workflow Structure
+## Workflow Structure 
 
 ### 1. `main.yml` - CI/CD Pipeline Orchestrator
 - **Purpose**: Entry point for all CI/CD activities

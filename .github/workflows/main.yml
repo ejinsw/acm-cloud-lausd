@@ -4,7 +4,8 @@ on:
   push:
     branches: [ "*" ]
   pull_request:
-    branches: [ "*" ]
+    branches: [ "main" ]
+  merge_group:
 
 env:
   AWS_REGION: us-west-1

@@ -1,10 +1,10 @@
-name: CI/CD Pipeline
+name: Test and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "*" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "*" ]
 
 env:
   AWS_REGION: us-west-1

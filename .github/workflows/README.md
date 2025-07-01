@@ -1,132 +1,123 @@
-# CI/CD Pipeline Setup Guide
+# GitHub Actions Workflows
 
-This guide explains how to set up the CI/CD pipeline for the ACM Cloud LAUSD project.
+This directory contains modular GitHub Actions workflows for the ACM Cloud LAUSD project. The workflows are designed to be focused, reusable, and maintainable.
 
-## Overview
+## Workflow Structure
 
-The CI/CD pipeline consists of the following stages:
+### 1. `main.yml` - CI/CD Pipeline Orchestrator
+- **Purpose**: Entry point for all CI/CD activities
+- **Triggers**: Push to any branch, pull requests to main, merge groups
+- **Function**: Lightweight orchestrator that logs pipeline start and can be extended with additional orchestration logic
 
-1. **Testing**: Runs tests for both frontend and backend
-2. **Infrastructure Deployment**: Deploys AWS infrastructure using Terraform
-3. **Frontend Deployment**: Deploys the Next.js app to Vercel
-4. **Backend Deployment**: Updates the Lambda function
-5. **Notification**: Sends deployment status notifications
+### 2. `test.yml` - Testing Workflow
+- **Purpose**: Run all tests for frontend, API, and WebSocket components
+- **Triggers**: Push to any branch, pull requests to main, merge groups
+- **Jobs**:
+  - `test-frontend`: Lint, test, and build the Next.js frontend
+  - `test-api`: Lint and test the API with PostgreSQL service
+  - `test-websocket`: Test the WebSocket server
 
-## Required Secrets
+### 3. `build-and-deploy.yml` - Build and Deploy Workflow
+- **Purpose**: Build and push Lambda container images to ECR
+- **Triggers**: Runs after successful completion of the Test workflow on main branch
+- **Jobs**:
+  - `build-and-push-lambda-images`: Build and push API and WebSocket Lambda images
+  - `notify-deployment`: Send deployment success notifications
 
-You need to set up the following secrets in your GitHub repository:
+### 4. `terraform-deploy.yml` - Infrastructure Deployment
+- **Purpose**: Deploy infrastructure using Terraform
+- **Triggers**: Manual trigger with workflow_dispatch only
+- **Jobs**:
+  - `terraform-plan`: Plan Terraform changes
+  - `terraform-apply`: Apply Terraform changes (automatic on main branch)
+  - `terraform-destroy`: Destroy infrastructure (manual only)
+  - `notify-terraform`: Send Terraform completion notifications
 
-### AWS Secrets
-1. Go to your GitHub repository
-2. Navigate to Settings > Secrets and variables > Actions
-3. Add the following secrets:
+## Workflow Dependencies
 
 ```
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+main.yml (orchestrator)
+    ↓
+test.yml (runs on all branches/PRs)
+    ↓ (only on main branch)
+build-and-deploy.yml
+
+terraform-deploy.yml (manual only)
 ```
 
-### Vercel Secrets
-1. Get your Vercel token:
-   - Go to Vercel dashboard
-   - Navigate to Settings > Tokens
-   - Create a new token
+## Manual Workflow Triggers
 
-2. Get your Vercel project details:
-   - Go to your project in Vercel
-   - Navigate to Settings > General
-   - Copy the Project ID and Org ID
+### Terraform Deployment
+You can manually trigger Terraform deployments using the workflow_dispatch event:
 
-3. Add the following secrets:
-```
-VERCEL_TOKEN=your_vercel_token
-VERCEL_ORG_ID=your_org_id
-VERCEL_PROJECT_ID=your_project_id
-```
-
-## Pipeline Workflow
-
-### 1. Testing Stage
-- **Frontend Tests**: Runs linting, tests, and build
-- **Backend Tests**: Runs tests with PostgreSQL service container
-- Both jobs run in parallel for faster feedback
-
-### 2. Infrastructure Deployment
-- Only runs on `main` branch
-- Uses Terraform to deploy AWS infrastructure
-- Creates/updates:
-  - RDS PostgreSQL database
-  - Lambda functions
-  - API Gateway
-  - VPC and security groups
-
-### 3. Frontend Deployment
-- Deploys to Vercel
-- Uses the Vercel GitHub Action
-- Automatically handles:
-  - Build optimization
-  - CDN distribution
-  - SSL certificates
-
-### 4. Backend Deployment
-- Updates Lambda function code
-- Creates deployment package
-- Updates function without downtime
-
-### 5. Notification
-- Sends deployment status
-- Provides URLs for frontend and backend
-
-## Branch Strategy
-
-- **main**: Production deployments
-- **develop**: Development deployments
-- **feature branches**: Only run tests, no deployment
+1. Go to the Actions tab in GitHub
+2. Select "Terraform Deploy" workflow
+3. Click "Run workflow"
+4. Choose:
+   - **Environment**: `free-tier` or `full-tier`
+   - **Action**: `plan`, `apply`, or `destroy`
 
 ## Environment Variables
 
-The pipeline uses the following environment variables:
-- `AWS_REGION`: us-west-1
-- `NODE_VERSION`: 18
+### Required Secrets
+- `AWS_ACCESS_KEY_ID`: AWS access key for ECR and Terraform operations
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key for ECR and Terraform operations
 
-## Cost Considerations
+### Environment Variables
+- `AWS_REGION`: AWS region (default: us-west-1)
+- `PROJECT_NAME`: Project name (default: acm-cloud-lausd)
+- `ENVIRONMENT`: Environment name (default: dev)
+- `NODE_VERSION`: Node.js version (default: 18)
 
-### GitHub Actions
-- Free tier: 2,000 minutes/month
-- Our pipeline uses approximately:
-  - Testing: ~10 minutes per run
-  - Deployment: ~15 minutes per run
-  - Total: ~25 minutes per deployment
+## Terraform Variables
 
-### AWS Costs
-- Infrastructure deployment is free
-- Only pay for the resources created
-- Lambda deployments are free
+The Terraform workflows automatically set these variables:
+- `TF_VAR_project_name`: Set to `PROJECT_NAME`
+- `TF_VAR_environment`: Set to the selected environment (free-tier/full-tier)
+
+## Workflow Features
+
+### Parallel Execution
+- Frontend, API, and WebSocket tests run in parallel
+- Build and push operations for different Lambda images run sequentially
+
+### Conditional Execution
+- Build and deploy workflows only run on main branch
+- Terraform workflows require manual trigger
+- Terraform destroy requires manual trigger
+
+### Error Handling
+- Each workflow has proper error handling and notifications
+- Failed workflows don't trigger dependent workflows
+- Comprehensive logging for debugging
+
+### Caching
+- npm dependencies are cached for faster builds
+- Terraform plan artifacts are preserved between jobs
+
+## Best Practices
+
+1. **Modularity**: Each workflow has a single responsibility
+2. **Reusability**: Workflows can be triggered independently
+3. **Security**: Sensitive operations require manual approval
+4. **Monitoring**: All workflows provide clear success/failure notifications
+5. **Performance**: Parallel execution where possible, caching for speed
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **AWS Credentials Error**
-   - Verify AWS access keys are correct
-   - Ensure IAM user has necessary permissions
+1. **Workflow not triggering**: Check branch protection rules and required status checks
+2. **Terraform plan fails**: Verify Terraform configuration and AWS credentials
+3. **Build fails**: Check Dockerfile syntax and dependencies
+4. **Tests fail**: Verify test environment setup and database connectivity
 
-2. **Vercel Deployment Failed**
-   - Check Vercel token is valid
-   - Verify project ID and org ID
-   - Ensure Vercel project is connected to GitHub
+### Debugging
 
-3. **Terraform Plan Failed**
-   - Check Terraform state is accessible
-   - Verify S3 bucket and DynamoDB table exist
-   - Review Terraform configuration
-
-### Debugging Steps
-
-1. Check GitHub Actions logs
-2. Verify secrets are set correctly
-3. Test AWS credentials locally
-4. Check Vercel project settings
+- Check workflow logs in the Actions tab
+- Verify environment variables and secrets are set correctly
+- Ensure AWS credentials have necessary permissions
+- Review Terraform plan output for infrastructure issues
 
 ## Security Best Practices
 

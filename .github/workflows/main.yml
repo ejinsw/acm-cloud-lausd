@@ -1,4 +1,4 @@
-name: Test and Deploy
+name: CI/CD Pipeline
 
 on:
   push:
@@ -7,179 +7,21 @@ on:
     branches: [ "main" ]
   merge_group:
 
-env:
-  AWS_REGION: us-west-1
-  NODE_VERSION: '18'
-  PROJECT_NAME: acm-cloud-lausd
-  ENVIRONMENT: dev
-
 jobs:
-  test-frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: './frontend/package-lock.json'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run linting
-      run: npm run lint
-    
-    - name: Run tests
-      run: npm test
-    
-    - name: Build
-      run: npm run build
-
-  test-api:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend/api
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: admin
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: './backend/api/package-lock.json'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run linting
-      run: npm run lint
-    
-    - name: Run tests
-      run: npm test
-      env:
-        DATABASE_URL: postgresql://admin:password@localhost:5432/postgres
-
-  test-websocket:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend/websocket-server/server
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: './backend/websocket-server/server/package-lock.json'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run tests
-      run: npm test
-
-  build-and-push-lambda-images:
-    needs: [test-api, test-websocket]
-    if: github.ref == 'refs/heads/main'
+  # This job serves as an entry point and can be extended with additional orchestration logic
+  # The actual testing, building, and deployment is handled by separate workflows
+  pipeline-orchestrator:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-    
-    - name: Build and push API Lambda image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
-        IMAGE_TAG: ${{ github.sha }}
+    - name: Pipeline Started
       run: |
-        # Get ECR repository URL
-        REPO_URL=$(aws ecr describe-repositories \
-          --repository-names "$ECR_REPOSITORY" \
-          --region ${{ env.AWS_REGION }} \
-          --query 'repositories[0].repositoryUri' \
-          --output text)
+        echo "CI/CD Pipeline started for commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref }}"
+        echo "Event: ${{ github.event_name }}"
         
-        # Build the image
-        docker build -f backend/api/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/api
-        docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
-        
-        # Push the image
-        docker push $REPO_URL:$IMAGE_TAG
-        docker push $REPO_URL:latest
-        
-        echo "api_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
-    
-    - name: Build and push WebSocket Lambda image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Get ECR repository URL
-        REPO_URL=$(aws ecr describe-repositories \
-          --repository-names "$ECR_REPOSITORY" \
-          --region ${{ env.AWS_REGION }} \
-          --query 'repositories[0].repositoryUri' \
-          --output text)
-        
-        # Build the image
-        docker build -f backend/websocket-server/server/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
-        docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
-        
-        # Push the image
-        docker push $REPO_URL:$IMAGE_TAG
-        docker push $REPO_URL:latest
-        
-        echo "websocket_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  notify-deployment:
-    needs: [build-and-push-lambda-images]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Notify deployment success
-      run: |
-        echo "Deployment completed successfully!"
-        echo "API Lambda: Updated with ECR image"
-        echo "WebSocket Lambda: Updated with ECR image"
-        echo "Commit SHA: ${{ github.sha }}"  
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "This is a main branch push - full deployment pipeline will be triggered"
+        else
+          echo "This is a feature branch - only tests will run"
+        fi  

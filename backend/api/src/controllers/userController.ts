@@ -92,13 +92,15 @@ export const updateInstructor = expressAsyncHandler(
     const { id } = req.params;
     const data = { ...req.body };
 
-    // Instructors cannot update schoolName
+    // Instructors cannot update these fields
     if ('schoolName' in data) delete data.schoolName;
+    if ('role' in data) delete data.role;
+    if ('verified' in data) delete data.verified;
 
     // Only allow instructor-specific and common fields
     const allowedFields = [
       // Common fields
-      'email', 'role', 'verified', 'firstName', 'lastName', 'birthdate',
+      'email', 'firstName', 'lastName', 'birthdate',
       'street', 'apartment', 'city', 'state', 'zip', 'country',
       'profilePicture', 'bio',
       // Instructor-specific
@@ -199,11 +201,13 @@ export const updateUserProfile = expressAsyncHandler(
     const data = { ...req.body };
 
     if (user.role === "INSTRUCTOR") {
-      // Instructors cannot update schoolName
+      // Instructors cannot update these fields
       if ('schoolName' in data) delete data.schoolName;
+      if ('role' in data) delete data.role;
+      if ('verified' in data) delete data.verified;
       // Only allow instructor-specific and common fields
       const allowedFields = [
-        'email', 'role', 'verified', 'firstName', 'lastName', 'birthdate',
+        'email', 'firstName', 'lastName', 'birthdate',
         'street', 'apartment', 'city', 'state', 'zip', 'country',
         'profilePicture', 'bio',
         'education', 'experience', 'certificationUrls', 'averageRating', 'subjects'
@@ -221,18 +225,17 @@ export const updateUserProfile = expressAsyncHandler(
     } else if (user.role === "STUDENT") {
       // Students cannot update these fields
       [
-        'email', 'birthdate', 'schoolName', 'firstName', 'lastName'
+        'email', 'birthdate', 'schoolName', 'firstName', 'lastName', 'role', 'verified'
       ].forEach(field => {
         if (field in data) delete data[field];
       });
       // Only allow student-specific and common fields
       const allowedFields = [
         // Common fields
-        'role', 'verified',
         'street', 'apartment', 'city', 'state', 'zip', 'country',
         'profilePicture', 'bio',
         // Student-specific
-        'grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone',
+        'grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone', 
         'interests', 'learningGoals'
       ];
       Object.keys(data).forEach(key => {

@@ -181,4 +181,4 @@ jobs:
         echo "Deployment completed successfully!"
         echo "API Lambda: Updated with ECR image"
         echo "WebSocket Lambda: Updated with ECR image"
-        echo "Commit SHA: ${{ github.sha }}" 
+        echo "Commit SHA: ${{ github.sha }}"  

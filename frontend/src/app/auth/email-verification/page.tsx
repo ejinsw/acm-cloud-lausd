@@ -29,14 +29,27 @@ export default function EmailVerificationPage() {
 
   const form = useForm({
     initialValues: {
+      email: email || "",
       code: "",
     },
     validate: {
+      email: (value) => {
+        if (!email && !value) return "Email is required";
+        if (value && !/^\S+@\S+$/.test(value)) return "Invalid email format";
+        return null;
+      },
       code: (value) => (value.length === 6 ? null : "Code must be 6 digits"),
     },
   });
 
-  const handleSubmit = async (values: { code: string }) => {
+  // Update form email value when email from localStorage is loaded
+  useEffect(() => {
+    if (email) {
+      form.setFieldValue("email", email);
+    }
+  }, [email, form]);
+
+  const handleSubmit = async (values: { email: string; code: string }) => {
     setLoading(true);
     try {
       const response = await fetch("/api/auth/verify-email", {
@@ -44,7 +57,10 @@ export default function EmailVerificationPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ code: values.code, email }),
+        body: JSON.stringify({ 
+          code: values.code, 
+          email: values.email || email 
+        }),
       });
 
       if (!response.ok) {
@@ -75,13 +91,37 @@ export default function EmailVerificationPage() {
   };
 
   const handleResend = async () => {
-    if (!email) return;
+    const emailToUse = email || form.values.email;
+    
+    if (!emailToUse) {
+      notifications.show({
+        title: "Email Required",
+        message: "Please provide the same email address you used during registration to resend the verification code.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
+      return;
+    }
+
+    // Validate email format if provided through form
+    if (!email && form.values.email && !/^\S+@\S+$/.test(form.values.email)) {
+      notifications.show({
+        title: "Invalid Email",
+        message: "Please enter a valid email address.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
+      return;
+    }
+
     setResending(true);
     try {
       const response = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: emailToUse }),
       });
       if (!response.ok) throw new Error("Failed to resend code");
       notifications.show({
@@ -121,6 +161,14 @@ export default function EmailVerificationPage() {
 
               <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack gap="md">
+                  {!email && (
+                    <TextInput
+                      label="Email Address"
+                      placeholder="Enter your email address"
+                      required
+                      {...form.getInputProps("email")}
+                    />
+                  )}
                   <TextInput
                     label="Verification Code"
                     placeholder="Enter your code"

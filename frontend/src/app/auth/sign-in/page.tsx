@@ -1,100 +1,188 @@
+/**
+ * LOGIN PAGE
+ *
+ * Requires:
+ * - Login Form
+ *   - Username Field
+ *   - Password Field
+ *   - Remember Me Checkbox
+ *   - Instructor Checkbox
+ *   - Submit Button
+ *   - Register Page Link "/register"
+ * 
+ * Additional Notes:
+ * - Other than the conditional, is no need for us to edit the onSubmit asynchronous 
+ *   function in the ContactForm. This will be handled later on by the school.
+ * - The Next.js official documentation might be helpful https://nextjs.org/docs/app/api-reference/components/form
+ *
+ */
+
 "use client";
 
-import { useState } from "react";
 import {
   Container,
-  Paper,
   Title,
+  Text,
+  Box,
+  Paper,
+  Stack,
   TextInput,
   PasswordInput,
   Button,
-  Text,
-  Anchor,
-  Stack,
-  Divider,
   Group,
+  Divider,
+  Checkbox,
+  Anchor,
 } from "@mantine/core";
-import { useRouter } from "next/navigation";
+import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
+import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
-import { routes } from "@/app/routes";
-import PageWrapper from "@/components/PageWrapper";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { routes } from "../../routes";
 
-function SignInContent() {
-  const router = useRouter();
-  const [formValues, setFormValues] = useState({
-    email: "",
-    password: "",
-  });
-
-  const handleChange = (field: string, value: string) => {
-    setFormValues({
-      ...formValues,
-      [field]: value,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Implement actual sign-in logic here
-    console.log("Sign in attempt:", formValues);
-    
-    // For now, just redirect to dashboard
-    router.push("/instructor/dashboard");
-  };
-
-  return (
-    <Container size="sm" py="xl">
-      <Paper radius="md" p="xl" withBorder>
-        <Title order={2} mb="lg" ta="center">
-          Welcome back!
-        </Title>
-
-        <form onSubmit={handleSubmit}>
-          <Stack>
-            <TextInput
-              label="Email"
-              placeholder="your@email.com"
-              required
-              value={formValues.email}
-              onChange={(e) => handleChange("email", e.target.value)}
-            />
-
-            <PasswordInput
-              label="Password"
-              placeholder="Your password"
-              required
-              value={formValues.password}
-              onChange={(e) => handleChange("password", e.target.value)}
-            />
-
-            <Button type="submit" fullWidth mt="xl">
-              Sign in
-            </Button>
-          </Stack>
-        </form>
-
-        <Divider my="lg" label="Or continue with" labelPosition="center" />
-
-        <Group grow mb="md" mt="md">
-          <Button variant="default">Google</Button>
-          <Button variant="default">Microsoft</Button>
-        </Group>
-
-        <Text ta="center" mt="md">
-          Don&apos;t have an account?{" "}
-          <Anchor component={Link} href={routes.signUp} fw={700}>
-            Register
-          </Anchor>
-        </Text>
-      </Paper>
-    </Container>
-  );
+interface SignInFormData {
+  email: string;
+  password: string;
+  rememberMe: boolean;
 }
 
 export default function SignInPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  const form = useForm<SignInFormData>({
+    initialValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+    validate: {
+      email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
+      password: (value) =>
+        value.length < 8
+          ? "Password must be at least 8 characters long"
+          : null,
+    },
+  });
+
+  const handleSubmit = async (values: SignInFormData) => {
+    setLoading(true);
+    try {
+      // Call the Next.js API route for sign-in
+      const response = await fetch('/api/auth/sign-in', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sign in. Incorrect username or password');
+      }
+
+      // Store the token based on remember me preference
+
+
+
+      // if (values.rememberMe) {
+      //   localStorage.setItem("authToken", authToken);
+      // } else {
+      //   sessionStorage.setItem("authToken", authToken);
+      // }
+
+      notifications.show({
+        title: "Success!",
+        message: "You have been signed in successfully.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
+
+      // Redirect to the appropriate dashboard by getting the role
+      router.push(routes.studentDashboard);
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Failed to sign in. Please check your credentials.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <PageWrapper>
-      <SignInContent />
-    </PageWrapper>
+    <main>
+      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+        <Container size="sm">
+          <Paper radius="md" p={40} withBorder>
+            <Stack gap="xl">
+              <div style={{ textAlign: "center" }}>
+                <Title order={1} size="h1" fw={900} mb="md">
+                  Welcome Back
+                </Title>
+                <Text size="lg" c="dimmed">
+                  Sign in to your account to continue
+                </Text>
+              </div>
+
+              <form onSubmit={form.onSubmit(handleSubmit)}>
+                <Stack gap="md">
+                  <TextInput
+                    label="Email"
+                    placeholder="Enter your email"
+                    required
+                    {...form.getInputProps("email")}
+                  />
+
+                  <PasswordInput
+                    label="Password"
+                    placeholder="Enter your password"
+                    required
+                    {...form.getInputProps("password")}
+                  />
+
+                  <Group justify="space-between">
+                    <Checkbox
+                      label="Remember me"
+                      {...form.getInputProps("rememberMe", { type: "checkbox" })}
+                    />
+                    <Anchor component={Link} href={routes.forgotPassword} size="sm">
+                      Forgot password?
+                    </Anchor>
+                  </Group>
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    loading={loading}
+                    radius="md"
+                    mt="md"
+                  >
+                    Sign In
+                  </Button>
+                </Stack>
+              </form>
+
+              <Divider label="or" labelPosition="center" />
+
+              <Group justify="center">
+                <Text size="sm" c="dimmed">
+                  Don&apos;t have an account?{" "}
+                  <Anchor component={Link} href={routes.signUp} fw={700}>
+                    Sign up
+                  </Anchor>
+                </Text>
+              </Group>
+            </Stack>
+          </Paper>
+        </Container>
+      </Box>
+    </main>
   );
-} 
+}

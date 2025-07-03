@@ -22,8 +22,10 @@ export default function EmailVerificationPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     setEmail(localStorage.getItem("pendingVerificationEmail"));
   }, []);
 
@@ -41,13 +43,6 @@ export default function EmailVerificationPage() {
       code: (value) => (value.length === 6 ? null : "Code must be 6 digits"),
     },
   });
-
-  // Update form email value when email from localStorage is loaded
-  useEffect(() => {
-    if (email) {
-      form.setFieldValue("email", email);
-    }
-  }, [email, form]);
 
   const handleSubmit = async (values: { email: string; code: string }) => {
     setLoading(true);
@@ -80,7 +75,7 @@ export default function EmailVerificationPage() {
     } catch {
       notifications.show({
         title: "Error",
-        message: "Invalid or expired verification code.",
+        message: "Invalid email or invalid verification code.",
         color: "red",
         icon: <XCircle size={16} />,
         autoClose: 5000,
@@ -161,7 +156,7 @@ export default function EmailVerificationPage() {
 
               <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack gap="md">
-                  {!email && (
+                  {isClient && !email && (
                     <TextInput
                       label="Email Address"
                       placeholder="Enter your email address"

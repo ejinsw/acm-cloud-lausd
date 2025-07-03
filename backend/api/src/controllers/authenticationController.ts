@@ -297,6 +297,18 @@ export const verifyEmail = expressAsyncHandler(
 
       await cognito.send(command);
       
+      // Update the user's verified status in the database
+      try {
+        await prisma.user.update({
+          where: { email: email },
+          data: { verified: true }
+        });
+      } catch (dbError) {
+        console.error("Database update error:", dbError);
+        // Don't fail the verification if database update fails
+        // The user is still verified in Cognito
+      }
+      
       res.status(200).json({ message: "Email verified successfully." });
     } catch (err: any) {
       res.status(400).json({ error: err.message });

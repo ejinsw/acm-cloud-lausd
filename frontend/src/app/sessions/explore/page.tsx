@@ -1,10 +1,11 @@
 "use client";
 
-import { Container, Title, Grid, Text } from '@mantine/core';
+import { Container, Title, Grid } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { SessionCard } from '@/components/sessions/SessionCard';
 import { SearchBar, SearchParams } from '@/components/sessions/SearchBar';
 import { Session } from '@/lib/types';
+import PageWrapper from '@/components/PageWrapper';
 
 // Mock subjects for demo purposes
 const subjectOptions = [
@@ -127,7 +128,7 @@ const mockSessions: Session[] = [
   }
 ];
 
-export default function ExploreSessionsPage() {
+function ExploreSessionsContent() {
   const [sessions, setSessions] = useState<Session[]>(mockSessions);
   const [filteredSessions, setFilteredSessions] = useState<Session[]>(mockSessions);
   const [isLoading, setIsLoading] = useState(false);
@@ -200,37 +201,43 @@ export default function ExploreSessionsPage() {
 
   return (
     <Container size="xl" py="xl">
-      <Title order={1} mb="md">Explore Sessions</Title>
+      <Title order={1} mb="xl">Explore Sessions</Title>
       
-      <SearchBar 
+      <SearchBar
         variant="advanced"
         subjectOptions={subjectOptions}
         onSearch={handleSearch}
-        className="mb-8"
+        className="mb-xl"
       />
       
       {isLoading ? (
-        <Text>Loading sessions...</Text>
+        <div>Loading sessions...</div>
       ) : filteredSessions.length > 0 ? (
         <Grid>
-          {filteredSessions.map(session => (
+          {filteredSessions.map((session) => (
             <Grid.Col key={session.id} span={{ base: 12, sm: 6, md: 4 }}>
-              {session.instructor && (
-                <SessionCard 
-                  id={session.id}
-                  name={session.name}
-                  description={session.description}
-                  startTime={session.startTime ? new Date(session.startTime) : undefined}
-                  instructor={session.instructor}
-                  subjects={session.subjects || []}
-                />
-              )}
+              <SessionCard
+                id={session.id}
+                name={session.name}
+                description={session.description}
+                startTime={session.startTime ? new Date(session.startTime) : undefined}
+                instructor={session.instructor || { id: session.instructorId }}
+                subjects={session.subjects || []}
+              />
             </Grid.Col>
           ))}
         </Grid>
       ) : (
-        <Text>No sessions found matching your criteria.</Text>
+        <div>No sessions found matching your criteria.</div>
       )}
     </Container>
+  );
+}
+
+export default function ExploreSessionsPage() {
+  return (
+    <PageWrapper>
+      <ExploreSessionsContent />
+    </PageWrapper>
   );
 } 

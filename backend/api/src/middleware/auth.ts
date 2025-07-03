@@ -52,10 +52,10 @@ export const checkRole = (roles: string[]) => {
     
     if (!userRole || !roles.includes(userRole)) {
       return res.status(403).json({
-        message: "You do not have permission to access this resource",
+        message: 'You do not have permission to access this resource',
       });
     }
-    
+
     next();
   };
-}; 
+};

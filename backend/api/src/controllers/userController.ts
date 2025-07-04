@@ -36,7 +36,7 @@ export const getAllInstructors = expressAsyncHandler(
       ]
     }
     if (subject){
-      where.subjects = {
+      where.subjects = { 
         some: {name: {contains: subject, mode: "insensitive"}}
       }
     }
@@ -78,6 +78,7 @@ export const getInstructorById = expressAsyncHandler(
   }
 );
 
+
 /**
  * Update an existing instructor's profile by their ID.
  *
@@ -109,6 +110,14 @@ export const updateInstructor = expressAsyncHandler(
     Object.keys(data).forEach(key => {
       if (!allowedFields.includes(key)) delete data[key];
     });
+
+    // --- Validation ---
+    const validation = validateUserUpdatePayload(data, 'INSTRUCTOR');
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
+    // --- End Validation ---
 
     // Handle subjects relation if present
     if (data.subjects) {
@@ -179,6 +188,145 @@ export const getUserProfile = expressAsyncHandler(
   }
 );
 
+function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): { valid: boolean; message?: string } {
+  // Define allowed fields for each role
+  const commonFields = [
+    'street', 'apartment', 'city', 'state', 'zip', 'country',
+    'profilePicture', 'bio'
+  ];
+  const instructorFields = [
+    'email', 'firstName', 'lastName', 'birthdate',
+    'education', 'experience', 'certificationUrls', 'averageRating', 'subjects',
+    'interests', 'learningGoals'
+  ];
+  const studentFields = [
+    'grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone',
+    'interests', 'learningGoals'
+  ];
+
+  let allowedFields = [...commonFields];
+  if (role === 'INSTRUCTOR') allowedFields = allowedFields.concat(instructorFields);
+  if (role === 'STUDENT') allowedFields = allowedFields.concat(studentFields);
+
+  // Check for unexpected fields
+  for (const key of Object.keys(data)) {
+    if (!allowedFields.includes(key)) {
+      return { valid: false, message: `Unexpected field: ${key}` };
+    }
+  }
+
+  // --- Common Fields ---
+  if ('street' in data && typeof data.street !== 'string') {
+    return { valid: false, message: 'street must be a string' };
+  }
+  if ('apartment' in data && typeof data.apartment !== 'string') {
+    return { valid: false, message: 'apartment must be a string' };
+  }
+  if ('city' in data && typeof data.city !== 'string') {
+    return { valid: false, message: 'city must be a string' };
+  }
+  if ('state' in data && typeof data.state !== 'string') {
+    return { valid: false, message: 'state must be a string' };
+  }
+  if ('zip' in data && typeof data.zip !== 'string') {
+    return { valid: false, message: 'zip must be a string' };
+  }
+  if ('country' in data && typeof data.country !== 'string') {
+    return { valid: false, message: 'country must be a string' };
+  }
+  if ('profilePicture' in data && typeof data.profilePicture !== 'string') {
+    return { valid: false, message: 'profilePicture must be a string' };
+  }
+  if ('bio' in data && typeof data.bio !== 'string') {
+    return { valid: false, message: 'bio must be a string' };
+  }
+
+  // --- Instructor Fields ---
+  if (role === 'INSTRUCTOR') {
+    if ('email' in data) {
+      if (typeof data.email !== 'string') {
+        return { valid: false, message: 'email must be a string' };
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+        return { valid: false, message: 'email must be a valid email address' };
+      }
+    }
+    if ('firstName' in data && typeof data.firstName !== 'string') {
+      return { valid: false, message: 'firstName must be a string' };
+    }
+    if ('lastName' in data && typeof data.lastName !== 'string') {
+      return { valid: false, message: 'lastName must be a string' };
+    }
+    if ('birthdate' in data) {
+      if (!(typeof data.birthdate === 'string' && !isNaN(Date.parse(data.birthdate))) && !(data.birthdate instanceof Date)) {
+        return { valid: false, message: 'birthdate must be a valid ISO string or Date' };
+      }
+    }
+    // Array of strings fields
+    const arrayStringFields = [
+      'education', 'experience', 'certificationUrls', 'interests', 'learningGoals', 'subjects'
+    ];
+    for (const field of arrayStringFields) {
+      if (field in data) {
+        if (!Array.isArray(data[field]) || !data[field].every((v: any) => typeof v === 'string')) {
+          return { valid: false, message: `${field} must be an array of strings` };
+        }
+      }
+    }
+    if ('averageRating' in data) {
+      if (typeof data.averageRating !== 'number' || isNaN(data.averageRating)) {
+        return { valid: false, message: 'averageRating must be a number' };
+      }
+      if (data.averageRating < 0 || data.averageRating > 5) {
+        return { valid: false, message: 'averageRating must be between 0 and 5' };
+      }
+    }
+  }
+
+  // --- Student Fields ---
+  if (role === 'STUDENT') {
+    if ('grade' in data && typeof data.grade !== 'string') {
+      return { valid: false, message: 'grade must be a string' };
+    }
+    if ('parentFirstName' in data && typeof data.parentFirstName !== 'string') {
+      return { valid: false, message: 'parentFirstName must be a string' };
+    }
+    if ('parentLastName' in data && typeof data.parentLastName !== 'string') {
+      return { valid: false, message: 'parentLastName must be a string' };
+    }
+    if ('parentEmail' in data) {
+      if (typeof data.parentEmail !== 'string') {
+        return { valid: false, message: 'parentEmail must be a string' };
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.parentEmail)) {
+        return { valid: false, message: 'parentEmail must be a valid email address' };
+      }
+    }
+    if ('parentPhone' in data) {
+      if (typeof data.parentPhone !== 'string') {
+        return { valid: false, message: 'parentPhone must be a string' };
+      }
+      // Simple phone validation (optional, can be improved)
+      if (!/^\+?[0-9\-\s()]{7,20}$/.test(data.parentPhone)) {
+        return { valid: false, message: 'parentPhone must be a valid phone number' };
+      }
+    }
+    // Array of strings fields
+    const arrayStringFields = [
+      'interests', 'learningGoals'
+    ];
+    for (const field of arrayStringFields) {
+      if (field in data) {
+        if (!Array.isArray(data[field]) || !data[field].every((v: any) => typeof v === 'string')) {
+          return { valid: false, message: `${field} must be an array of strings` };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 /**
  * @route PUT /api/users/profile
  * @desc Update user profile
@@ -241,6 +389,12 @@ export const updateUserProfile = expressAsyncHandler(
       Object.keys(data).forEach(key => {
         if (!allowedFields.includes(key)) delete data[key];
       });
+    }
+
+    const validation = validateUserUpdatePayload(data, user.role);
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
     }
 
     const updatedUser = await prisma.user.update({

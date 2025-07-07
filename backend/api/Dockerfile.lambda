@@ -1,16 +1,16 @@
-# Use AWS Lambda Node.js 20 runtime
-FROM public.ecr.aws/lambda/nodejs:20
+# Multi-stage build for minimal Lambda image
+# Stage 1: Build TypeScript
+FROM public.ecr.aws/lambda/nodejs:20 as builder
 
-# Set working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
 
-# Copy the rest of the application
+# Copy source code
 COPY . .
 
 # Generate Prisma client
@@ -19,5 +19,20 @@ RUN npx prisma generate
 # Build TypeScript to JavaScript
 RUN npm run build
 
-# Set the CMD to the compiled handler
+# Stage 2: Production image
+FROM public.ecr.aws/lambda/nodejs:20
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production
+
+# Copy only the compiled dist directory and Prisma client from builder
+COPY --from=builder ${LAMBDA_TASK_ROOT}/dist ./dist
+COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/@prisma ./node_modules/@prisma
+
+# Set the CMD to the compiled JavaScript file
 CMD [ "dist/app.js" ] 

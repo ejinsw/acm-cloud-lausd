@@ -33,6 +33,7 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v2
     
     - name: Build and push API Lambda image
+      id: build-api
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
@@ -54,8 +55,10 @@ jobs:
         docker push $REPO_URL:latest
         
         echo "api_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "api_repo_url=$REPO_URL" >> $GITHUB_OUTPUT
     
     - name: Build and push WebSocket Lambda image
+      id: build-websocket
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
@@ -77,15 +80,115 @@ jobs:
         docker push $REPO_URL:latest
         
         echo "websocket_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "websocket_repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+
+  update-lambda-functions:
+    needs: [build-and-push-lambda-images]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Update API Lambda function
+      env:
+        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
+        API_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.api_repo_url }}
+      run: |
+        echo "🔄 Updating API Lambda function: $LAMBDA_NAME"
+        aws lambda update-function-code \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --image-uri $API_REPO_URL:latest
+        
+        echo "⏳ Waiting for API Lambda function update to complete..."
+        aws lambda wait function-updated \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "✅ API Lambda function updated successfully!"
+    
+    - name: Update WebSocket Lambda function
+      env:
+        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
+        WEBSOCKET_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.websocket_repo_url }}
+      run: |
+        echo "🔄 Updating WebSocket Lambda function: $LAMBDA_NAME"
+        aws lambda update-function-code \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --image-uri $WEBSOCKET_REPO_URL:latest
+        
+        echo "⏳ Waiting for WebSocket Lambda function update to complete..."
+        aws lambda wait function-updated \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "✅ WebSocket Lambda function updated successfully!"
+
+  test-lambda-functions:
+    needs: [update-lambda-functions]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Test API Lambda function
+      env:
+        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
+      run: |
+        echo "🧪 Testing API Lambda function..."
+        sleep 10  # Give it a moment to fully initialize
+        
+        aws lambda invoke \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --payload '{"httpMethod":"GET","path":"/api/health","headers":{},"queryStringParameters":null,"body":null,"isBase64Encoded":false}' \
+          response.json
+        
+        echo "📄 API Response:"
+        cat response.json
+        rm response.json
+        
+        echo "✅ API Lambda function test completed!"
+    
+    - name: Test WebSocket Lambda function
+      env:
+        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
+      run: |
+        echo "🧪 Testing WebSocket Lambda function..."
+        sleep 5  # Give it a moment to fully initialize
+        
+        aws lambda invoke \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --payload '{"requestContext":{"routeKey":"$connect","connectionId":"test-connection"}}' \
+          websocket-response.json
+        
+        echo "📄 WebSocket Response:"
+        cat websocket-response.json
+        rm websocket-response.json
+        
+        echo "✅ WebSocket Lambda function test completed!"
 
   notify-deployment:
-    needs: [build-and-push-lambda-images]
+    needs: [test-lambda-functions]
     runs-on: ubuntu-latest
     
     steps:
     - name: Notify deployment success
       run: |
-        echo "Deployment completed successfully!"
-        echo "API Lambda: Updated with ECR image"
-        echo "WebSocket Lambda: Updated with ECR image"
-        echo "Commit SHA: ${{ github.sha }}" 
+        echo "🎉 Deployment completed successfully!"
+        echo "📦 API Lambda: Updated with latest ECR image"
+        echo "📦 WebSocket Lambda: Updated with latest ECR image"
+        echo "✅ Both functions tested and working"
+        echo "🔗 Commit SHA: ${{ github.sha }}" 

@@ -96,7 +96,7 @@ jobs:
     
     - name: Update API Lambda function
       env:
-        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
+        LAMBDA_NAME: api
         API_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.api_repo_url }}
       run: |
         echo "🔄 Updating API Lambda function: $LAMBDA_NAME"
@@ -114,7 +114,7 @@ jobs:
     
     - name: Update WebSocket Lambda function
       env:
-        LAMBDA_NAME: ${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
+        LAMBDA_NAME: websocket
         WEBSOCKET_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.websocket_repo_url }}
       run: |
         echo "🔄 Updating WebSocket Lambda function: $LAMBDA_NAME"

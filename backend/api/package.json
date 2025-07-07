@@ -15,8 +15,6 @@
     "format:check": "npx prettier --check .",
     "build": "tsc",
     "build:serverless": "serverless package",
-    "deploy": "serverless deploy",
-    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",

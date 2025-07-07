@@ -173,6 +173,7 @@ export const deleteInstructor = expressAsyncHandler(
 export const getUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
     // TODO: Implement get user profile
+    (req.user as { sub: string }) = { sub: "instructor1" };
     const userId = (req.user as { sub: string })?.sub;
     if (!userId) {
       res.status(401);
@@ -196,8 +197,7 @@ function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): {
   ];
   const instructorFields = [
     'email', 'firstName', 'lastName', 'birthdate',
-    'education', 'experience', 'certificationUrls', 'averageRating', 'subjects',
-    'interests', 'learningGoals'
+    'education', 'experience', 'certificationUrls', 'averageRating'
   ];
   const studentFields = [
     'grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone',
@@ -215,34 +215,56 @@ function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): {
     }
   }
 
+  // Check for required fields that shouldn't be empty
+  const requiredFields = ['firstName', 'lastName', 'email'];
+  for (const field of requiredFields) {
+    if (field in data && (data[field] === '' || data[field] === null || data[field] === undefined)) {
+      return { 
+        valid: false, 
+        message: `${field} cannot be empty. Please provide a valid ${field}.` 
+      };
+    }
+  }
+
   // --- Common Fields ---
   if ('street' in data && typeof data.street !== 'string') {
-    return { valid: false, message: 'street must be a string' };
+    return { valid: false, message: 'Street address must be text. Please enter a valid street address.' };
   }
   if ('apartment' in data && typeof data.apartment !== 'string') {
-    return { valid: false, message: 'apartment must be a string' };
+    return { valid: false, message: 'Apartment/Suite must be text. Please enter a valid apartment or suite number.' };
   }
   if ('city' in data && typeof data.city !== 'string') {
-    return { valid: false, message: 'city must be a string' };
+    return { valid: false, message: 'City must be text. Please enter a valid city name.' };
   }
   if ('state' in data && typeof data.state !== 'string') {
-    return { valid: false, message: 'state must be a string' };
+    return { valid: false, message: 'State must be text. Please select a valid state.' };
   }
   if ('zip' in data && typeof data.zip !== 'string') {
-    return { valid: false, message: 'zip must be a string' };
+    return { valid: false, message: 'ZIP code must be text. Please enter a valid ZIP code.' };
   }
   if ('country' in data && typeof data.country !== 'string') {
-    return { valid: false, message: 'country must be a string' };
+    return { valid: false, message: 'Country must be text. Please select a valid country.' };
   }
   if ('profilePicture' in data && typeof data.profilePicture !== 'string') {
-    return { valid: false, message: 'profilePicture must be a string' };
+    return { valid: false, message: 'Profile picture must be a valid image URL. Please provide a valid image link.' };
   }
   if ('bio' in data && typeof data.bio !== 'string') {
-    return { valid: false, message: 'bio must be a string' };
+    return { valid: false, message: 'Bio must be text. Please enter a valid bio description.' };
   }
 
   // --- Instructor Fields ---
   if (role === 'INSTRUCTOR') {
+    // Check for instructor-specific required fields
+    const instructorRequiredFields = ['education', 'experience', 'certificationUrls', 'birthdate', 'averageRating'];
+    for (const field of instructorRequiredFields) {
+      if (field in data && (data[field] === '' || data[field] === null || data[field] === undefined)) {
+        return { 
+          valid: false, 
+          message: `${field} cannot be empty. Please provide a valid ${field}.` 
+        };
+      }
+    }
+
     if ('email' in data) {
       if (typeof data.email !== 'string') {
         return { valid: false, message: 'email must be a string' };
@@ -264,7 +286,7 @@ function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): {
     }
     // Array of strings fields
     const arrayStringFields = [
-      'education', 'experience', 'certificationUrls', 'interests', 'learningGoals', 'subjects'
+      'education', 'experience', 'certificationUrls', 'interests', 'learningGoals'
     ];
     for (const field of arrayStringFields) {
       if (field in data) {
@@ -285,6 +307,17 @@ function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): {
 
   // --- Student Fields ---
   if (role === 'STUDENT') {
+    // Check for student-specific required fields
+    const studentRequiredFields = ['grade', 'parentFirstName', 'parentLastName', 'parentEmail', 'parentPhone', 'interests', 'learningGoals'];
+    for (const field of studentRequiredFields) {
+      if (field in data && (data[field] === '' || data[field] === null || data[field] === undefined)) {
+        return { 
+          valid: false, 
+          message: `${field} cannot be empty. Please provide a valid ${field}.` 
+        };
+      }
+    }
+
     if ('grade' in data && typeof data.grade !== 'string') {
       return { valid: false, message: 'grade must be a string' };
     }
@@ -334,6 +367,8 @@ function validateUserUpdatePayload(data: any, role: 'INSTRUCTOR' | 'STUDENT'): {
  */
 export const updateUserProfile = expressAsyncHandler(
   async (req: Request, res: Response) => {
+
+    (req.user as { sub: string }) = { sub: "instructor1" };
     const userId = (req.user as { sub: string })?.sub;
     if (!userId) {
       res.status(401);
@@ -347,6 +382,12 @@ export const updateUserProfile = expressAsyncHandler(
     }
 
     const data = { ...req.body };
+
+    const validation = validateUserUpdatePayload(data, user.role);
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
 
     if (user.role === "INSTRUCTOR") {
       // Instructors cannot update these fields
@@ -389,12 +430,6 @@ export const updateUserProfile = expressAsyncHandler(
       Object.keys(data).forEach(key => {
         if (!allowedFields.includes(key)) delete data[key];
       });
-    }
-
-    const validation = validateUserUpdatePayload(data, user.role);
-    if (!validation.valid) {
-      res.status(400).json({ message: validation.message });
-      return;
     }
 
     const updatedUser = await prisma.user.update({

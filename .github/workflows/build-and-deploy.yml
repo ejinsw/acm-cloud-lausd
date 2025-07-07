@@ -6,6 +6,7 @@ on:
     types:
       - completed
     branches: [ "main" ]
+  merge_group:
 
 env:
   AWS_REGION: us-west-1

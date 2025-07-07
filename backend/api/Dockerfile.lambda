@@ -16,5 +16,8 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Set the CMD to your handler
-CMD [ "src/app.ts" ] 
+# Build TypeScript to JavaScript
+RUN npm run build
+
+# Set the CMD to the compiled handler
+CMD [ "dist/app.js" ] 

@@ -8,12 +8,15 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:serverless": "npm run build && node test-serverless.js",
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix",
     "format": "npx prettier --write .",
     "format:check": "npx prettier --check .",
     "build": "tsc",
-    "deploy": "serverless deploy"
+    "build:serverless": "serverless package",
+    "deploy": "serverless deploy",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",

@@ -38,6 +38,15 @@ app.use('/api', sessionRouter);
 app.use('/api', reviewRouter);
 app.use('/api', subjectRouter);
 
+// Health check endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
@@ -58,10 +67,12 @@ app.use((req: Request, res: Response) => {
 /**
  * FOR SERVER
  */
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 8080;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
 // FOR SERVERLESS
 export const handler = serverless(app);

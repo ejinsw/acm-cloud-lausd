@@ -9,11 +9,16 @@
     "skipLibCheck": true,                        // Skip type checking of all declaration files (*.d.ts)
     "forceConsistentCasingInFileNames": true,     // Disallow inconsistently-cased references to the same file
     "typeRoots": ["./node_modules/@types", "./src/types"],
+    "resolveJsonModule": true,                   // Allow importing JSON files
+    "allowSyntheticDefaultImports": true,        // Allow default imports from modules with no default export
+    "moduleResolution": "node"                   // Use Node.js module resolution
   },
   "include": [
     "src/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist",
+    "tests"
   ]
 }

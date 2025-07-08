@@ -35,5 +35,5 @@ COPY --from=builder ${LAMBDA_TASK_ROOT}/dist ./dist
 COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/@prisma ./node_modules/@prisma
 
-# Set the CMD to the compiled JavaScript file
-CMD [ "dist/app.js" ] 
+# Set the CMD to the handler function
+CMD [ "dist/app.handler" ] 

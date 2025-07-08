@@ -32,6 +32,7 @@ RUN npm ci --only=production
 
 # Copy only the compiled dist directory and Prisma client from builder
 COPY --from=builder ${LAMBDA_TASK_ROOT}/dist ./dist
+COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/@prisma ./node_modules/@prisma
 
 # Set the CMD to the compiled JavaScript file

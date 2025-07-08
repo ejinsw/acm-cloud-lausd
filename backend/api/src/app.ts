@@ -29,6 +29,23 @@ app.use(
   })
 );
 
+// Middleware to handle API Gateway stage prefixes
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Check if the URL starts with a stage prefix (e.g., /dev/, /prod/, etc.)
+  const stageMatch = req.url.match(/^\/([^/]+)\/(.*)/);
+  if (stageMatch) {
+    const stage = stageMatch[1];
+    const path = stageMatch[2];
+
+    // Only strip if it looks like a stage name (not a real path)
+    if (['dev', 'prod', 'staging', 'test'].includes(stage)) {
+      req.url = '/' + path;
+      console.log(`Stripped stage prefix: /${stage}/${path} -> /${path}`);
+    }
+  }
+  next();
+});
+
 /**
  * Routes
  */

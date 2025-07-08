@@ -92,6 +92,52 @@ resource "aws_iam_role_policy" "lambda_ecr" {
   })
 }
 
+# RDS permissions for Lambda
+resource "aws_iam_role_policy" "lambda_rds" {
+  name = "${var.project_name}-${var.function_name}-rds-policy"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "rds-db:connect"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Cognito permissions for Lambda
+resource "aws_iam_role_policy" "lambda_cognito" {
+  name = "${var.project_name}-${var.function_name}-cognito-policy"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:SignUp",
+          "cognito-idp:ConfirmSignUp",
+          "cognito-idp:ResendConfirmationCode",
+          "cognito-idp:GlobalSignOut",
+          "cognito-idp:ForgotPassword",
+          "cognito-idp:ConfirmForgotPassword",
+          "cognito-idp:GetUser",
+          "cognito-idp:ListUsers"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${aws_lambda_function.main.function_name}"

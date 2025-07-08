@@ -98,15 +98,14 @@ module "lambda_api" {
   use_container     = true # Use ECR container
   image_uri         = "${module.ecr_api.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
+  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   security_group_id = module.vpc.security_group_id
+  lambda_timeout    = var.lambda_timeout
+  lambda_memory     = var.lambda_memory
 
   environment_variables = {
     NODE_ENV                          = var.environment
-    DB_HOST                           = module.rds.db_endpoint
-    DB_NAME                           = "acmcloud"
-    DB_USER                           = var.db_username
-    DB_PASSWORD                       = var.db_password
+    DATABASE_URL                      = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud"
     NEXT_PUBLIC_COGNITO_REGION        = "us-west-1"
     NEXT_PUBLIC_COGNITO_CLIENT_SECRET = module.cognito.user_pool_client_secret
     NEXT_PUBLIC_COGNITO_CLIENT_ISSUER = module.cognito.user_pool_client_issuer
@@ -130,7 +129,7 @@ module "lambda_websocket" {
   use_container     = true # Use ECR container
   image_uri         = "${module.ecr_websocket.repository_url}:latest"
   vpc_id            = module.vpc.vpc_id
-  subnet_ids        = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
+  subnet_ids        = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   security_group_id = module.vpc.security_group_id
   lambda_timeout    = var.lambda_timeout
   lambda_memory     = var.lambda_memory

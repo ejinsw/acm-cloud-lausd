@@ -60,27 +60,8 @@ variable "lambda_memory" {
   default     = 128
 }
 
-variable "db_host" {
-  description = "Database host for Lambda environment variables"
-  type        = string
-  default     = ""
+variable "environment_variables" {
+  description = "Environment variables for the Lambda function"
+  type        = map(string)
+  default     = {}
 }
-
-variable "db_name" {
-  description = "Database name for Lambda environment variables"
-  type        = string
-  default     = "acmcloud"
-}
-
-variable "db_username" {
-  description = "Database username for Lambda environment variables"
-  type        = string
-  default     = ""
-}
-
-variable "db_password" {
-  description = "Database password for Lambda environment variables"
-  type        = string
-  default     = ""
-  sensitive   = true
-} 

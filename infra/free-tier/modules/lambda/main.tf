@@ -23,13 +23,7 @@ resource "aws_lambda_function" "main" {
   }
 
   environment {
-    variables = {
-      NODE_ENV     = var.environment
-      DB_HOST      = var.db_host
-      DB_NAME      = var.db_name
-      DB_USER      = var.db_username
-      DB_PASSWORD  = var.db_password
-    }
+    variables = var.environment_variables
   }
 
   tags = {

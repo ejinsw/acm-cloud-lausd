@@ -246,7 +246,9 @@ export const login = expressAsyncHandler(
         },
       });
 
+      console.log('Sending command to cognito...');
       const response = await cognito.send(command);
+      console.log('Cognito response:', response);
 
       if (!response.AuthenticationResult) {
         res.status(401).json({ error: 'Invalid credentials' });

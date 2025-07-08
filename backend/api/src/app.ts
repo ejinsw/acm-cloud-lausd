@@ -11,6 +11,8 @@ import userRouter from './routes/userRouter';
 import sessionRouter from './routes/sessionRouter';
 import reviewRouter from './routes/reviewRouter';
 import subjectRouter from './routes/subjectRouter';
+import { prisma } from './config/prisma';
+import { cognito } from './lib/cognitoSDK';
 
 dotenv.config();
 
@@ -56,7 +58,21 @@ app.use('/api', reviewRouter);
 app.use('/api', subjectRouter);
 
 // Health check endpoint
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', async (req: Request, res: Response) => {
+  console.log('Connecting to database...');
+  try {
+    await prisma.$connect();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    return res.status(500).json({
+      status: 'ERROR',
+      message: 'Database connection failed',
+    });
+  }
+  console.log('Database connected successfully');
+
+  await prisma.$disconnect();
+
   res.status(200).json({
     status: 'OK',
     message: 'Server is running',

@@ -131,9 +131,22 @@ export const updateInstructor = expressAsyncHandler(
 
     // Handle subjects relation if present
     if (data.subjects) {
+      // Convert subject names to IDs for the connection
+      const existingSubjects = await prisma.subject.findMany({
+        where: {
+          name: { in: data.subjects }
+        },
+        select: { id: true, name: true }
+      });
+
+      const nameToIdMap: { [key: string]: string } = {};
+      existingSubjects.forEach(subject => {
+        nameToIdMap[subject.name] = subject.id;
+      });
+
       data.subjects = {
         set: [],
-        connect: data.subjects.map((subjectId: string) => ({ id: subjectId })),
+        connect: data.subjects.map((subjectName: string) => ({ id: nameToIdMap[subjectName] })),
       };
     }
 
@@ -351,31 +364,31 @@ async function validateUserUpdatePayload(
     // Validate subjects if present
     if ('subjects' in data) {
       if (!Array.isArray(data.subjects)) {
-        return { valid: false, message: 'subjects must be an array of subject IDs' };
+        return { valid: false, message: 'subjects must be an array of subject names' };
       }
       
       if (data.subjects.length === 0) {
         return { valid: false, message: 'subjects cannot be empty. Please provide at least one subject.' };
       }
 
-      // Check if all subject IDs are valid strings
-      if (!data.subjects.every((subjectId: any) => typeof subjectId === 'string' && subjectId.trim() !== '')) {
-        return { valid: false, message: 'All subject IDs must be valid non-empty strings' };
+      // Check if all subject names are valid strings
+      if (!data.subjects.every((subjectName: any) => typeof subjectName === 'string' && subjectName.trim() !== '')) {
+        return { valid: false, message: 'All subject names must be valid non-empty strings' };
       }
 
       // Validate that all subjects exist in the database
       try {
         const existingSubjects = await prisma.subject.findMany({
           where: {
-            id: { in: data.subjects }
+            name: { in: data.subjects }
           },
-          select: { id: true }
+          select: { id: true, name: true }
         });
 
         if (existingSubjects.length !== data.subjects.length) {
-          const existingIds = existingSubjects.map(s => s.id);
-          const invalidIds = data.subjects.filter((id: string) => !existingIds.includes(id));
-          return { valid: false, message: `Invalid subject IDs: ${invalidIds.join(', ')}` };
+          const existingNames = existingSubjects.map(s => s.name);
+          const invalidNames = data.subjects.filter((name: string) => !existingNames.includes(name));
+          return { valid: false, message: `Invalid subject names: ${invalidNames.join(', ')}` };
         }
       } catch (error) {
         return { valid: false, message: 'Error validating subjects. Please try again.' };
@@ -503,9 +516,22 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
     });
     // Handle subjects relation if present
     if (data.subjects) {
+      // Convert subject names to IDs for the connection
+      const existingSubjects = await prisma.subject.findMany({
+        where: {
+          name: { in: data.subjects }
+        },
+        select: { id: true, name: true }
+      });
+
+      const nameToIdMap: { [key: string]: string } = {};
+      existingSubjects.forEach(subject => {
+        nameToIdMap[subject.name] = subject.id;
+      });
+
       data.subjects = {
         set: [],
-        connect: data.subjects.map((subjectId: string) => ({ id: subjectId })),
+        connect: data.subjects.map((subjectName: string) => ({ id: nameToIdMap[subjectName] })),
       };
     }
   } else if (user.role === 'STUDENT') {

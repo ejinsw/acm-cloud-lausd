@@ -743,40 +743,61 @@ export const getInstructors = expressAsyncHandler(async (req: Request, res: Resp
     throw new Error('Not authorized - Student access only');
   }
 
-  const instructors = await prisma.user.findMany({
-    where: { role: 'INSTRUCTOR' },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      bio: true,
-      education: true,
-      experience: true,
-      averageRating: true,
-      subjects: {
+  // Get instructors that this student currently has sessions with
+  const studentSessions = await prisma.session.findMany({
+    where: {
+      students: {
+        some: {
+          id: userId
+        }
+      }
+    },
+    include: {
+      instructor: {
         select: {
           id: true,
-          name: true,
-          level: true,
-        },
-      },
-      instructorReviews: {
-        select: {
-          id: true,
-          rating: true,
-          comment: true,
-          createdAt: true,
-          student: {
+          firstName: true,
+          lastName: true,
+          email: true,
+          bio: true,
+          education: true,
+          experience: true,
+          averageRating: true,
+          subjects: {
             select: {
-              firstName: true,
-              lastName: true,
+              id: true,
+              name: true,
+              level: true,
+            },
+          },
+          instructorReviews: {
+            select: {
+              id: true,
+              rating: true,
+              comment: true,
+              createdAt: true,
+              student: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
             },
           },
         },
       },
     },
   });
+
+  // Extract unique instructors from sessions
+  const instructorMap = new Map();
+  studentSessions.forEach(session => {
+    if (session.instructor && !instructorMap.has(session.instructor.id)) {
+      instructorMap.set(session.instructor.id, session.instructor);
+    }
+  });
+
+  const instructors = Array.from(instructorMap.values());
 
   res.json({ instructors });
 });

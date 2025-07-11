@@ -193,7 +193,6 @@ export const deleteInstructor = expressAsyncHandler(async (req: Request, res: Re
  */
 export const getUserProfile = expressAsyncHandler(async (req: Request, res: Response) => {
   // TODO: Implement get user profile
-  (req.user as { sub: string }) = { sub: 'instructor1' };
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
@@ -268,38 +267,87 @@ async function validateUserUpdatePayload(
   }
 
   // --- Common Fields ---
-  if ('street' in data && typeof data.street !== 'string') {
-    return {
-      valid: false,
-      message: 'Street address must be text. Please enter a valid street address.',
-    };
+  if ('street' in data) {
+    if (typeof data.street !== 'string') {
+      return {
+        valid: false,
+        message: 'Street address must be text. Please enter a valid street address.',
+      };
+    }
+    if (data.street.trim() === '') {
+      return {
+        valid: false,
+        message: 'Street address cannot be empty. Please enter a valid street address.',
+      };
+    }
   }
-  if ('apartment' in data && typeof data.apartment !== 'string') {
-    return {
-      valid: false,
-      message: 'Apartment/Suite must be text. Please enter a valid apartment or suite number.',
-    };
+  if ('apartment' in data) {
+    if (typeof data.apartment !== 'string') {
+      return {
+        valid: false,
+        message: 'Apartment/Suite must be text. Please enter a valid apartment or suite number.',
+      };
+    }
+    if (data.apartment.trim() === '') {
+      return {
+        valid: false,
+        message: 'Apartment/Suite cannot be empty. Please enter a valid apartment or suite number.',
+      };
+    }
   }
-  if ('city' in data && typeof data.city !== 'string') {
-    return { valid: false, message: 'City must be text. Please enter a valid city name.' };
+  if ('city' in data) {
+    if (typeof data.city !== 'string') {
+      return { valid: false, message: 'City must be text. Please enter a valid city name.' };
+    }
+    if (data.city.trim() === '') {
+      return { valid: false, message: 'City cannot be empty. Please enter a valid city name.' };
+    }
   }
-  if ('state' in data && typeof data.state !== 'string') {
-    return { valid: false, message: 'State must be text. Please select a valid state.' };
+  if ('state' in data) {
+    if (typeof data.state !== 'string') {
+      return { valid: false, message: 'State must be text. Please select a valid state.' };
+    }
+    if (data.state.trim() === '') {
+      return { valid: false, message: 'State cannot be empty. Please select a valid state.' };
+    }
   }
-  if ('zip' in data && typeof data.zip !== 'string') {
-    return { valid: false, message: 'ZIP code must be text. Please enter a valid ZIP code.' };
+  if ('zip' in data) {
+    if (typeof data.zip !== 'string') {
+      return { valid: false, message: 'ZIP code must be text. Please enter a valid ZIP code.' };
+    }
+    if (data.zip.trim() === '') {
+      return { valid: false, message: 'ZIP code cannot be empty. Please enter a valid ZIP code.' };
+    }
   }
-  if ('country' in data && typeof data.country !== 'string') {
-    return { valid: false, message: 'Country must be text. Please select a valid country.' };
+  if ('country' in data) {
+    if (typeof data.country !== 'string') {
+      return { valid: false, message: 'Country must be text. Please select a valid country.' };
+    }
+    if (data.country.trim() === '') {
+      return { valid: false, message: 'Country cannot be empty. Please select a valid country.' };
+    }
   }
-  if ('profilePicture' in data && typeof data.profilePicture !== 'string') {
-    return {
-      valid: false,
-      message: 'Profile picture must be a valid image URL. Please provide a valid image link.',
-    };
+  if ('profilePicture' in data) {
+    if (typeof data.profilePicture !== 'string') {
+      return {
+        valid: false,
+        message: 'Profile picture must be a valid image URL. Please provide a valid image link.',
+      };
+    }
+    if (data.profilePicture.trim() === '') {
+      return {
+        valid: false,
+        message: 'Profile picture cannot be empty. Please provide a valid image link.',
+      };
+    }
   }
-  if ('bio' in data && typeof data.bio !== 'string') {
-    return { valid: false, message: 'Bio must be text. Please enter a valid bio description.' };
+  if ('bio' in data) {
+    if (typeof data.bio !== 'string') {
+      return { valid: false, message: 'Bio must be text. Please enter a valid bio description.' };
+    }
+    if (data.bio.trim() === '') {
+      return { valid: false, message: 'Bio cannot be empty. Please enter a valid bio description.' };
+    }
   }
 
   // --- Instructor Fields ---
@@ -331,11 +379,21 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'email must be a valid email address' };
       }
     }
-    if ('firstName' in data && typeof data.firstName !== 'string') {
-      return { valid: false, message: 'firstName must be a string' };
+    if ('firstName' in data) {
+      if (typeof data.firstName !== 'string') {
+        return { valid: false, message: 'firstName must be a string' };
+      }
+      if (data.firstName.trim() === '') {
+        return { valid: false, message: 'firstName cannot be empty. Please provide a valid first name.' };
+      }
     }
-    if ('lastName' in data && typeof data.lastName !== 'string') {
-      return { valid: false, message: 'lastName must be a string' };
+    if ('lastName' in data) {
+      if (typeof data.lastName !== 'string') {
+        return { valid: false, message: 'lastName must be a string' };
+      }
+      if (data.lastName.trim() === '') {
+        return { valid: false, message: 'lastName cannot be empty. Please provide a valid last name.' };
+      }
     }
     if ('birthdate' in data) {
       if (
@@ -355,8 +413,16 @@ async function validateUserUpdatePayload(
     ];
     for (const field of arrayStringFields) {
       if (field in data) {
-        if (!Array.isArray(data[field]) || !data[field].every((v: any) => typeof v === 'string')) {
+        if (!Array.isArray(data[field])) {
           return { valid: false, message: `${field} must be an array of strings` };
+        }
+        
+        if (data[field].length === 0) {
+          return { valid: false, message: `${field} cannot be empty. Please provide at least one item.` };
+        }
+        
+        if (!data[field].every((v: any) => typeof v === 'string' && v.trim() !== '')) {
+          return { valid: false, message: `${field} must be an array of non-empty strings` };
         }
       }
     }
@@ -421,18 +487,36 @@ async function validateUserUpdatePayload(
       }
     }
 
-    if ('grade' in data && typeof data.grade !== 'string') {
-      return { valid: false, message: 'grade must be a string' };
+    if ('grade' in data) {
+      if (typeof data.grade !== 'string') {
+        return { valid: false, message: 'grade must be a string' };
+      }
+      if (data.grade.trim() === '') {
+        return { valid: false, message: 'grade cannot be empty. Please provide a valid grade.' };
+      }
     }
-    if ('parentFirstName' in data && typeof data.parentFirstName !== 'string') {
-      return { valid: false, message: 'parentFirstName must be a string' };
+    if ('parentFirstName' in data) {
+      if (typeof data.parentFirstName !== 'string') {
+        return { valid: false, message: 'parentFirstName must be a string' };
+      }
+      if (data.parentFirstName.trim() === '') {
+        return { valid: false, message: 'parentFirstName cannot be empty. Please provide a valid parent first name.' };
+      }
     }
-    if ('parentLastName' in data && typeof data.parentLastName !== 'string') {
-      return { valid: false, message: 'parentLastName must be a string' };
+    if ('parentLastName' in data) {
+      if (typeof data.parentLastName !== 'string') {
+        return { valid: false, message: 'parentLastName must be a string' };
+      }
+      if (data.parentLastName.trim() === '') {
+        return { valid: false, message: 'parentLastName cannot be empty. Please provide a valid parent last name.' };
+      }
     }
     if ('parentEmail' in data) {
       if (typeof data.parentEmail !== 'string') {
         return { valid: false, message: 'parentEmail must be a string' };
+      }
+      if (data.parentEmail.trim() === '') {
+        return { valid: false, message: 'parentEmail cannot be empty. Please provide a valid email address.' };
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.parentEmail)) {
         return { valid: false, message: 'parentEmail must be a valid email address' };
@@ -441,6 +525,9 @@ async function validateUserUpdatePayload(
     if ('parentPhone' in data) {
       if (typeof data.parentPhone !== 'string') {
         return { valid: false, message: 'parentPhone must be a string' };
+      }
+      if (data.parentPhone.trim() === '') {
+        return { valid: false, message: 'parentPhone cannot be empty. Please provide a valid phone number.' };
       }
       // Simple phone validation (optional, can be improved)
       if (!/^\+?[0-9\-\s()]{7,20}$/.test(data.parentPhone)) {
@@ -451,8 +538,16 @@ async function validateUserUpdatePayload(
     const arrayStringFields = ['interests', 'learningGoals'];
     for (const field of arrayStringFields) {
       if (field in data) {
-        if (!Array.isArray(data[field]) || !data[field].every((v: any) => typeof v === 'string')) {
+        if (!Array.isArray(data[field])) {
           return { valid: false, message: `${field} must be an array of strings` };
+        }
+        
+        if (data[field].length === 0) {
+          return { valid: false, message: `${field} cannot be empty. Please provide at least one item.` };
+        }
+        
+        if (!data[field].every((v: any) => typeof v === 'string' && v.trim() !== '')) {
+          return { valid: false, message: `${field} must be an array of non-empty strings` };
         }
       }
     }
@@ -467,7 +562,7 @@ async function validateUserUpdatePayload(
  * @access Private
  */
 export const updateUserProfile = expressAsyncHandler(async (req: Request, res: Response) => {
-  (req.user as { sub: string }) = { sub: 'instructor1' };
+  
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
@@ -587,7 +682,6 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
  */
 export const deleteUser = expressAsyncHandler(async (req: Request, res: Response) => {
   // TODO: Implement delete user
-
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401).json({ message: 'Unauthorized' });
@@ -611,6 +705,7 @@ export const deleteUser = expressAsyncHandler(async (req: Request, res: Response
  */
 export const getStudents = expressAsyncHandler(async (req: Request, res: Response) => {
   // TODO: Implement get all students
+  
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
@@ -636,7 +731,14 @@ export const getStudents = expressAsyncHandler(async (req: Request, res: Respons
  * @access Private/Student
  */
 export const getInstructors = expressAsyncHandler(async (req: Request, res: Response) => {
-  if ((req.user as { role: string })?.role !== 'STUDENT') {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401);
+    throw new Error('Not authorized');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.role !== 'STUDENT') {
     res.status(403);
     throw new Error('Not authorized - Student access only');
   }
@@ -685,7 +787,7 @@ export const getInstructors = expressAsyncHandler(async (req: Request, res: Resp
  * @access Private
  */
 export const getUserSessions = expressAsyncHandler(async (req: Request, res: Response) => {
-  const userId = (req.user as { id: string })?.id;
+  const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
     throw new Error('Not authorized');
@@ -738,7 +840,7 @@ export const getUserSessions = expressAsyncHandler(async (req: Request, res: Res
  * @access Private
  */
 export const getUserReviews = expressAsyncHandler(async (req: Request, res: Response) => {
-  const userId = (req.user as { id: string })?.id;
+  const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
     throw new Error('Not authorized');

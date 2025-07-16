@@ -156,46 +156,46 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
   - Returns: New JWT token
 
 ### Users
-- `GET /users/me` - Get current user profile
-  - Headers: `Authorization: Bearer <token>`
-  - Returns: User profile
-
-- `PUT /users/me` - Update current user profile
-  - Headers: `Authorization: Bearer <token>`
-  - Body: `{ firstName, lastName, email }`
-  - Returns: Updated user profile
-
-### Students
-- `GET /students` - List all students
-  - Query params: `page, limit, search`
-  - Returns: Paginated list of students
-
-- `GET /students/:id` - Get student by ID
-  - Returns: Student details
-
-- `POST /students` - Create new student
-  - Body: `{ userId, grade, school, subjects }`
-  - Returns: Created student
-
-- `PUT /students/:id` - Update student
-  - Body: `{ grade, school, subjects }`
-  - Returns: Updated student
-
-### Instructors
 - `GET /instructors` - List all instructors
-  - Query params: `page, limit, search, subjects`
-  - Returns: Paginated list of instructors
+  - Query params: `name, subjects`
+  - Returns: List of instructors
 
 - `GET /instructors/:id` - Get instructor by ID
   - Returns: Instructor details
 
-- `POST /instructors` - Create new instructor
-  - Body: `{ userId, subjects, bio, certifications }`
-  - Returns: Created instructor
+- `GET /users/profile` - Get current user profile
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: User profile
 
-- `PUT /instructors/:id` - Update instructor
-  - Body: `{ subjects, bio, certifications }`
-  - Returns: Updated instructor
+- `PUT /users/profile` - Update current user profile
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ street, apartment, city, state, zip, country, profilePicture, bio }`
+      -INSTRUCTOR ONLY: `{firstName, lastName, birthdate, education, experience, certificationUrls ,subjects,}`
+      -STUDENT ONLY: `{grade, parentFirstName, parentLastName, parentEmail, parentPhone, interests,learningGoals }`
+  - Returns: Updated user profile
+
+- `DELETE /users/profile` - Delete current user profile
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: "User Deleted Successfully"
+
+- `GET /users/students` - Instructor ONLY - gets all students that instructor has sessions with
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: List of Students
+  
+- `GET /users/instructors` - Student ONLY - gets all instructors that student has sessions with
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: List of Instructors
+
+- `GET /users/sessions` - Get current user's sessions
+- Headers: `Authorization: Bearer <token>`
+- Returns: List of sessions
+  
+- `GET /users/reviews` - Get current user reviews
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: List of Reviews
+
+
+
 
 ### Sessions
 - `GET /sessions` - List all sessions

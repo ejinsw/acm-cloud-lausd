@@ -134,9 +134,9 @@ export const updateInstructor = expressAsyncHandler(
       // Convert subject names to IDs for the connection
       const existingSubjects = await prisma.subject.findMany({
         where: {
-          name: { in: data.subjects }
+          name: { in: data.subjects },
         },
-        select: { id: true, name: true }
+        select: { id: true, name: true },
       });
 
       const nameToIdMap: { [key: string]: string } = {};
@@ -346,19 +346,17 @@ async function validateUserUpdatePayload(
       return { valid: false, message: 'Bio must be text. Please enter a valid bio description.' };
     }
     if (data.bio.trim() === '') {
-      return { valid: false, message: 'Bio cannot be empty. Please enter a valid bio description.' };
+      return {
+        valid: false,
+        message: 'Bio cannot be empty. Please enter a valid bio description.',
+      };
     }
   }
 
   // --- Instructor Fields ---
   if (role === 'INSTRUCTOR') {
     // Check for instructor-specific required fields
-    const instructorRequiredFields = [
-      'education',
-      'experience',
-      'certificationUrls',
-      'birthdate',
-    ];
+    const instructorRequiredFields = ['education', 'experience', 'certificationUrls', 'birthdate'];
     for (const field of instructorRequiredFields) {
       if (
         field in data &&
@@ -384,7 +382,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'firstName must be a string' };
       }
       if (data.firstName.trim() === '') {
-        return { valid: false, message: 'firstName cannot be empty. Please provide a valid first name.' };
+        return {
+          valid: false,
+          message: 'firstName cannot be empty. Please provide a valid first name.',
+        };
       }
     }
     if ('lastName' in data) {
@@ -392,7 +393,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'lastName must be a string' };
       }
       if (data.lastName.trim() === '') {
-        return { valid: false, message: 'lastName cannot be empty. Please provide a valid last name.' };
+        return {
+          valid: false,
+          message: 'lastName cannot be empty. Please provide a valid last name.',
+        };
       }
     }
     if ('birthdate' in data) {
@@ -416,11 +420,14 @@ async function validateUserUpdatePayload(
         if (!Array.isArray(data[field])) {
           return { valid: false, message: `${field} must be an array of strings` };
         }
-        
+
         if (data[field].length === 0) {
-          return { valid: false, message: `${field} cannot be empty. Please provide at least one item.` };
+          return {
+            valid: false,
+            message: `${field} cannot be empty. Please provide at least one item.`,
+          };
         }
-        
+
         if (!data[field].every((v: any) => typeof v === 'string' && v.trim() !== '')) {
           return { valid: false, message: `${field} must be an array of non-empty strings` };
         }
@@ -432,13 +439,20 @@ async function validateUserUpdatePayload(
       if (!Array.isArray(data.subjects)) {
         return { valid: false, message: 'subjects must be an array of subject names' };
       }
-      
+
       if (data.subjects.length === 0) {
-        return { valid: false, message: 'subjects cannot be empty. Please provide at least one subject.' };
+        return {
+          valid: false,
+          message: 'subjects cannot be empty. Please provide at least one subject.',
+        };
       }
 
       // Check if all subject names are valid strings
-      if (!data.subjects.every((subjectName: any) => typeof subjectName === 'string' && subjectName.trim() !== '')) {
+      if (
+        !data.subjects.every(
+          (subjectName: any) => typeof subjectName === 'string' && subjectName.trim() !== ''
+        )
+      ) {
         return { valid: false, message: 'All subject names must be valid non-empty strings' };
       }
 
@@ -446,21 +460,22 @@ async function validateUserUpdatePayload(
       try {
         const existingSubjects = await prisma.subject.findMany({
           where: {
-            name: { in: data.subjects }
+            name: { in: data.subjects },
           },
-          select: { id: true, name: true }
+          select: { id: true, name: true },
         });
 
         if (existingSubjects.length !== data.subjects.length) {
           const existingNames = existingSubjects.map(s => s.name);
-          const invalidNames = data.subjects.filter((name: string) => !existingNames.includes(name));
+          const invalidNames = data.subjects.filter(
+            (name: string) => !existingNames.includes(name)
+          );
           return { valid: false, message: `Invalid subject names: ${invalidNames.join(', ')}` };
         }
       } catch (error) {
         return { valid: false, message: 'Error validating subjects. Please try again.' };
       }
     }
-    
   }
 
   // --- Student Fields ---
@@ -500,7 +515,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'parentFirstName must be a string' };
       }
       if (data.parentFirstName.trim() === '') {
-        return { valid: false, message: 'parentFirstName cannot be empty. Please provide a valid parent first name.' };
+        return {
+          valid: false,
+          message: 'parentFirstName cannot be empty. Please provide a valid parent first name.',
+        };
       }
     }
     if ('parentLastName' in data) {
@@ -508,7 +526,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'parentLastName must be a string' };
       }
       if (data.parentLastName.trim() === '') {
-        return { valid: false, message: 'parentLastName cannot be empty. Please provide a valid parent last name.' };
+        return {
+          valid: false,
+          message: 'parentLastName cannot be empty. Please provide a valid parent last name.',
+        };
       }
     }
     if ('parentEmail' in data) {
@@ -516,7 +537,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'parentEmail must be a string' };
       }
       if (data.parentEmail.trim() === '') {
-        return { valid: false, message: 'parentEmail cannot be empty. Please provide a valid email address.' };
+        return {
+          valid: false,
+          message: 'parentEmail cannot be empty. Please provide a valid email address.',
+        };
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.parentEmail)) {
         return { valid: false, message: 'parentEmail must be a valid email address' };
@@ -527,7 +551,10 @@ async function validateUserUpdatePayload(
         return { valid: false, message: 'parentPhone must be a string' };
       }
       if (data.parentPhone.trim() === '') {
-        return { valid: false, message: 'parentPhone cannot be empty. Please provide a valid phone number.' };
+        return {
+          valid: false,
+          message: 'parentPhone cannot be empty. Please provide a valid phone number.',
+        };
       }
       // Simple phone validation (optional, can be improved)
       if (!/^\+?[0-9\-\s()]{7,20}$/.test(data.parentPhone)) {
@@ -541,11 +568,14 @@ async function validateUserUpdatePayload(
         if (!Array.isArray(data[field])) {
           return { valid: false, message: `${field} must be an array of strings` };
         }
-        
+
         if (data[field].length === 0) {
-          return { valid: false, message: `${field} cannot be empty. Please provide at least one item.` };
+          return {
+            valid: false,
+            message: `${field} cannot be empty. Please provide at least one item.`,
+          };
         }
-        
+
         if (!data[field].every((v: any) => typeof v === 'string' && v.trim() !== '')) {
           return { valid: false, message: `${field} must be an array of non-empty strings` };
         }
@@ -562,7 +592,6 @@ async function validateUserUpdatePayload(
  * @access Private
  */
 export const updateUserProfile = expressAsyncHandler(async (req: Request, res: Response) => {
-  
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
@@ -614,9 +643,9 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
       // Convert subject names to IDs for the connection
       const existingSubjects = await prisma.subject.findMany({
         where: {
-          name: { in: data.subjects }
+          name: { in: data.subjects },
         },
-        select: { id: true, name: true }
+        select: { id: true, name: true },
       });
 
       const nameToIdMap: { [key: string]: string } = {};
@@ -705,7 +734,7 @@ export const deleteUser = expressAsyncHandler(async (req: Request, res: Response
  */
 export const getStudents = expressAsyncHandler(async (req: Request, res: Response) => {
   // TODO: Implement get all students
-  
+
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
@@ -748,9 +777,9 @@ export const getInstructors = expressAsyncHandler(async (req: Request, res: Resp
     where: {
       students: {
         some: {
-          id: userId
-        }
-      }
+          id: userId,
+        },
+      },
     },
     include: {
       instructor: {

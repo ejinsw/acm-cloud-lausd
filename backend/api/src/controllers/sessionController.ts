@@ -26,7 +26,38 @@ interface SessionData {
  */
 export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    const { tutorName, name, subject } = req.query;
+
+    const where: any = {};
+    if (name) {
+      where.name = { contains: name as string, mode: 'insensitive' };
+    }
+    if (subject) {
+      where.subjects = {
+        some: {
+          name: { contains: subject as string, mode: 'insensitive' },
+        },
+      };
+    }
+
+    if (tutorName) {
+      where.instructor = {
+        OR: [
+          { firstName: { contains: tutorName as string, mode: 'insensitive' } },
+          { lastName: { contains: tutorName as string, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const sessions = await prisma.session.findMany({
+      where,
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true } },
+        subjects: true,
+      },
+    });
+
+    res.json({ sessions });
   }
 );
 
@@ -86,7 +117,25 @@ export const updateSession = expressAsyncHandler(
  */
 export const deleteSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    const { id } = req.params;
+    const userId = (req.user as { sub: string })?.sub;
+
+    // Find the session
+    const session = await prisma.session.findUnique({ where: { id } });
+
+    if (!session) {
+      res.status(404).json({ message: 'Session not found' });
+      return;
+    }
+
+    // Only the instructor who owns the session can delete it
+    if (session.instructorId !== userId) {
+      res.status(403).json({ message: 'You do not have permission to delete this session' });
+      return;
+    }
+
+    await prisma.session.delete({ where: { id } });
+    res.status(200).json({ message: 'Session deleted successfully' });
   }
 );
 

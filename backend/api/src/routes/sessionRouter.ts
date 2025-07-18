@@ -1,12 +1,12 @@
 import express from 'express';
 import {
   createSession,
-  getSession,
+  getSessionById,
   updateSession,
   deleteSession,
-  getSessions,
   joinSession,
   leaveSession,
+  getAllSessions,
 } from '../controllers/sessionController';
 import { authenticateToken, checkRole } from '../middleware/auth';
 
@@ -14,10 +14,10 @@ const router = express.Router();
 
 // Protected routes
 router.post('/sessions', authenticateToken, checkRole(['INSTRUCTOR']), createSession);
-router.get('/sessions/:id', authenticateToken, getSession);
+router.get('/sessions/:id', authenticateToken, getSessionById);
 router.put('/sessions/:id', authenticateToken, checkRole(['INSTRUCTOR']), updateSession);
 router.delete('/sessions/:id', authenticateToken, checkRole(['INSTRUCTOR']), deleteSession);
-router.get('/sessions', authenticateToken, getSessions);
+router.get('/sessions', authenticateToken, getAllSessions);
 
 // Session participation
 router.post('/sessions/:id/join', authenticateToken, checkRole(['STUDENT']), joinSession);

@@ -52,7 +52,7 @@ export const getAllSessions = expressAsyncHandler(
     const sessions = await prisma.session.findMany({
       where,
       include: {
-        instructor: { select: { id: true, firstName: true, lastName: true } },
+        instructor: { select: { firstName: true, lastName: true } },
         subjects: true,
       },
     });
@@ -69,7 +69,21 @@ export const getAllSessions = expressAsyncHandler(
  */
 export const getSessionById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    const { id } = req.params;
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        instructor: { select: { firstName: true, lastName: true } },
+        subjects: true,
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ message: 'Session not Found' });
+      return;
+    }
+
+    res.json({ session });
   }
 );
 
@@ -87,7 +101,65 @@ export const getSessionById = expressAsyncHandler(
  */
 export const createSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    const userId = (req.user as { sub: string })?.sub;
+    // Only instructors can create sessions (enforced by middleware, but double-check)
+    if (!userId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    const {
+      name,
+      description,
+      startTime,
+      endTime,
+      zoomLink,
+      maxAttendees,
+      materials = [],
+      objectives = [],
+      subjects = [],
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !Array.isArray(subjects) || subjects.length === 0) {
+      res.status(400).json({ message: 'Missing required fields: name and at least one subject' });
+      return;
+    }
+
+    // Find subject IDs for connection
+    const subjectRecords = await prisma.subject.findMany({
+      where: { name: { in: subjects } },
+      select: { id: true, name: true },
+    });
+    if (subjectRecords.length !== subjects.length) {
+      const foundNames = subjectRecords.map(s => s.name);
+      const missing = subjects.filter((s: string) => !foundNames.includes(s));
+      res.status(400).json({ message: `Invalid subject(s): ${missing.join(', ')}` });
+      return;
+    }
+
+    const session = await prisma.session.create({
+      data: {
+        name,
+        description,
+        startTime: startTime ? new Date(startTime) : undefined,
+        endTime: endTime ? new Date(endTime) : undefined,
+        zoomLink,
+        maxAttendees,
+        materials,
+        objectives,
+        instructorId: userId,
+        subjects: {
+          connect: subjectRecords.map(s => ({ id: s.id })),
+        },
+      },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true } },
+        subjects: true,
+      },
+    });
+
+    res.status(201).json({ session });
   }
 );
 
@@ -105,7 +177,84 @@ export const createSession = expressAsyncHandler(
  */
 export const updateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    const { id } = req.params;
+    const userId = (req.user as { sub: string })?.sub;
+
+    // Find the session
+    const session = await prisma.session.findUnique({ where: { id } });
+    if (!session) {
+      res.status(404).json({ message: 'Session not found' });
+      return;
+    }
+    // Only the instructor who owns the session can update it
+    if (session.instructorId !== userId) {
+      res.status(403).json({ message: 'You do not have permission to update this session' });
+      return;
+    }
+
+    const {
+      name,
+      description,
+      startTime,
+      endTime,
+      zoomLink,
+      maxAttendees,
+      materials,
+      objectives,
+      subjects,
+    } = req.body;
+
+    // Build update data object, skip empty strings/arrays
+    const data: any = {};
+    if (name !== undefined && name !== '') data.name = name;
+    if (description !== undefined && description !== '') data.description = description;
+    if (startTime !== undefined && startTime !== '')
+      data.startTime = startTime ? new Date(startTime) : null;
+    if (endTime !== undefined && endTime !== '') data.endTime = endTime ? new Date(endTime) : null;
+    if (zoomLink !== undefined && zoomLink !== '') data.zoomLink = zoomLink;
+    if (maxAttendees !== undefined && maxAttendees !== '') data.maxAttendees = maxAttendees;
+    if (materials !== undefined && Array.isArray(materials) && materials.length > 0)
+      data.materials = materials;
+    if (objectives !== undefined && Array.isArray(objectives) && objectives.length > 0)
+      data.objectives = objectives;
+
+    // Handle subjects update if provided
+    if (subjects !== undefined) {
+      if (!Array.isArray(subjects) || subjects.length === 0) {
+        res.status(400).json({ message: 'At least one subject is required' });
+        return;
+      }
+      const subjectRecords = await prisma.subject.findMany({
+        where: { name: { in: subjects } },
+        select: { id: true, name: true },
+      });
+      if (subjectRecords.length !== subjects.length) {
+        const foundNames = subjectRecords.map(s => s.name);
+        const missing = subjects.filter((s: string) => !foundNames.includes(s));
+        res.status(400).json({ message: `Invalid subject(s): ${missing.join(', ')}` });
+        return;
+      }
+      data.subjects = {
+        set: [],
+        connect: subjectRecords.map(s => ({ id: s.id })),
+      };
+    }
+
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ message: 'No valid fields provided for update' });
+      return;
+    }
+
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data,
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true } },
+        subjects: true,
+      },
+    });
+
+    res.status(200).json({ session: updatedSession });
   }
 );
 
@@ -163,7 +312,47 @@ export const getSessions = expressAsyncHandler(async (req: Request, res: Respons
  * @access Private/Student
  */
 export const joinSession = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement join session
+  const userId = (req.user as { sub: string })?.sub;
+  // Only students can join (enforced by middleware, but double-check)
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+  const { id } = req.params;
+
+  // Check if session exists
+  const session = await prisma.session.findUnique({
+    where: { id },
+    include: {
+      students: { select: { id: true } },
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      subjects: true,
+    },
+  });
+  if (!session) {
+    res.status(404).json({ message: 'Session not found' });
+    return;
+  }
+  // Check if already joined
+  if (session.students.some(student => student.id === userId)) {
+    res.status(400).json({ message: 'You have already joined this session' });
+    return;
+  }
+  // Add student to session
+  const updatedSession = await prisma.session.update({
+    where: { id },
+    data: {
+      students: {
+        connect: { id: userId },
+      },
+    },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      subjects: true,
+      students: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+  res.status(200).json({ message: 'Joined session successfully', session: updatedSession });
 });
 
 /**
@@ -172,5 +361,45 @@ export const joinSession = expressAsyncHandler(async (req: Request, res: Respons
  * @access Private/Student
  */
 export const leaveSession = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement leave session
+  const userId = (req.user as { sub: string })?.sub;
+  // Only students can leave (enforced by middleware, but double-check)
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+  const { id } = req.params;
+
+  // Check if session exists
+  const session = await prisma.session.findUnique({
+    where: { id },
+    include: {
+      students: { select: { id: true } },
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      subjects: true,
+    },
+  });
+  if (!session) {
+    res.status(404).json({ message: 'Session not found' });
+    return;
+  }
+  // Check if not joined
+  if (!session.students.some(student => student.id === userId)) {
+    res.status(400).json({ message: 'You are not a member of this session' });
+    return;
+  }
+  // Remove student from session
+  const updatedSession = await prisma.session.update({
+    where: { id },
+    data: {
+      students: {
+        disconnect: { id: userId },
+      },
+    },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      subjects: true,
+      students: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+  res.status(200).json({ message: 'Left session successfully', session: updatedSession });
 });

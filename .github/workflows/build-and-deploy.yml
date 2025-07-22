@@ -1,12 +1,21 @@
 name: Build and Deploy
 
 on:
-  workflow_run:
-    workflows: ["Test"]
-    types:
-      - completed
-    branches: [ "main" ]
-  merge_group:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to build and deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+  # workflow_run:
+  #   workflows: ["Test"]
+  #   types:
+  #     - completed
+  #   branches: [ "main" ]
+  # merge_group:
 
 env:
   AWS_REGION: us-west-1

@@ -1,6 +1,6 @@
-import expressAsyncHandler from "express-async-handler";
-import { NextFunction, Request, Response } from "express";
-import { prisma } from "../config/prisma";
+import expressAsyncHandler from 'express-async-handler';
+import { NextFunction, Request, Response } from 'express';
+import { prisma } from '../config/prisma';
 
 // Types
 interface SessionData {
@@ -21,30 +21,30 @@ interface SessionData {
  * - `tutorName`: Filter by instructor's name.
  * - `name`: Filter by session name.
  * - `subject`: Filter by subject taught.
- * 
+ *
  * @route GET /sessions
  */
 export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    res.json({ message: 'Hello World!' });
   }
 );
 
 /**
  * Get a specific session by its ID.
- * 
+ *
  * @route GET /sessions/:id
  * @param {string} id - The unique identifier of the session.
  */
 export const getSessionById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    res.json({ message: 'Hello World!' });
   }
 );
 
 /**
  * Create a new session.
- * 
+ *
  * @route POST /sessions
  * @body {string} name - The name of the session.
  * @body {string} description - A brief description of the session.
@@ -56,13 +56,13 @@ export const getSessionById = expressAsyncHandler(
  */
 export const createSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    res.json({ message: 'Hello World!' });
   }
 );
 
 /**
  * Update an existing session by its ID.
- * 
+ *
  * @route PUT /sessions/:id
  * @param {string} id - The unique identifier of the session.
  * @body {string} [name] - The updated session name (optional).
@@ -74,19 +74,19 @@ export const createSession = expressAsyncHandler(
  */
 export const updateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    res.json({ message: 'Hello World!' });
   }
 );
 
 /**
  * Delete a session by its ID.
- * 
+ *
  * @route DELETE /sessions/:id
  * @param {string} id - The unique identifier of the session to delete.
  */
 export const deleteSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: "Hello World!" });
+    res.json({ message: 'Hello World!' });
   }
 );
 
@@ -95,41 +95,33 @@ export const deleteSession = expressAsyncHandler(
  * @desc Get session by ID
  * @access Private
  */
-export const getSession = expressAsyncHandler(
-  async (req: Request, res: Response) => {
-    // TODO: Implement get session
-  }
-);
+export const getSession = expressAsyncHandler(async (req: Request, res: Response) => {
+  // TODO: Implement get session
+});
 
 /**
  * @route GET /api/sessions
  * @desc Get all sessions
  * @access Private
  */
-export const getSessions = expressAsyncHandler(
-  async (req: Request, res: Response) => {
-    // TODO: Implement get all sessions
-  }
-);
+export const getSessions = expressAsyncHandler(async (req: Request, res: Response) => {
+  // TODO: Implement get all sessions
+});
 
 /**
  * @route POST /api/sessions/:id/join
  * @desc Join a session
  * @access Private/Student
  */
-export const joinSession = expressAsyncHandler(
-  async (req: Request, res: Response) => {
-    // TODO: Implement join session
-  }
-);
+export const joinSession = expressAsyncHandler(async (req: Request, res: Response) => {
+  // TODO: Implement join session
+});
 
 /**
  * @route POST /api/sessions/:id/leave
  * @desc Leave a session
  * @access Private/Student
  */
-export const leaveSession = expressAsyncHandler(
-  async (req: Request, res: Response) => {
-    // TODO: Implement leave session
-  }
-);
+export const leaveSession = expressAsyncHandler(async (req: Request, res: Response) => {
+  // TODO: Implement leave session
+});

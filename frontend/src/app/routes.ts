@@ -8,6 +8,7 @@ export const routes = {
   signUp: '/auth/sign-up',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/auth/reset-password',
+  emailVerification: '/auth/email-verification',
   
   // Dashboard routes
   studentDashboard: '/dashboard/student',
@@ -17,10 +18,13 @@ export const routes = {
   // Session routes
   exploreSessions: '/sessions/explore',
   mySession: (id?: string) => id ? `/sessions/my/${id}` : '/sessions/my',
-  sessionDetails: (id: string) => `/sessions/${id}`,
+  sessionDetails: (id: string) => `/sessions/explore/${id}`,
   createSession: '/sessions/create',
   editSession: (id: string) => `/sessions/edit/${id}`,
   
+  // Instructor routes
+  instructorProfile: (id: string) => `/instructor/${id}`,
+
   // Account routes
   profile: '/profile',
   settings: '/profile?tab=settings',

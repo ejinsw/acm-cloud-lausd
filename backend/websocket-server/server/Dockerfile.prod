@@ -1,0 +1,30 @@
+# Stage 1: Build (if you have TypeScript or build steps, add them here)
+FROM node:20-slim as builder
+
+WORKDIR /app
+
+# Install dependencies (only package files first for better caching)
+COPY package*.json ./
+RUN npm ci
+
+# Copy source files
+COPY . .
+
+# If you have a build step (e.g., TypeScript), uncomment:
+# RUN npm run build
+
+# Stage 2: Minimal production image
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production --omit=dev
+
+# Copy app from builder
+COPY --from=builder /app .
+
+EXPOSE 8081
+ENV NODE_ENV=production
+CMD ["node", "index.js"] 

@@ -1,0 +1,27 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "main" ]
+  merge_group:
+
+jobs:
+  # This job serves as an entry point and can be extended with additional orchestration logic
+  # The actual testing, building, and deployment is handled by separate workflows
+  pipeline-orchestrator:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Pipeline Started
+      run: |
+        echo "CI/CD Pipeline started for commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref }}"
+        echo "Event: ${{ github.event_name }}"
+        
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "This is a main branch push - full deployment pipeline will be triggered"
+        else
+          echo "This is a feature branch - only tests will run"
+        fi  

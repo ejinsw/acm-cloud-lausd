@@ -8,7 +8,6 @@ import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { routes } from './routes';
 import { Notifications } from "@mantine/notifications";
-import { UserProvider } from "@auth0/nextjs-auth0/client";
 
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
@@ -38,7 +37,6 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <UserProvider>
           <MantineProvider theme={Theme} forceColorScheme="light">
             <Notifications position="top-right" />
             <AppShell
@@ -67,7 +65,6 @@ export default function RootLayout({
               </AppShell.Main>
             </AppShell>
           </MantineProvider>
-        </UserProvider>
       </body>
     </html>
   );

@@ -50,7 +50,7 @@ jobs:
           --output text)
         
         # Build the image
-        docker build -f backend/api/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/api
+        docker buildx build --platform linux/amd64 --load -f backend/api/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/api
         docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
         
         # Push the image
@@ -75,7 +75,7 @@ jobs:
           --output text)
         
         # Build the image
-        docker build -f backend/websocket-server/server/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
+        docker buildx build --platform linux/amd64 --load -f backend/websocket-server/server/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
         docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
         
         # Push the image

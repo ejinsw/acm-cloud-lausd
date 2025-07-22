@@ -35,3 +35,9 @@ variable "availability_zones" {
   description = "Availability zones for the subnets"
   type        = list(string)
 }
+
+variable "db_port" {
+  description = "Port for the RDS database"
+  type        = number
+  default     = 5432
+}

@@ -33,6 +33,6 @@ variable "vpc_id" {
 }
 
 variable "security_group_id" {
-  description = "Security group ID for the application"
+  description = "The security group ID for the RDS instance (should be the RDS SG from VPC module)"
   type        = string
 }

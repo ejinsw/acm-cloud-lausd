@@ -38,4 +38,16 @@ variable "lambda_timeout" {
   description = "Timeout for Lambda functions"
   type        = number
   default     = 30 # Free tier optimized
+}
+
+variable "api_desired_count" {
+  description = "Number of API ECS tasks to run (set to 0 to scale to zero)"
+  type        = number
+  default     = 1
+}
+
+variable "websocket_desired_count" {
+  description = "Number of WebSocket ECS tasks to run (set to 0 to scale to zero)"
+  type        = number
+  default     = 1
 } 

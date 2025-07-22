@@ -13,3 +13,13 @@ export interface User {
     role?: string;
   };
 }
+
+import { User } from './index';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}

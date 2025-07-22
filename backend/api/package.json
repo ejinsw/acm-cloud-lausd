@@ -13,8 +13,7 @@
     "lint:fix": "npx eslint . --fix",
     "format": "npx prettier --write .",
     "format:check": "npx prettier --check .",
-    "build": "tsc",
-    "build:serverless": "serverless package"
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",

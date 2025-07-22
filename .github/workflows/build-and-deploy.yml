@@ -99,7 +99,7 @@ jobs:
     - name: Force new deployment for API ECS service
       run: |
         aws ecs update-service \
-          --cluster ${{ env.PROJECT_NAME }} \
+          --cluster acmcloud \
           --service acmcloud-api \
           --force-new-deployment \
           --region ${{ env.AWS_REGION }}
@@ -107,7 +107,7 @@ jobs:
     - name: Force new deployment for WebSocket ECS service
       run: |
         aws ecs update-service \
-          --cluster ${{ env.PROJECT_NAME }} \
+          --cluster acmcloud \
           --service acmcloud-websocket \
           --force-new-deployment \
           --region ${{ env.AWS_REGION }}

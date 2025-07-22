@@ -27,6 +27,16 @@ interface ResendVerificationBody {
   email: string;
 }
 
+interface ForgotPasswordBody {
+  email: string;
+}
+
+interface ResetPasswordBody {
+  email: string;
+  code: string;
+  newPassword: string;
+}
+
 /**
  * @route POST /api/auth/signup
  * @desc Register a new user on Auth0 and in our database if successful
@@ -43,7 +53,22 @@ interface ResendVerificationBody {
  */
 export const signup = expressAsyncHandler(
   async (req: Request<{}, {}, SignupBody>, res: Response, next: NextFunction) => {
+    const { email, password, firstName, lastName, role } = req.body;
+    
+    // Validate required fields
+    if (!email || !password || !firstName || !lastName || !role) {
+      res.status(400).json({ error: 'Missing required parameters' });
+      return;
+    }
+    
+    // Validate role
+    if (role !== 'student' && role !== 'instructor') {
+      res.status(500).json({ error: 'Invalid role' });
+      return;
+    }
+    
     // TODO: Implement user registration
+    res.status(200).json({ message: 'User registered successfully' });
   }
 );
 
@@ -58,7 +83,16 @@ export const signup = expressAsyncHandler(
  */
 export const login = expressAsyncHandler(
   async (req: Request<{}, {}, LoginBody>, res: Response, next: NextFunction) => {
+    const { email, password } = req.body;
+    
+    // Validate required fields
+    if (!email || !password) {
+      res.status(400).json({ error: 'Missing required parameters' });
+      return;
+    }
+    
     // TODO: Implement user login
+    res.status(200).json({ message: 'Login successful' });
   }
 );
 
@@ -73,7 +107,16 @@ export const login = expressAsyncHandler(
  */
 export const verifyEmail = expressAsyncHandler(
   async (req: Request<{}, {}, VerifyEmailBody>, res: Response, next: NextFunction) => {
+    const { code, email } = req.body;
+    
+    // Validate required fields
+    if (!code || !email) {
+      res.status(422).json({ error: 'Missing required parameters' });
+      return;
+    }
+    
     // TODO: Implement email verification
+    res.status(200).json({ message: 'Email verified successfully' });
   }
 );
 
@@ -87,7 +130,64 @@ export const verifyEmail = expressAsyncHandler(
  */
 export const resendVerification = expressAsyncHandler(
   async (req: Request<{}, {}, ResendVerificationBody>, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+    
+    // Validate required fields
+    if (!email) {
+      res.status(422).json({ error: 'Missing email' });
+      return;
+    }
+    
     // TODO: Implement resend verification email
+    res.status(200).json({ message: 'Verification email sent' });
+  }
+);
+
+/**
+ * @route POST /api/auth/forgot-password
+ * @desc Send password reset email
+ * @access Public
+ * @body {
+ *   email: string;
+ * }
+ */
+export const forgotPassword = expressAsyncHandler(
+  async (req: Request<{}, {}, ForgotPasswordBody>, res: Response, next: NextFunction) => {
+    const { email } = req.body;
+    
+    // Validate required fields
+    if (!email) {
+      res.status(400).json({ error: 'Missing email' });
+      return;
+    }
+    
+    // TODO: Implement forgot password
+    res.status(200).json({ message: 'Password reset email sent' });
+  }
+);
+
+/**
+ * @route POST /api/auth/reset-password
+ * @desc Reset password with code
+ * @access Public
+ * @body {
+ *   email: string;
+ *   code: string;
+ *   newPassword: string;
+ * }
+ */
+export const resetPassword = expressAsyncHandler(
+  async (req: Request<{}, {}, ResetPasswordBody>, res: Response, next: NextFunction) => {
+    const { email, code, newPassword } = req.body;
+    
+    // Validate required fields
+    if (!email || !code || !newPassword) {
+      res.status(400).json({ error: 'Missing required parameters' });
+      return;
+    }
+    
+    // TODO: Implement password reset
+    res.status(200).json({ message: 'Password reset successfully' });
   }
 );
 

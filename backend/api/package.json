@@ -6,7 +6,8 @@
     "start": "node dist/app.js",
     "dev": "nodemon --watch src --exec \"tsx src/app.ts\"",
     "build": "tsc",
-    "deploy": "serverless deploy"
+    "deploy": "serverless deploy",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",

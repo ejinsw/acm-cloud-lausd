@@ -418,18 +418,6 @@ export const logout = expressAsyncHandler(
 );
 
 /**
- * @route GET /api/auth/tokens
- * @desc Get all active tokens for a user from Cognito
- * @access Private
- * @header Authorization: Bearer <token>
- */
-export const getActiveTokens = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    // TODO: Implement get active tokens
-  }
-);
-
-/**
  * @route POST /api/auth/refresh-token
  * @desc Refresh access token using a refresh token
  * @access Public

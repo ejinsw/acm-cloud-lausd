@@ -108,6 +108,17 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
+    // Check if user is an instructor
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== 'INSTRUCTOR') {
+      res.status(403).json({ message: 'Only instructors can create sessions' });
+      return;
+    }
+
     const {
       name,
       description,
@@ -124,6 +135,80 @@ export const createSession = expressAsyncHandler(
     if (!name || !Array.isArray(subjects) || subjects.length === 0) {
       res.status(400).json({ message: 'Missing required fields: name and at least one subject' });
       return;
+    }
+
+    // Validate all required fields
+    if (
+      !description ||
+      !startTime ||
+      !endTime ||
+      !zoomLink ||
+      !maxAttendees ||
+      !Array.isArray(materials) ||
+      materials.length === 0 ||
+      !Array.isArray(objectives) ||
+      objectives.length === 0
+    ) {
+      res.status(400).json({
+        message:
+          'Missing required fields: description, startTime, endTime, zoomLink, maxAttendees, materials, and objectives',
+      });
+      return;
+    }
+
+    // Validate that dates are actually valid
+    if (startTime) {
+      let isValidDate = false;
+      if (startTime instanceof Date) {
+        isValidDate = !isNaN(startTime.getTime());
+      } else if (typeof startTime === 'string') {
+        isValidDate = !isNaN(Date.parse(startTime));
+      }
+      if (!isValidDate) {
+        res.status(400).json({ message: 'startTime must be a valid ISO string or Date' });
+        return;
+      }
+    }
+
+    if (endTime) {
+      let isValidDate = false;
+      if (endTime instanceof Date) {
+        isValidDate = !isNaN(endTime.getTime());
+      } else if (typeof endTime === 'string') {
+        isValidDate = !isNaN(Date.parse(endTime));
+      }
+      if (!isValidDate) {
+        res.status(400).json({ message: 'endTime must be a valid ISO string or Date' });
+        return;
+      }
+    }
+
+    // Validate time constraints
+    if (startTime && endTime) {
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      if (start >= end) {
+        res.status(400).json({ message: 'Start time must be before end time' });
+        return;
+      }
+    }
+
+    // Validate start time is in the future
+    if (startTime) {
+      const start = new Date(startTime);
+      const now = new Date();
+      if (start <= now) {
+        res.status(400).json({ message: 'Start time must be in the future' });
+        return;
+      }
+    }
+
+    // Validate max attendees
+    if (maxAttendees !== undefined) {
+      if (!Number.isInteger(maxAttendees) || maxAttendees <= 0) {
+        res.status(400).json({ message: 'Max attendees must be a positive integer' });
+        return;
+      }
     }
 
     // Find subject IDs for connection
@@ -178,6 +263,7 @@ export const createSession = expressAsyncHandler(
 export const updateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
+
     const userId = (req.user as { sub: string })?.sub;
 
     // Find the session
@@ -217,6 +303,58 @@ export const updateSession = expressAsyncHandler(
       data.materials = materials;
     if (objectives !== undefined && Array.isArray(objectives) && objectives.length > 0)
       data.objectives = objectives;
+
+    // Validate that dates are actually valid if being updated
+    if (data.startTime) {
+      let isValidDate = false;
+      if (data.startTime instanceof Date) {
+        isValidDate = !isNaN(data.startTime.getTime());
+      } else if (typeof data.startTime === 'string') {
+        isValidDate = !isNaN(Date.parse(data.startTime));
+      }
+      if (!isValidDate) {
+        res.status(400).json({ message: 'startTime must be a valid ISO string or Date' });
+        return;
+      }
+    }
+
+    if (data.endTime) {
+      let isValidDate = false;
+      if (data.endTime instanceof Date) {
+        isValidDate = !isNaN(data.endTime.getTime());
+      } else if (typeof data.endTime === 'string') {
+        isValidDate = !isNaN(Date.parse(data.endTime));
+      }
+      if (!isValidDate) {
+        res.status(400).json({ message: 'endTime must be a valid ISO string or Date' });
+        return;
+      }
+    }
+
+    // Validate time constraints if both times are being updated
+    if (data.startTime && data.endTime) {
+      if (data.startTime >= data.endTime) {
+        res.status(400).json({ message: 'Start time must be before end time' });
+        return;
+      }
+    }
+
+    // Validate start time is in the future if being updated
+    if (data.startTime) {
+      const now = new Date();
+      if (data.startTime <= now) {
+        res.status(400).json({ message: 'Start time must be in the future' });
+        return;
+      }
+    }
+
+    // Validate max attendees if being updated
+    if (data.maxAttendees !== undefined) {
+      if (!Number.isInteger(data.maxAttendees) || data.maxAttendees <= 0) {
+        res.status(400).json({ message: 'Max attendees must be a positive integer' });
+        return;
+      }
+    }
 
     // Handle subjects update if provided
     if (subjects !== undefined) {
@@ -318,6 +456,17 @@ export const joinSession = expressAsyncHandler(async (req: Request, res: Respons
     res.status(401).json({ message: 'Not authorized' });
     return;
   }
+
+  // Check if user is a student
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'STUDENT') {
+    res.status(403).json({ message: 'Only students can join sessions' });
+    return;
+  }
   const { id } = req.params;
 
   // Check if session exists
@@ -336,6 +485,12 @@ export const joinSession = expressAsyncHandler(async (req: Request, res: Respons
   // Check if already joined
   if (session.students.some(student => student.id === userId)) {
     res.status(400).json({ message: 'You have already joined this session' });
+    return;
+  }
+
+  // Check if session is at capacity
+  if (session.maxAttendees && session.students.length >= session.maxAttendees) {
+    res.status(400).json({ message: 'Session is at maximum capacity' });
     return;
   }
   // Add student to session
@@ -365,6 +520,17 @@ export const leaveSession = expressAsyncHandler(async (req: Request, res: Respon
   // Only students can leave (enforced by middleware, but double-check)
   if (!userId) {
     res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is a student
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'STUDENT') {
+    res.status(403).json({ message: 'Only students can leave sessions' });
     return;
   }
   const { id } = req.params;

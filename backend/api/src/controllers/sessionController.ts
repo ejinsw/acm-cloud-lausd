@@ -73,8 +73,29 @@ export const getSessionById = expressAsyncHandler(
     const session = await prisma.session.findUnique({
       where: { id },
       include: {
-        instructor: { select: { firstName: true, lastName: true } },
+        instructor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            bio: true,
+            averageRating: true,
+            profilePicture: true,
+            education: true,
+            experience: true,
+            certificationUrls: true,
+          },
+        },
         subjects: true,
+        students: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 

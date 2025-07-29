@@ -376,7 +376,51 @@ export const resendVerification = expressAsyncHandler(
  */
 export const getUserData = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // TODO: Implement get user data
+    try {
+      // The user ID should be available from the auth middleware
+      const userId = (req as any).user?.sub || (req as any).user?.id;
+
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      // Get user data from database
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          verified: true,
+          profilePicture: true,
+          bio: true,
+          averageRating: true,
+          education: true,
+          experience: true,
+          certificationUrls: true,
+          grade: true,
+          parentFirstName: true,
+          parentLastName: true,
+          parentEmail: true,
+          parentPhone: true,
+          interests: true,
+          learningGoals: true,
+        },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.json(user);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 );
 

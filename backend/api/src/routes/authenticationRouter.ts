@@ -8,6 +8,7 @@ import {
   refreshToken,
   forgotPassword,
   resetPassword,
+  getUserData,
 } from '../controllers/authenticationController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -22,6 +23,7 @@ router.post('/auth/forgot-password', forgotPassword);
 router.post('/auth/reset-password', resetPassword);
 
 // Protected routes
+router.get('/auth/me', authenticateToken, getUserData);
 router.post('/auth/logout', authenticateToken, logout);
 router.post('/auth/refresh-token', refreshToken);
 router.post('/auth/forgot-password', forgotPassword);

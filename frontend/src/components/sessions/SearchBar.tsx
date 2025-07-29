@@ -13,12 +13,16 @@ interface SearchBarProps {
   className?: string;
   onSearch: (params: SearchParams) => void;
   initialParams?: Partial<SearchParams>;
+  isLoading?: boolean;
+  disabled?: boolean;
 }
 
 export function SearchBar({ 
   className, 
   onSearch,
-  initialParams = {}
+  initialParams = {},
+  isLoading = false,
+  disabled = true
 }: SearchBarProps) {
   const [searchParams, setSearchParams] = useState<SearchParams>({
     query: '',
@@ -49,6 +53,7 @@ export function SearchBar({
               { value: 'session', label: 'Session' },
               { value: 'instructor', label: 'Instructor' },
             ]}
+            disabled={isLoading || disabled}
           />
         
         <TextInput
@@ -57,6 +62,7 @@ export function SearchBar({
           leftSection={<Search size={16} />}
           onChange={(e) => updateParams('query', e.target.value)}
           style={{ flex: 1 }}
+          disabled={isLoading || disabled}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleSearch();
@@ -64,7 +70,7 @@ export function SearchBar({
           }}
         />
         
-        <Button onClick={handleSearch}>
+        <Button onClick={handleSearch} loading={isLoading}>
           Search
         </Button>
       </Group>

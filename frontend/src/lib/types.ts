@@ -2,15 +2,16 @@
  * Type definitions for the frontend that mirror the Prisma schema
  */
 
-export interface Student {
+export interface User {
   id: string;
   createdAt?: string;
   updatedAt?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
+  email: string;
+  role: 'STUDENT' | 'INSTRUCTOR';
+  verified: boolean;
+  firstName: string;
+  lastName: string;
   birthdate?: string;
-  grade?: number;
   
   // Address
   street?: string;
@@ -23,36 +24,28 @@ export interface Student {
   // School
   schoolName?: string;
   
-  parentEmail?: string;
-  reviews?: Review[];
-  sessions?: Session[];
-}
-
-export interface Instructor {
-  id: string;
-  createdAt?: string;
-  updatedAt?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  birthdate?: string;
-  grade?: number;
+  // Profile
+  profilePicture?: string;
+  bio?: string;
   
-  // Address
-  street?: string;
-  apartment?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  country?: string;
+  // Role-specific fields
+  grade?: string; // For students
+  parentFirstName?: string; // For students
+  parentLastName?: string; // For students
+  parentEmail?: string; // For students
+  parentPhone?: string; // For students
+  interests?: string[]; // For students
+  learningGoals?: string[]; // For students
+  education?: string[]; // For instructors
+  experience?: string[]; // For instructors
+  certificationUrls?: string[]; // For instructors
+  averageRating?: number; // For instructors
   
-  // School
-  schoolName?: string;
-  
-  certificationUrls?: string[];
-  averageRating?: number;
-  reviews?: Review[];
-  sessions?: Session[];
+  // Relations
+  studentReviews?: Review[];
+  instructorReviews?: Review[];
+  instructorSessions?: Session[];
+  studentSessions?: Session[];
   subjects?: Subject[];
 }
 
@@ -67,9 +60,14 @@ export interface Session {
   createdAt?: string;
   updatedAt?: string;
   
+  // Session Details
+  status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  materials?: string[];
+  objectives?: string[];
+  
   instructorId: string;
-  instructor?: Instructor;
-  students?: Student[];
+  instructor?: User;
+  students?: User[];
   subjects?: Subject[];
 }
 
@@ -81,23 +79,39 @@ export interface Review {
   updatedAt?: string;
   
   studentId: string;
-  student?: Student;
+  student?: User;
   instructorId: string;
-  instructor?: Instructor;
+  instructor?: User;
 }
 
 export interface Subject {
   id: string;
   name: string;
+  description?: string;
+  category?: string;
+  level?: string;
   
-  instructors?: Instructor[];
+  instructors?: User[];
   sessions?: Session[];
 }
 
-export interface User {
-  id: string;
-  email?: string;
-  role: 'student' | 'instructor' | 'admin';
-  student?: Student;
-  instructor?: Instructor;
+// Convenience types for specific roles
+export interface Student extends User {
+  role: 'STUDENT';
+  grade?: string;
+  parentFirstName?: string;
+  parentLastName?: string;
+  parentEmail?: string;
+  parentPhone?: string;
+  interests?: string[];
+  learningGoals?: string[];
+}
+
+export interface Instructor extends User {
+  role: 'INSTRUCTOR';
+  education?: string[];
+  experience?: string[];
+  certificationUrls?: string[];
+  averageRating?: number;
+  subjects?: Subject[];
 } 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Container, Title, Grid } from '@mantine/core';
+import { Container, Title, Grid, Loader, Center, Stack, Text } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { SessionCard } from '@/components/sessions/SessionCard';
 import { SearchBar, SearchParams } from '@/components/sessions/SearchBar';
@@ -24,7 +24,7 @@ function ExploreSessionsContent() {
       });
       const data = await response.json();
       setSessions(data.sessions);
-      setFilteredSessions(data.sessions);
+      setFilteredSessions(data.sessions ?? []);
       setIsLoading(false);
     }
     fetchSessions();
@@ -62,10 +62,17 @@ function ExploreSessionsContent() {
       
       <SearchBar
         onSearch={handleSearch}
+        isLoading={isLoading}
+        disabled={isLoading}
       />
       
       {isLoading ? (
-        <div className="text-center text-lg">Loading sessions...</div>
+        <Center py="xl">
+          <Stack align="center" gap="md">
+            <Loader size="lg" />
+            <Text size="lg" c="dimmed">Loading sessions...</Text>
+          </Stack>
+        </Center>
       ) : filteredSessions.length > 0 ? (
         <Grid>
           {filteredSessions.map((session) => (
@@ -82,7 +89,9 @@ function ExploreSessionsContent() {
           ))}
         </Grid>
       ) : (
-        <div className="text-center text-lg">No sessions found matching your criteria.</div>
+        <Center py="xl">
+          <Text size="lg" c="dimmed">No sessions found matching your criteria.</Text>
+        </Center>
       )}
     </Container>
   );

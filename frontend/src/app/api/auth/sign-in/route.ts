@@ -1,42 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await request.json();
+    const { email, password } = body;
 
-    const backendRes = await fetch(`http://backend:8080/api/auth/login`, {
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      );
+    }
+
+    // Call the backend API to authenticate
+    const apiUrl = process.env.NODE_ENV === 'development' ? 'http://backend:8080' : process.env.NEXT_PUBLIC_API_URL;
+    const response = await fetch(`${apiUrl}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
     });
 
-    const data = await backendRes.json();
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json(
+        { error: errorData.message || 'Authentication failed' },
+        { status: response.status }
+      );
+    }
 
-    const res = new NextResponse(JSON.stringify(data), { status: backendRes.status });
+    const data = await response.json();
 
-    res.cookies.set({
-      name: "accessToken",
-      value: data.accessToken,
+    // Set authentication cookies
+    const successResponse = NextResponse.json({
+      message: 'Login successful',
+      user: data.user,
+    });
+
+    // Set access token cookie
+    successResponse.cookies.set('accessToken', data.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24,
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 
-    res.cookies.set({
-      name: "refreshToken",
-      value: data.refreshToken,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "strict",
-    });
+    // Set refresh token cookie if provided
+    if (data.refreshToken) {
+      successResponse.cookies.set('refreshToken', data.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      });
+    }
 
-    return res;
-  } catch (err) {
-    console.error("Sign-in error:", err);
-    return new NextResponse(JSON.stringify({ message: 'Internal server error' }), { status: 500 });
+    return successResponse;
+  } catch (error) {
+    console.error('Sign-in route error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

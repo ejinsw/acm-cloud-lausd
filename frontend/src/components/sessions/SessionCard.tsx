@@ -166,7 +166,7 @@ export function SessionCard({
 
           <Button 
             component={Link} 
-            href={`/sessions/${id}`} 
+            href={routes.sessionDetails(id)} 
             variant="light" 
             fullWidth 
             size="xs"

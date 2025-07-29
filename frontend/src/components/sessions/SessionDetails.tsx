@@ -10,12 +10,15 @@ import {
   Avatar, 
   Rating, 
   Button, 
-  Grid,
-  Paper
+  Paper,
+  Stack,
+  List,
+  ThemeIcon,
+  Progress,
 } from '@mantine/core';
-import { Calendar, Clock, Star, Video } from 'lucide-react';
+import { Calendar, Clock, Video, Target, Book, CalendarDays, Check } from 'lucide-react';
 import Link from 'next/link';
-import { Session, Review } from '@/lib/types';
+import { Session } from '@/lib/types';
 
 interface SessionDetailsProps {
   session: Session;
@@ -46,73 +49,111 @@ export function SessionDetails({ session, onJoinSession, showJoinButton = true }
       })
     : null;
 
+  const getDuration = (startTime?: string, endTime?: string) => {
+    if (!startTime || !endTime) return "TBD";
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${diffHours}h ${diffMinutes}m`;
+  };
+
   return (
     <Card shadow="sm" p="lg" radius="md" withBorder>
       <Tabs defaultValue="details">
         <Tabs.List>
           <Tabs.Tab value="details">Details</Tabs.Tab>
           <Tabs.Tab value="instructor">Instructor</Tabs.Tab>
-          {session.instructor?.reviews && session.instructor.reviews.length > 0 && (
-            <Tabs.Tab value="reviews">
-              Reviews ({session.instructor.reviews.length})
-            </Tabs.Tab>
-          )}
         </Tabs.List>
 
         <Tabs.Panel value="details" pt="md">
-          <Title order={2} mb="sm">{session.name}</Title>
-          
-          <Group mb="md">
-            {session.subjects?.map((subject) => (
-              <Badge key={subject.id} size="lg" color="blue">
-                {subject.name}
-              </Badge>
-            ))}
-          </Group>
-          
-          <Text mb="md">{session.description}</Text>
-          
-          <Group mb="md">
-            {session.startTime && (
-              <Group gap={6}>
-                <Calendar size={18} />
-                <Text>{formattedDate}</Text>
-              </Group>
+          <Stack gap="lg">
+            <Title order={2} mb="sm">{session.name}</Title>
+            
+            <Group mb="md">
+              {session.subjects?.map((subject) => (
+                <Badge key={subject.id} size="lg" color="blue">
+                  {subject.name}
+                </Badge>
+              ))}
+            </Group>
+            
+            <Text mb="md">{session.description}</Text>
+
+            {/* Learning Objectives */}
+            {session.objectives && session.objectives.length > 0 && (
+              <Paper p="md" withBorder radius="md">
+                <Group gap="md" mb="md">
+                  <ThemeIcon size="md" radius="xl" color="green">
+                    <Target size={16} />
+                  </ThemeIcon>
+                  <Title order={4}>Learning Objectives</Title>
+                </Group>
+                
+                <List 
+                  spacing="sm"
+                  icon={
+                    <ThemeIcon size="sm" radius="xl" color="green">
+                      <Check size={12} />
+                    </ThemeIcon>
+                  }
+                >
+                  {session.objectives.map((objective, index) => (
+                    <List.Item key={index}>
+                      <Text style={{ lineHeight: 1.6 }}>{objective}</Text>
+                    </List.Item>
+                  ))}
+                </List>
+              </Paper>
+            )}
+
+            {/* Required Materials */}
+            {session.materials && session.materials.length > 0 && (
+              <Paper p="md" withBorder radius="md">
+                <Group gap="md" mb="md">
+                  <ThemeIcon size="md" radius="xl" color="orange">
+                    <Book size={16} />
+                  </ThemeIcon>
+                  <Title order={4}>Required Materials</Title>
+                </Group>
+                
+                <List 
+                  spacing="sm"
+                  icon={
+                    <ThemeIcon size="sm" radius="xl" color="blue">
+                      <Book size={12} />
+                    </ThemeIcon>
+                  }
+                >
+                  {session.materials.map((material, index) => (
+                    <List.Item key={index}>
+                      <Text style={{ lineHeight: 1.6 }}>{material}</Text>
+                    </List.Item>
+                  ))}
+                </List>
+              </Paper>
             )}
             
-            {session.startTime && (
-              <Group gap={6}>
-                <Clock size={18} />
-                <Text>
-                  {formattedTime} {endTime && `- ${endTime}`}
-                </Text>
-              </Group>
+            {/* Join Buttons */}
+            {session.zoomLink && showJoinButton && (
+              <Button 
+                component="a" 
+                href={session.zoomLink} 
+                target="_blank" 
+                leftSection={<Video size={16} />}
+                mb="md"
+              >
+                Join Zoom Meeting
+              </Button>
             )}
-          </Group>
-          
-          {session.maxAttendees && (
-            <Text mb="md">
-              <strong>Maximum Attendees:</strong> {session.maxAttendees}
-            </Text>
-          )}
-          
-          {session.zoomLink && showJoinButton && (
-            <Button 
-              component="a" 
-              href={session.zoomLink} 
-              target="_blank" 
-              leftSection={<Video size={16} />}
-              mb="md"
-            >
-              Join Zoom Meeting
-            </Button>
-          )}
-          
-          {onJoinSession && showJoinButton && (
-            <Button onClick={onJoinSession} color="green" fullWidth>
-              Join Session
-            </Button>
-          )}
+            
+            {onJoinSession && showJoinButton && (
+              <Button onClick={onJoinSession} color="green" fullWidth>
+                Join Session
+              </Button>
+            )}
+          </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="instructor" pt="md">
@@ -165,44 +206,7 @@ export function SessionDetails({ session, onJoinSession, showJoinButton = true }
           )}
         </Tabs.Panel>
 
-        {session.instructor?.reviews && session.instructor.reviews.length > 0 && (
-          <Tabs.Panel value="reviews" pt="md">
-            <Grid>
-              {session.instructor.reviews.map((review: Review) => (
-                <Grid.Col span={12} key={review.id}>
-                  <Paper withBorder p="md">
-                    <Group justify="space-between" mb="xs">
-                      <Group>
-                        {review.student && (
-                          <Avatar
-                            src={`https://ui-avatars.com/api/?name=${review.student.firstName}+${review.student.lastName}&background=random`}
-                            radius="xl"
-                            size="sm"
-                          />
-                        )}
-                        <Text fw={500}>
-                          {review.student 
-                            ? [review.student.firstName, review.student.lastName].filter(Boolean).join(' ')
-                            : 'Anonymous Student'}
-                        </Text>
-                      </Group>
-                      <Group gap={4}>
-                        <Star size={16} fill="currentColor" stroke="none" className="text-yellow-500" />
-                        <Text>{review.rating}</Text>
-                      </Group>
-                    </Group>
-                    {review.comment && <Text>{review.comment}</Text>}
-                    {review.createdAt && (
-                      <Text size="xs" c="dimmed" mt="xs">
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </Text>
-                    )}
-                  </Paper>
-                </Grid.Col>
-              ))}
-            </Grid>
-          </Tabs.Panel>
-        )}
+
       </Tabs>
     </Card>
   );

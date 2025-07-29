@@ -333,19 +333,36 @@ server.on('connection', (ws) => {
 
         switch (type) {
             case 'IDENTIFY_USER':
-                if (payload && payload.id && payload.username && payload.type) {
-                    const sanitizedUser = {
-                        id: sanitizeInput(payload.id),
-                        username: sanitizeInput(payload.username),
-                        type: sanitizeInput(payload.type)
-                    };
-                    users[sanitizedUser.id] = { ...users[sanitizedUser.id], ws, ...sanitizedUser }; 
-                    ws.userId = sanitizedUser.id;
-                    delete ws.tempId; 
-                    console.log(`User identified: ${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type})`);
-                    ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: sanitizedUser }));
+                if (payload && payload.token) {
+                    const userData = verifyToken(payload.token);
+
+                    // If the token is invalid, reject the connection
+                    if (!userData) {
+                        ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid authentication token.' } }));
+                        ws.close();
+                        return; 
+                    }
+
+                    // Check if a user with this ID is already connected
+                    if (users[userData.id] && users[userData.id].ws) {
+                        console.log(`Duplicate login for user ${userData.username}. Closing old connection.`);
+                        const oldWs = users[userData.id].ws;
+                        
+                        oldWs.send(JSON.stringify({ 
+                            type: 'ERROR', 
+                            payload: { message: 'You have logged in from another location. This session is being disconnected.' } 
+                        }));
+                        oldWs.close();
+                    }
+
+                    users[userData.id] = { ws, ...userData };
+                    ws.userId = userData.id; 
+                    
+                    console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id})`);
+                    ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: userData }));
+
                 } else {
-                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid user identification data.' } }));
+                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Authentication token required.' } }));
                 }
                 break;
             case 'CREATE_ROOM':
@@ -446,3 +463,26 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
+const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000; 
+
+setInterval(() => {
+    const now = Date.now();
+    let roomsChanged = false;
+
+    console.log('Running inactivity check...');
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        // Clean up rooms that are both empty and inactive for the timeout period (5 min)
+        if (room.clients.size === 0 && (now - room.lastActivity) > INACTIVITY_TIMEOUT) {
+            console.log(`Cleaning up inactive and empty room: ${room.name} (ID: ${roomId})`);
+            delete rooms[roomId];
+            roomsChanged = true;
+        }
+    }
+
+    if (roomsChanged) {
+        console.log('Broadcasting updated room list after cleanup.');
+        broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
+    }
+}, ROOM_CLEANUP_INTERVAL);

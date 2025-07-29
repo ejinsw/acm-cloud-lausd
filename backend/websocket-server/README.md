@@ -64,8 +64,8 @@ The server will listen on `ws://localhost:3000` by default.
 ---
 
 ## Assumptions & Notes
-
-- Identity is **assumed to be trusted** — there is no authentication system.
+- **IMPORTANT**
+- Identity is **assumed to be trusted** — there is no authentication system. It currently uses a dummy verification system, until integration with the real one. 
 - Two roles: `student` and `instructor`
 - **Instructors** always have authority to:
   - Delete messages

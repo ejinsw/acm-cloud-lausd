@@ -26,7 +26,7 @@ interface SessionData {
  */
 export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { tutorName, name, subject } = req.query;
+    const { tutorName, name, subject, instructorId } = req.query;
 
     const where: any = {};
     if (name) {
@@ -38,6 +38,9 @@ export const getAllSessions = expressAsyncHandler(
           name: { contains: subject as string, mode: 'insensitive' },
         },
       };
+    }
+    if (instructorId) {
+      where.instructorId = instructorId as string;
     }
 
     if (tutorName) {

@@ -28,9 +28,9 @@ import {
   IconArrowLeft,
   IconPlayerPlay,
   IconClockHour4,
-  IconMessageCircle,
   IconStar,
   IconUsersGroup,
+  IconUser,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
@@ -126,7 +126,7 @@ function SessionDetailsContent() {
               </Text>
               <Button 
                 size="lg" 
-                onClick={() => router.push("/sessions/explore")}
+                onClick={() => router.push(routes.exploreSessions)}
                 leftSection={<IconArrowLeft size={20} />}
               >
                 Back to Explore Sessions
@@ -144,7 +144,7 @@ function SessionDetailsContent() {
       <Button
         variant="subtle"
         leftSection={<IconArrowLeft size={16} />}
-        onClick={() => router.push("/sessions/explore")}
+        onClick={() => router.push(routes.exploreSessions)}
         mb="lg"
       >
         Back to Sessions
@@ -221,9 +221,11 @@ function SessionDetailsContent() {
                     variant="outline" 
                     fullWidth 
                     size="md"
-                    leftSection={<IconMessageCircle size={16} />}
+                    leftSection={<IconUser size={16} />}
+                    component={Link}
+                    href={routes.instructorProfile(session.instructor?.id || "")}
                   >
-                    Contact Instructor
+                    View Instructor Profile
                   </Button>
                 </Stack>
               </Stack>

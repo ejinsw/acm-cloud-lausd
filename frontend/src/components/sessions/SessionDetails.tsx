@@ -18,6 +18,7 @@ import {
 import { Video, Target, Book, Check } from 'lucide-react';
 import Link from 'next/link';
 import { Session } from '@/lib/types';
+import { routes } from '@/app/routes';
 
 interface SessionDetailsProps {
   session: Session;
@@ -164,7 +165,7 @@ export function SessionDetails({ session, onJoinSession, showJoinButton = true }
               
               <Button 
                 component={Link} 
-                href={`/instructors/${session.instructorId}`}
+                href={routes.instructorProfile(session.instructor.id)}
                 variant="outline"
                 mt="md"
               >

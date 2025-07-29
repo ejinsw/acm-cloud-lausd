@@ -80,7 +80,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           // Token is invalid, clear it
           await logout();
+          router.push('/auth/sign-in');
         }
+      } else {
+        await logout();
+        router.push('/auth/sign-in');
       }
     } catch (error) {
       console.error('Error initializing auth:', error);

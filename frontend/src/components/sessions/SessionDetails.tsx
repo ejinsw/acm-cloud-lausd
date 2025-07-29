@@ -14,9 +14,8 @@ import {
   Stack,
   List,
   ThemeIcon,
-  Progress,
 } from '@mantine/core';
-import { Calendar, Clock, Video, Target, Book, CalendarDays, Check } from 'lucide-react';
+import { Video, Target, Book, Check } from 'lucide-react';
 import Link from 'next/link';
 import { Session } from '@/lib/types';
 
@@ -27,37 +26,6 @@ interface SessionDetailsProps {
 }
 
 export function SessionDetails({ session, onJoinSession, showJoinButton = true }: SessionDetailsProps) {
-  const formattedDate = session.startTime 
-    ? new Date(session.startTime).toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      })
-    : null;
-
-  const formattedTime = session.startTime 
-    ? new Date(session.startTime).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : null;
-
-  const endTime = session.endTime 
-    ? new Date(session.endTime).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : null;
-
-  const getDuration = (startTime?: string, endTime?: string) => {
-    if (!startTime || !endTime) return "TBD";
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const diffMs = end.getTime() - start.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${diffHours}h ${diffMinutes}m`;
-  };
 
   return (
     <Card shadow="sm" p="lg" radius="md" withBorder>

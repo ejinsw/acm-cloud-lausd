@@ -6,142 +6,28 @@ import { SessionCard } from '@/components/sessions/SessionCard';
 import { SearchBar, SearchParams } from '@/components/sessions/SearchBar';
 import { Session } from '@/lib/types';
 import PageWrapper from '@/components/PageWrapper';
-
-// Mock subjects for demo purposes
-const subjectOptions = [
-  { value: '1', label: 'Mathematics' },
-  { value: '2', label: 'English' },
-  { value: '3', label: 'Science' },
-  { value: '4', label: 'History' },
-  { value: '5', label: 'Computer Science' },
-];
-
-// Mock sessions data
-const mockSessions: Session[] = [
-  {
-    id: '1',
-    name: 'Algebra Fundamentals',
-    description: 'Learn the basics of algebra in this interactive session. Perfect for beginners!',
-    startTime: new Date(Date.now() + 86400000).toISOString(), // tomorrow
-    maxAttendees: 10,
-    instructorId: '101',
-    instructor: {
-      id: '101',
-      firstName: 'Alex',
-      lastName: 'Johnson',
-      averageRating: 4.8,
-      email: 'alex.johnson@example.com',
-    },
-    subjects: [
-      { id: '1', name: 'Mathematics' }
-    ]
-  },
-  {
-    id: '2',
-    name: 'Advanced Calculus',
-    description: 'Deep dive into calculus concepts including integration and differentiation.',
-    startTime: new Date(Date.now() + 172800000).toISOString(), // day after tomorrow
-    maxAttendees: 8,
-    instructorId: '102',
-    instructor: {
-      id: '102',
-      firstName: 'Sarah',
-      lastName: 'Williams',
-      averageRating: 4.9,
-      email: 'sarah.w@example.com',
-    },
-    subjects: [
-      { id: '1', name: 'Mathematics' }
-    ]
-  },
-  {
-    id: '3',
-    name: 'Creative Writing Workshop',
-    description: 'Develop your creative writing skills with professional guidance.',
-    startTime: new Date(Date.now() + 259200000).toISOString(), // three days from now
-    maxAttendees: 15,
-    instructorId: '103',
-    instructor: {
-      id: '103',
-      firstName: 'Michael',
-      lastName: 'Brown',
-      averageRating: 4.7,
-      email: 'michael.b@example.com',
-    },
-    subjects: [
-      { id: '2', name: 'English' }
-    ]
-  },
-  {
-    id: '4',
-    name: 'Physics Problem Solving',
-    description: 'Practice solving complex physics problems with step-by-step guidance.',
-    startTime: new Date(Date.now() + 345600000).toISOString(), // four days from now
-    maxAttendees: 12,
-    instructorId: '104',
-    instructor: {
-      id: '104',
-      firstName: 'Emily',
-      lastName: 'Davis',
-      averageRating: 4.6,
-      email: 'emily.d@example.com',
-    },
-    subjects: [
-      { id: '3', name: 'Science' }
-    ]
-  },
-  {
-    id: '5',
-    name: 'World History Overview',
-    description: 'Explore key events and periods in world history with an engaging instructor.',
-    startTime: new Date(Date.now() + 432000000).toISOString(), // five days from now
-    maxAttendees: 20,
-    instructorId: '105',
-    instructor: {
-      id: '105',
-      firstName: 'James',
-      lastName: 'Wilson',
-      averageRating: 4.5,
-      email: 'james.w@example.com',
-    },
-    subjects: [
-      { id: '4', name: 'History' }
-    ]
-  },
-  {
-    id: '6',
-    name: 'Introduction to Programming',
-    description: 'Learn the basics of programming concepts and start coding in Python.',
-    startTime: new Date(Date.now() + 518400000).toISOString(), // six days from now
-    maxAttendees: 15,
-    instructorId: '106',
-    instructor: {
-      id: '106',
-      firstName: 'Jessica',
-      lastName: 'Miller',
-      averageRating: 4.9,
-      email: 'jessica.m@example.com',
-    },
-    subjects: [
-      { id: '5', name: 'Computer Science' }
-    ]
-  }
-];
+import { getToken } from '@/actions/authentication';
 
 function ExploreSessionsContent() {
-  const [sessions, setSessions] = useState<Session[]>(mockSessions);
-  const [filteredSessions, setFilteredSessions] = useState<Session[]>(mockSessions);
-  const [isLoading, setIsLoading] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // In a real app, this would fetch sessions from an API
   useEffect(() => {
-    // Simulate API call
     setIsLoading(true);
-    setTimeout(() => {
-      setSessions(mockSessions);
-      setFilteredSessions(mockSessions);
+    const fetchSessions = async () => {
+      const token = await getToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setSessions(data.sessions);
+      setFilteredSessions(data.sessions);
       setIsLoading(false);
-    }, 500);
+    }
+    fetchSessions();
   }, []);
 
   const handleSearch = (params: SearchParams) => {
@@ -156,41 +42,12 @@ function ExploreSessionsContent() {
       if (params.query) {
         const searchQuery = params.query.toLowerCase();
         filtered = filtered.filter(session => {
-          if (params.searchBy === 'name') {
+          if (params.searchBy === 'session') {
             return session.name.toLowerCase().includes(searchQuery);
-          } else if (params.searchBy === 'subject') {
-            return session.subjects?.some(subject => 
-              subject.name.toLowerCase().includes(searchQuery)
-            );
-          } else if (params.searchBy === 'description' && session.description) {
-            return session.description.toLowerCase().includes(searchQuery);
+          } else if (params.searchBy === 'instructor') {
+            return session.instructor?.firstName?.toLowerCase().includes(searchQuery) || session.instructor?.lastName?.toLowerCase().includes(searchQuery)
           }
           return true;
-        });
-      }
-      
-      // Filter by selected subjects
-      if (params.subjects && params.subjects.length > 0) {
-        filtered = filtered.filter(session => 
-          session.subjects?.some(subject => 
-            params.subjects?.includes(subject.id)
-          )
-        );
-      }
-      
-      // Sort results if needed
-      if (params.sortBy) {
-        filtered.sort((a, b) => {
-          if (params.sortBy === 'date' && a.startTime && b.startTime) {
-            return params.sortDirection === 'asc' 
-              ? new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-              : new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-          } else if (params.sortBy === 'rating') {
-            const ratingA = a.instructor?.averageRating || 0;
-            const ratingB = b.instructor?.averageRating || 0;
-            return params.sortDirection === 'asc' ? ratingA - ratingB : ratingB - ratingA;
-          }
-          return 0;
         });
       }
       
@@ -200,18 +57,15 @@ function ExploreSessionsContent() {
   };
 
   return (
-    <Container size="xl" py="xl">
-      <Title order={1} mb="xl">Explore Sessions</Title>
+    <Container size="xl" py="xl" className="flex flex-col gap-8">
+      <Title order={1}>Explore Sessions</Title>
       
       <SearchBar
-        variant="advanced"
-        subjectOptions={subjectOptions}
         onSearch={handleSearch}
-        className="mb-xl"
       />
       
       {isLoading ? (
-        <div>Loading sessions...</div>
+        <div className="text-center text-lg">Loading sessions...</div>
       ) : filteredSessions.length > 0 ? (
         <Grid>
           {filteredSessions.map((session) => (
@@ -228,7 +82,7 @@ function ExploreSessionsContent() {
           ))}
         </Grid>
       ) : (
-        <div>No sessions found matching your criteria.</div>
+        <div className="text-center text-lg">No sessions found matching your criteria.</div>
       )}
     </Container>
   );

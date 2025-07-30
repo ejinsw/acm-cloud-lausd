@@ -5,6 +5,7 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ## Development
 
 ### Prerequisites
+
 - Node.js 20 or later
 - Docker Desktop (for containerized development)
 - PostgreSQL (for local development without Docker)
@@ -12,9 +13,11 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ### Local Development with Docker
 
 1. **Start the Development Environment**
+
    ```bash
    docker-compose up
    ```
+
    The API will be available at http://localhost:8080
 
 2. **Hot Reloading**
@@ -24,15 +27,18 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ### Local Development without Docker
 
 1. **Install Dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Set Up Database**
+
    - Create a PostgreSQL database
    - Update `.env` with your database URL
 
 3. **Run Migrations**
+
    ```bash
    npx prisma migrate dev
    ```
@@ -63,12 +69,15 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ## Database Management
 
 1. **Prisma Studio**
+
    ```bash
    npx prisma studio
    ```
+
    Access at http://localhost:5555
 
 2. **Migrations**
+
    ```bash
    # Create new migration
    npx prisma migrate dev --name migration_name
@@ -80,6 +89,7 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ## AWS Configuration
 
 ### Prerequisites
+
 1. AWS Account with appropriate permissions
 2. AWS CLI installed
 3. Serverless Framework installed globally:
@@ -90,10 +100,13 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ### AWS Credentials Setup
 
 1. **Configure AWS CLI**
+
    ```bash
    aws configure
    ```
+
    When prompted, enter:
+
    - AWS Access Key ID
    - AWS Secret Access Key
    - Default region: `us-west-1`
@@ -106,12 +119,15 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
    ```
 
 ### Deployment
+
 1. **Build the Application**
+
    ```bash
    npm run build
    ```
 
 2. **Deploy to AWS**
+
    ```bash
    serverless deploy
    ```
@@ -124,6 +140,7 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ### Troubleshooting AWS Credentials
 
 1. **Invalid Credentials**
+
    - Verify your credentials in AWS Console:
      - Go to IAM → Users → Your User → Security credentials
      - Create new access key if needed
@@ -185,69 +202,95 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 
 
 ### Users
+
 - `GET /instructors` - List all instructors
+
   - Query params: `name, subjects`
   - Returns: List of instructors
 
 - `GET /instructors/:id` - Get instructor by ID
+
   - Returns: Instructor details
 
 - `GET /users/profile` - Get current user profile
+
   - Headers: `Authorization: Bearer <token>`
   - Returns: User profile
 
 - `PUT /users/profile` - Update current user profile
+
   - Headers: `Authorization: Bearer <token>`
   - Body: `{ street, apartment, city, state, zip, country, profilePicture, bio }`
-      -INSTRUCTOR ONLY: `{firstName, lastName, birthdate, education, experience, certificationUrls ,subjects,}`
-      -STUDENT ONLY: `{grade, parentFirstName, parentLastName, parentEmail, parentPhone, interests,learningGoals }`
+    -INSTRUCTOR ONLY: `{firstName, lastName, birthdate, education, experience, certificationUrls ,subjects,}`
+    -STUDENT ONLY: `{grade, parentFirstName, parentLastName, parentEmail, parentPhone, interests,learningGoals }`
   - Returns: Updated user profile
 
 - `DELETE /users/profile` - Delete current user profile
+
   - Headers: `Authorization: Bearer <token>`
   - Returns: "User Deleted Successfully"
 
 - `GET /users/students` - Instructor ONLY - gets all students that instructor has sessions with
+
   - Headers: `Authorization: Bearer <token>`
   - Returns: List of Students
-  
+
 - `GET /users/instructors` - Student ONLY - gets all instructors that student has sessions with
+
   - Headers: `Authorization: Bearer <token>`
   - Returns: List of Instructors
 
 - `GET /users/sessions` - Get current user's sessions
 - Headers: `Authorization: Bearer <token>`
 - Returns: List of sessions
-  
+
 - `GET /users/reviews` - Get current user reviews
   - Headers: `Authorization: Bearer <token>`
   - Returns: List of Reviews
 
-
-
-
 ### Sessions
+
 - `GET /sessions` - List all sessions
-  - Query params: `page, limit, instructorId, studentId, status`
-  - Returns: Paginated list of sessions
+
+  - Query params: `tutorName, name, subject`
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: List of sessions
 
 - `GET /sessions/:id` - Get session by ID
+
+  - Headers: `Authorization: Bearer <token>`
   - Returns: Session details
 
 - `POST /sessions` - Create new session
-  - Body: `{ instructorId, subject, startTime, endTime, maxStudents }`
+
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ name, description, startTime, endTime, zoomLink, maxAttendees, materials, objectives, subjects }`
   - Returns: Created session
 
 - `PUT /sessions/:id` - Update session
-  - Body: `{ subject, startTime, endTime, maxStudents, status }`
+
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ name, description, startTime, endTime, zoomLink, maxAttendees, materials, objectives, subjects }`
   - Returns: Updated session
 
+- `DELETE /sessions/:id` - Delete session
+
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: "Session deleted successfully"
+
 - `POST /sessions/:id/join` - Join a session
-  - Body: `{ studentId }`
+
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: Updated session
+
+- `POST /sessions/:id/leave` - Leave a session
+  - Headers: `Authorization: Bearer <token>`
   - Returns: Updated session
 
 ### Reviews
+
 - `GET /reviews` - List all reviews
+
   - Query params: `page, limit, instructorId, studentId`
   - Returns: Paginated list of reviews
 

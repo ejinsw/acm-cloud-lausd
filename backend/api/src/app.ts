@@ -4,7 +4,6 @@ import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import serverless from 'serverless-http';
 
 import authenticationRouter from './routes/authenticationRouter';
 import userRouter from './routes/userRouter';
@@ -12,7 +11,6 @@ import sessionRouter from './routes/sessionRouter';
 import reviewRouter from './routes/reviewRouter';
 import subjectRouter from './routes/subjectRouter';
 import { prisma } from './config/prisma';
-import { cognito } from './lib/cognitoSDK';
 
 dotenv.config();
 
@@ -100,12 +98,8 @@ app.use((req: Request, res: Response) => {
 /**
  * FOR SERVER
  */
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 8080;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
 
-// FOR SERVERLESS
-export const handler = serverless(app);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

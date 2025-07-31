@@ -19,25 +19,15 @@ import {
   Search, 
   Settings, 
   User, 
-  Users
+  Users,
+  LogOut
 } from "lucide-react";
 import { Routes } from "../app/routes";
+import { useAuth } from "./AuthProvider";
 
 interface NavigationProps {
   routes: Routes;
 }
-
-// Define UserRole type
-type UserRole = "student" | "instructor" | "admin";
-
-// Mock auth state - in a real app, this would come from your auth provider
-const isAuthenticated = true;
-const userRole: UserRole = "student"; 
-const userInfo = {
-  name: "John Doe",
-  email: "john@example.com",
-  avatar: "https://ui-avatars.com/api/?name=John+Doe",
-};
 
 function Logo() {
   return (
@@ -52,6 +42,7 @@ function Logo() {
 
 function DesktopNav({ routes }: NavigationProps) {
   const pathname = usePathname();
+  const { user, isAuthenticated } = useAuth();
   
   return (
     <Group gap="lg" visibleFrom="sm">
@@ -59,11 +50,13 @@ function DesktopNav({ routes }: NavigationProps) {
         <Text fw={pathname === routes.home ? 700 : 400}>Home</Text>
       </Link>
       
-      <Link href={routes.exploreSessions} style={{ textDecoration: "none", color: "inherit" }}>
-        <Text fw={pathname.includes('/sessions/explore') ? 700 : 400}>Explore</Text>
-      </Link>
+      {isAuthenticated && (
+        <Link href={routes.exploreSessions} style={{ textDecoration: "none", color: "inherit" }}>
+          <Text fw={pathname.includes('/sessions/explore') ? 700 : 400}>Explore</Text>
+        </Link>
+      )}
       
-      {isAuthenticated && userRole === "instructor" && (
+      {isAuthenticated && user?.role === "INSTRUCTOR" && (
         <Menu offset={0} position="bottom-end" withArrow>
           <Menu.Target>
             <Group style={{ cursor: "pointer" }} gap={4}>
@@ -94,6 +87,7 @@ function DesktopNav({ routes }: NavigationProps) {
 
 function MobileNav({ routes }: NavigationProps) {
   const pathname = usePathname();
+  const { user, isAuthenticated } = useAuth();
   
   return (
     <>
@@ -105,15 +99,17 @@ function MobileNav({ routes }: NavigationProps) {
         active={pathname === routes.home}
       />
       
-      <NavLink
-        label="Explore Sessions"
-        leftSection={<Search size={18} />}
-        component={Link}
-        href={routes.exploreSessions}
-        active={pathname.includes('/sessions/explore')}
-      />
+      {isAuthenticated && (
+        <NavLink
+          label="Explore Sessions"
+          leftSection={<Search size={18} />}
+          component={Link}
+          href={routes.exploreSessions}
+          active={pathname.includes('/sessions/explore')}
+        />
+      )}
       
-      {isAuthenticated && userRole === "instructor" && (
+      {isAuthenticated && user?.role === "INSTRUCTOR" && (
         <>
           <NavLink
             label="Instructor Dashboard"
@@ -163,30 +159,36 @@ function MobileNav({ routes }: NavigationProps) {
 }
 
 function Actions({ routes }: NavigationProps) {
+  const { user, isAuthenticated, logout } = useAuth();
+  
   return (
     <Group>
-      {isAuthenticated ? (
+      {isAuthenticated && user ? (
         <Menu position="bottom-end" withArrow offset={4}>
           <Menu.Target>
             <Group style={{ cursor: "pointer" }} gap="xs">
-              <Avatar src={userInfo.avatar} size="sm" radius="xl" />
+              <Avatar 
+                src={`https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}`} 
+                size="sm" 
+                radius="xl" 
+              />
               <Text fw={500} hiddenFrom="sm">
-                {userInfo.name}
+                {user.firstName} {user.lastName}
               </Text>
             </Group>
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Label>
               Signed in as<br />
-              <Text fw={500}>{userInfo.email}</Text>
+              <Text fw={500}>{user.email}</Text>
             </Menu.Label>
             <Menu.Divider />
-            {userRole === "student" && (
+            {user.role === "STUDENT" && (
               <Menu.Item component={Link} href={routes.studentDashboard} leftSection={<Home size={14} />}>
                 Student Dashboard
               </Menu.Item>
             )}
-            {userRole === "instructor" && (
+            {user.role === "INSTRUCTOR" && (
               <Menu.Item component={Link} href={routes.instructorDashboard} leftSection={<Home size={14} />}>
                 Instructor Dashboard
               </Menu.Item>
@@ -198,7 +200,9 @@ function Actions({ routes }: NavigationProps) {
               Account Settings
             </Menu.Item>
             <Menu.Divider />
-            <Menu.Item color="red">Sign Out</Menu.Item>
+            <Menu.Item color="red" leftSection={<LogOut size={14} />} onClick={logout}>
+              Sign Out
+            </Menu.Item>
           </Menu.Dropdown>
         </Menu>
       ) : (

@@ -8,6 +8,7 @@ import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { routes } from './routes';
 import { Notifications } from "@mantine/notifications";
+import { AuthProvider } from '../components/AuthProvider';
 
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
@@ -39,31 +40,33 @@ export default function RootLayout({
       <body>
           <MantineProvider theme={Theme} forceColorScheme="light">
             <Notifications position="top-right" />
-            <AppShell
-              header={{ height: 60 }}
-              navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: true, mobile: !opened } }}
-              padding="md"
-            >
-              <AppShell.Header>
-                <Group h="100%" px="md" justify="space-between">
-                  <Group>
-                    <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-                    <Navigation.Logo />
+            <AuthProvider>
+              <AppShell
+                header={{ height: 60 }}
+                navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: true, mobile: !opened } }}
+                padding="md"
+              >
+                <AppShell.Header>
+                  <Group h="100%" px="md" justify="space-between">
+                    <Group>
+                      <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+                      <Navigation.Logo />
+                    </Group>
+                    <Navigation.DesktopNav routes={routes} />
+                    <Navigation.Actions routes={routes} />
                   </Group>
-                  <Navigation.DesktopNav routes={routes} />
-                  <Navigation.Actions routes={routes} />
-                </Group>
-              </AppShell.Header>
+                </AppShell.Header>
 
-              <AppShell.Navbar p="md">
-                <Navigation.MobileNav routes={routes} />
-              </AppShell.Navbar>
+                <AppShell.Navbar p="md">
+                  <Navigation.MobileNav routes={routes} />
+                </AppShell.Navbar>
 
-              <AppShell.Main>
-                {children}
-                <Footer />
-              </AppShell.Main>
-            </AppShell>
+                <AppShell.Main>
+                  {children}
+                  <Footer />
+                </AppShell.Main>
+              </AppShell>
+            </AuthProvider>
           </MantineProvider>
       </body>
     </html>

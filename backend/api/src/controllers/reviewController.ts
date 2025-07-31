@@ -170,24 +170,35 @@ export const updateReview = expressAsyncHandler(
       return;
     }
 
-    if (rating === undefined || rating === null || rating === '' || !comment) {
-      res.status(400).json({ message: 'Missing required fields!' });
+    // Check if at least one field is provided and not blank
+    const hasRating = rating !== undefined && rating !== null && rating !== '';
+    const hasComment = comment !== undefined && comment !== null && comment !== '';
+
+    if (!hasRating && !hasComment) {
+      res.status(400).json({ message: 'At least one field (rating or comment) must be provided' });
       return;
     }
 
-    // Validate rating is between 1-5
-    const ratingNum = parseInt(rating);
-    if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
-      res.status(400).json({ message: 'Rating must be a number between 1 and 5' });
-      return;
+    // Prepare update data, only including non-blank values
+    const updateData: any = {};
+
+    if (hasRating) {
+      // Validate rating is between 1-5
+      const ratingNum = parseInt(rating);
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        res.status(400).json({ message: 'Rating must be a number between 1 and 5' });
+        return;
+      }
+      updateData.rating = ratingNum;
+    }
+
+    if (hasComment) {
+      updateData.comment = comment;
     }
 
     const updatedReview = await prisma.review.update({
       where: { id },
-      data: {
-        rating: ratingNum,
-        comment,
-      },
+      data: updateData,
     });
 
     res.json(updatedReview);
@@ -202,7 +213,6 @@ export const updateReview = expressAsyncHandler(
  */
 export const deleteReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    req.user = { sub: 'student1' } as { sub: string };
     const { id } = req.params;
     const userId = (req.user as { sub: string })?.sub;
 

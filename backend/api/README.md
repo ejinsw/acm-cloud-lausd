@@ -291,9 +291,28 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 
 - `GET /reviews` - List all reviews
 
-  - Query params: `page, limit, instructorId, studentId`
-  - Returns: Paginated list of reviews
+  - Headers: `Authorization: Bearer <token>`
+  - Query params: `studentId, instructorId`
+  - Returns: List of reviews
+
+- `GET /reviews/:id` - Get review by ID
+
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: Review details
 
 - `POST /reviews` - Create new review
-  - Body: `{ sessionId, rating, comment }`
+
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ rating, comment, instructorId }`
   - Returns: Created review
+
+- `PUT /reviews/:id` - Update review
+
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ rating, comment }`
+  - Returns: Updated review
+
+- `DELETE /reviews/:id` - Delete review
+
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: "Review deleted successfully"

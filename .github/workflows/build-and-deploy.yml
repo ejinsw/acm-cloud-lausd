@@ -1,21 +1,12 @@
 name: Build and Deploy
 
 on:
-  workflow_dispatch:
-    inputs:
-      component:
-        description: 'Component to build and deploy'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-        - all
-  # workflow_run:
-  #   workflows: ["Test"]
-  #   types:
-  #     - completed
-  #   branches: [ "main" ]
-  # merge_group:
+  workflow_run:
+    workflows: ["Test"]
+    types:
+      - completed
+    branches: [ "main" ]
+  merge_group:
 
 env:
   AWS_REGION: us-west-1
@@ -44,7 +35,7 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
     
-    - name: Build and push API image
+    - name: Build and push API Lambda image
       id: build-api
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -59,7 +50,7 @@ jobs:
           --output text)
         
         # Build the image
-        docker buildx build --platform linux/amd64 --load -f backend/api/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/api
+        docker build -f backend/api/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/api
         docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
         
         # Push the image
@@ -69,7 +60,7 @@ jobs:
         echo "api_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
         echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
     
-    - name: Build and push WebSocket image
+    - name: Build and push WebSocket Lambda image
       id: build-websocket
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -84,7 +75,7 @@ jobs:
           --output text)
         
         # Build the image
-        docker buildx build --platform linux/amd64 --load -f backend/websocket-server/server/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
+        docker build -f backend/websocket-server/server/Dockerfile.lambda -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
         docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
         
         # Push the image
@@ -94,9 +85,10 @@ jobs:
         echo "websocket_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
         echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
 
-  update-ecs-services:
+  update-lambda-functions:
     needs: [build-and-push-lambda-images]
     runs-on: ubuntu-latest
+    
     steps:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -104,19 +96,41 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-
-    - name: Force new deployment for API ECS service
+    
+    - name: Update API Lambda function
+      env:
+        LAMBDA_NAME: api
+        API_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.api_repo_url }}
       run: |
-        aws ecs update-service \
-          --cluster acmcloud \
-          --service acmcloud-api \
-          --force-new-deployment \
+        echo "🔄 Updating API Lambda function: $LAMBDA_NAME"
+        echo "📦 Using image: $API_REPO_URL:latest"
+        aws lambda update-function-code \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --image-uri $API_REPO_URL:latest
+        
+        echo "⏳ Waiting for API Lambda function update to complete..."
+        aws lambda wait function-updated \
+          --function-name $LAMBDA_NAME \
           --region ${{ env.AWS_REGION }}
-
-    - name: Force new deployment for WebSocket ECS service
+        
+        echo "✅ API Lambda function updated successfully!"
+    
+    - name: Update WebSocket Lambda function
+      env:
+        LAMBDA_NAME: websocket
+        WEBSOCKET_REPO_URL: ${{ needs.build-and-push-lambda-images.outputs.websocket_repo_url }}
       run: |
-        aws ecs update-service \
-          --cluster acmcloud \
-          --service acmcloud-websocket \
-          --force-new-deployment \
+        echo "🔄 Updating WebSocket Lambda function: $LAMBDA_NAME"
+        echo "📦 Using image: $WEBSOCKET_REPO_URL:latest"
+        aws lambda update-function-code \
+          --function-name $LAMBDA_NAME \
+          --region ${{ env.AWS_REGION }} \
+          --image-uri $WEBSOCKET_REPO_URL:latest
+        
+        echo "⏳ Waiting for WebSocket Lambda function update to complete..."
+        aws lambda wait function-updated \
+          --function-name $LAMBDA_NAME \
           --region ${{ env.AWS_REGION }}
+        
+        echo "✅ WebSocket Lambda function updated successfully!"

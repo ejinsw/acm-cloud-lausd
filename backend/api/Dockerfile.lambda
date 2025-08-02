@@ -1,0 +1,39 @@
+# Multi-stage build for minimal Lambda image
+# Stage 1: Build TypeScript
+FROM public.ecr.aws/lambda/nodejs:20 as builder
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build TypeScript to JavaScript
+RUN npm run build
+
+# Stage 2: Production image
+FROM public.ecr.aws/lambda/nodejs:20
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production
+
+# Copy only the compiled dist directory and Prisma client from builder
+COPY --from=builder ${LAMBDA_TASK_ROOT}/dist ./dist
+COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder ${LAMBDA_TASK_ROOT}/node_modules/@prisma ./node_modules/@prisma
+
+# Set the CMD to the handler function
+CMD [ "dist/app.handler" ] 

@@ -35,11 +35,12 @@ import {
   Anchor,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
+import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { routes } from "../../routes";
-import { useAuth } from "@/components/AuthProvider";
 
 interface SignInFormData {
   email: string;
@@ -50,7 +51,6 @@ interface SignInFormData {
 export default function SignInPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
 
   const form = useForm<SignInFormData>({
     initialValues: {
@@ -70,14 +70,47 @@ export default function SignInPage() {
   const handleSubmit = async (values: SignInFormData) => {
     setLoading(true);
     try {
-      const success = await login(values.email, values.password);
-      
-      if (success) {
-        // Redirect based on user role (handled by AuthProvider)
-        router.push('/dashboard/student');
+      // Call the Next.js API route for sign-in
+      const response = await fetch('/api/auth/sign-in', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sign in. Incorrect username or password');
       }
-    } catch (error) {
-      console.error('Login error:', error);
+
+      // Store the token based on remember me preference
+
+
+
+      // if (values.rememberMe) {
+      //   localStorage.setItem("authToken", authToken);
+      // } else {
+      //   sessionStorage.setItem("authToken", authToken);
+      // }
+
+      notifications.show({
+        title: "Success!",
+        message: "You have been signed in successfully.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
+
+      // Redirect to the appropriate dashboard by getting the role
+      router.push(routes.studentDashboard);
+    } catch {
+      notifications.show({
+        title: "Error",
+        message: "Failed to sign in. Please check your credentials.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
     } finally {
       setLoading(false);
     }

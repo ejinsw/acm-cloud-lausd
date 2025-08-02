@@ -7,7 +7,7 @@ dotenv.config({ path: '.env.test' });
 process.env.NODE_ENV = 'test';
 
 // Mock console methods to reduce noise in tests
-(global as any).console = {
+global.console = {
   ...console,
   log: jest.fn(),
   debug: jest.fn(),

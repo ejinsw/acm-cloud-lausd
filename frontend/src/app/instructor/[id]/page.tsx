@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Container,
+  Paper,
   Title,
   Text,
   Grid,
@@ -15,322 +16,173 @@ import {
   Box,
   Card,
   List,
-  Loader,
-  Center,
-  ThemeIcon,
-  RingProgress,
 } from "@mantine/core";
-import { useParams, useRouter } from "next/navigation";
-import { Users, Star, BookOpen, ArrowLeft, Mail, MapPin, GraduationCap, Award } from "lucide-react";
+import { useParams } from "next/navigation";
+import { Calendar, Clock, Users, Star, BookOpen } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
-import { routes } from "@/app/routes";
-import { getToken } from "@/actions/authentication";
-import { User, Session } from "@/lib/types";
-import { SessionCard } from "@/components/sessions/SessionCard";
+// Mock data - replace with actual API call
+const mockInstructor = {
+  id: "1",
+  firstName: "John",
+  lastName: "Doe",
+  email: "john.doe@example.com",
+  bio: "Experienced mathematics tutor with over 5 years of teaching experience. Specializing in calculus and algebra.",
+  education: "Master's in Mathematics from Stanford University",
+  educationLevel: "masters",
+  subjects: ["calculus", "algebra", "statistics"],
+  experience: "5+ years of teaching experience at various institutions",
+  certifications: "Certified Mathematics Teacher, Advanced Calculus Certification",
+  rating: 4.8,
+  totalReviews: 124,
+  hourlyRate: 45,
+  profileImage: null,
+};
 
 function InstructorProfileContent() {
   const params = useParams();
-  const router = useRouter();
-  const [instructor, setInstructor] = useState<User | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [instructor] = useState(mockInstructor);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchInstructorData = async () => {
+    // TODO: Fetch instructor data based on ID
+    const fetchInstructor = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        const token = await getToken();
-        
-        // Fetch instructor details
-        const instructorResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/instructors/${params.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!instructorResponse.ok) {
-          throw new Error("Instructor not found");
-        }
-
-        const instructorData = await instructorResponse.json();
-        setInstructor(instructorData.instructor);
-
-        // Fetch instructor's sessions
-        const sessionsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/sessions?instructorId=${params.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (sessionsResponse.ok) {
-          const sessionsData = await sessionsResponse.json();
-          setSessions(sessionsData.sessions || []);
-        }
-      } catch (err) {
-        console.error("Error fetching instructor data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load instructor profile");
-      } finally {
+        // const response = await fetch(`/api/instructors/${params.id}`);
+        // const data = await response.json();
+        // setInstructor(data);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching instructor:", error);
         setLoading(false);
       }
     };
 
-    if (params.id) {
-      fetchInstructorData();
-    }
+    fetchInstructor();
   }, [params.id]);
 
   if (loading) {
     return (
-      <Container size="lg" py="xl">
-        <Center py="xl" style={{ minHeight: '60vh' }}>
-          <Stack align="center" gap="xl">
-            <RingProgress
-              size={120}
-              thickness={8}
-              sections={[{ value: 100, color: 'blue' }]}
-              label={
-                <Center>
-                  <Loader size="lg" />
-                </Center>
-              }
-            />
-            <Stack align="center" gap="xs">
-              <Text size="xl" fw={600}>Loading Instructor Profile</Text>
-              <Text size="md" c="dimmed">Getting all the details ready...</Text>
-            </Stack>
-          </Stack>
-        </Center>
-      </Container>
-    );
-  }
-
-  if (error || !instructor) {
-    return (
-      <Container size="lg" py="xl">
-        <Center py="xl" style={{ minHeight: '60vh' }}>
-          <Stack align="center" gap="xl">
-            <ThemeIcon size={120} radius="xl" color="red" variant="light">
-              <Users size={60} />
-            </ThemeIcon>
-            <Stack align="center" gap="md">
-              <Title order={2} c="red">Instructor Not Found</Title>
-              <Text size="lg" c="dimmed" ta="center">
-                {error || "The instructor you're looking for doesn't exist or has been removed."}
-              </Text>
-              <Button 
-                size="lg" 
-                onClick={() => router.push(routes.exploreSessions)}
-                leftSection={<ArrowLeft size={20} />}
-              >
-                Back to Sessions
-              </Button>
-            </Stack>
-          </Stack>
-        </Center>
+      <Container size="xl" py="xl">
+        <Text>Loading...</Text>
       </Container>
     );
   }
 
   return (
     <Container size="xl" py="xl">
-      {/* Back Button */}
-      <Button
-        variant="subtle"
-        leftSection={<ArrowLeft size={16} />}
-        onClick={() => router.push(routes.exploreSessions)}
-        mb="lg"
-      >
-        Back to Sessions
-      </Button>
-
-      {/* Main Content */}
       <Grid gutter="xl">
         {/* Left Column - Profile Info */}
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="lg">
-            {/* Profile Card */}
-            <Card shadow="sm" p="xl" radius="md" withBorder>
-              <Stack gap="lg">
-                <Box ta="center">
-                  <Avatar
-                    size={120}
-                    radius={120}
-                    mx="auto"
-                    mb="md"
-                    src={instructor.profilePicture}
-                    color="blue"
-                  >
-                    {instructor.firstName?.charAt(0)}{instructor.lastName?.charAt(0)}
-                  </Avatar>
-                  <Title order={2} ta="center">
-                    {instructor.firstName} {instructor.lastName}
-                  </Title>
-                  <Text c="dimmed" ta="center" mb="md">
-                    {instructor.role === 'INSTRUCTOR' ? 'Instructor' : 'Tutor'}
-                  </Text>
-                </Box>
+          <Paper radius="md" p="xl" withBorder>
+            <Stack gap="lg">
+              <Box ta="center">
+                <Avatar
+                  size={120}
+                  radius={120}
+                  mx="auto"
+                  mb="md"
+                  src={instructor.profileImage}
+                />
+                <Title order={2} ta="center">
+                  {instructor.firstName} {instructor.lastName}
+                </Title>
+                <Text c="dimmed" ta="center" mb="md">
+                  Mathematics Tutor
+                </Text>
+              </Box>
 
-                <Group justify="center" gap="sm">
-                  {instructor.averageRating && (
-                    <Badge size="lg" color="green" leftSection={<Star size={14} />}>
-                      {instructor.averageRating.toFixed(1)}/5
-                    </Badge>
-                  )}
-                  {instructor.instructorReviews && (
-                    <Badge size="lg" color="blue" leftSection={<Users size={14} />}>
-                      {instructor.instructorReviews.length} reviews
-                    </Badge>
-                  )}
-                </Group>
-
-                <Divider />
-
-                {instructor.education && instructor.education.length > 0 && (
-                  <Stack gap="md">
-                    <Group gap="sm">
-                      <ThemeIcon size="md" radius="xl" color="blue">
-                        <GraduationCap size={16} />
-                      </ThemeIcon>
-                      <Text fw={500}>Education</Text>
-                    </Group>
-                    <List size="sm" spacing="xs">
-                      {instructor.education.map((edu: string, index: number) => (
-                        <List.Item key={index}>{edu}</List.Item>
-                      ))}
-                    </List>
-                  </Stack>
-                )}
-
-                {instructor.subjects && instructor.subjects.length > 0 && (
-                  <Stack gap="md">
-                    <Group gap="sm">
-                      <ThemeIcon size="md" radius="xl" color="green">
-                        <BookOpen size={16} />
-                      </ThemeIcon>
-                      <Text fw={500}>Subjects</Text>
-                    </Group>
-                    <Group gap="xs">
-                      {instructor.subjects.map((subject) => (
-                        <Badge key={subject.id} variant="light" color="blue">
-                          {subject.name}
-                        </Badge>
-                      ))}
-                    </Group>
-                  </Stack>
-                )}
-
-                {instructor.certificationUrls && instructor.certificationUrls.length > 0 && (
-                  <Stack gap="md">
-                    <Group gap="sm">
-                      <ThemeIcon size="md" radius="xl" color="orange">
-                        <Award size={16} />
-                      </ThemeIcon>
-                      <Text fw={500}>Certifications</Text>
-                    </Group>
-                    <List size="sm" spacing="xs">
-                      {instructor.certificationUrls.map((cert: string, index: number) => (
-                        <List.Item key={index}>{cert}</List.Item>
-                      ))}
-                    </List>
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            {/* Contact Info Card */}
-            <Card shadow="sm" p="lg" radius="md" withBorder>
-              <Title order={3} mb="lg">Contact Information</Title>
-              
-              <Stack gap="md">
-                <Group gap="sm">
-                  <ThemeIcon size="md" radius="xl" color="blue">
-                    <Mail size={16} />
-                  </ThemeIcon>
-                  <Text size="sm" fw={500}>{instructor.email}</Text>
-                </Group>
-                
-                {instructor.city && instructor.state && (
-                  <Group gap="sm">
-                    <ThemeIcon size="md" radius="xl" color="orange">
-                      <MapPin size={16} />
-                    </ThemeIcon>
-                    <Text size="sm" fw={500}>{instructor.city}, {instructor.state}</Text>
+              <Group justify="center" gap="xs">
+                <Badge size="lg" variant="light">
+                  <Group gap={4}>
+                    <Star size={14} />
+                    <Text size="sm">{instructor.rating}</Text>
                   </Group>
-                )}
-                
-                {instructor.schoolName && (
-                  <Group gap="sm">
-                    <ThemeIcon size="md" radius="xl" color="green">
-                      <GraduationCap size={16} />
-                    </ThemeIcon>
-                    <Text size="sm" fw={500}>{instructor.schoolName}</Text>
+                </Badge>
+                <Badge size="lg" variant="light">
+                  <Group gap={4}>
+                    <Users size={14} />
+                    <Text size="sm">{instructor.totalReviews} reviews</Text>
                   </Group>
-                )}
+                </Badge>
+              </Group>
+
+              <Divider />
+
+              <Stack gap="xs">
+                <Text fw={500}>Education</Text>
+                <Text size="sm">{instructor.education}</Text>
               </Stack>
-            </Card>
-          </Stack>
+
+              <Stack gap="xs">
+                <Text fw={500}>Subjects</Text>
+                <Group gap="xs">
+                  {instructor.subjects.map((subject) => (
+                    <Badge key={subject} variant="light">
+                      {subject.charAt(0).toUpperCase() + subject.slice(1)}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+
+              <Stack gap="xs">
+                <Text fw={500}>Certifications</Text>
+                <List size="sm" spacing="xs">
+                  {instructor.certifications.split(",").map((cert: string, index: number) => (
+                    <List.Item key={index}>{cert.trim()}</List.Item>
+                  ))}
+                </List>
+              </Stack>
+            </Stack>
+          </Paper>
         </Grid.Col>
 
         {/* Right Column - Detailed Info and Sessions */}
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="lg">
-            {/* About Me */}
-            {instructor.bio && (
-              <Card shadow="sm" p="xl" radius="md" withBorder>
-                <Title order={3} mb="lg">About Me</Title>
-                <Text size="md" lh={1.6}>{instructor.bio}</Text>
-              </Card>
-            )}
+          <Stack gap="xl">
+            <Paper radius="md" p="xl" withBorder>
+              <Title order={3} mb="md">About Me</Title>
+              <Text>{instructor.bio}</Text>
+            </Paper>
 
-            {/* Teaching Experience */}
-            {instructor.experience && instructor.experience.length > 0 && (
-              <Card shadow="sm" p="xl" radius="md" withBorder>
-                <Title order={3} mb="lg">Teaching Experience</Title>
-                <List size="md" spacing="sm">
-                  {instructor.experience.map((exp: string, index: number) => (
-                    <List.Item key={index}>
-                      <Text lh={1.6}>{exp}</Text>
-                    </List.Item>
-                  ))}
-                </List>
-              </Card>
-            )}
+            <Paper radius="md" p="xl" withBorder>
+              <Title order={3} mb="md">Teaching Experience</Title>
+              <Text>{instructor.experience}</Text>
+            </Paper>
 
-            {/* Available Sessions */}
-            <Card shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="lg">Available Sessions</Title>
-              {sessions.length > 0 ? (
-                <Grid gutter="md">
-                  {sessions.map((session) => (
-                    <Grid.Col key={session.id} span={{ base: 12, sm: 6 }}>
-                      <SessionCard
-                        id={session.id}
-                        name={session.name}
-                        description={session.description}
-                        startTime={session.startTime ? new Date(session.startTime) : undefined}
-                        instructor={session.instructor || { id: session.instructorId }}
-                        subjects={session.subjects || []}
-                        variant="compact"
-                      />
-                    </Grid.Col>
-                  ))}
-                </Grid>
-              ) : (
-                <Box ta="center" py="xl">
-                  <Text size="lg" c="dimmed">No sessions available at the moment.</Text>
-                  <Text size="sm" c="dimmed" mt="xs">Check back later for new sessions.</Text>
-                </Box>
-              )}
-            </Card>
+            <Paper radius="md" p="xl" withBorder>
+              <Title order={3} mb="md">Available Sessions</Title>
+              <Grid>
+                {/* Mock session cards - replace with actual data */}
+                {[1, 2, 3].map((session) => (
+                  <Grid.Col key={session} span={{ base: 12, sm: 6 }}>
+                    <Card withBorder>
+                      <Stack gap="xs">
+                        <Text fw={500}>Calculus Fundamentals</Text>
+                        <Group gap="xs">
+                          <Calendar size={14} />
+                          <Text size="sm">Mon, Wed, Fri</Text>
+                        </Group>
+                        <Group gap="xs">
+                          <Clock size={14} />
+                          <Text size="sm">4:00 PM - 5:30 PM</Text>
+                        </Group>
+                        <Group gap="xs">
+                          <Users size={14} />
+                          <Text size="sm">1-on-1 or Group</Text>
+                        </Group>
+                        <Group gap="xs">
+                          <BookOpen size={14} />
+                          <Text size="sm">Beginner Level</Text>
+                        </Group>
+                        <Button variant="light" fullWidth>
+                          View Details
+                        </Button>
+                      </Stack>
+                    </Card>
+                  </Grid.Col>
+                ))}
+              </Grid>
+            </Paper>
           </Stack>
         </Grid.Col>
       </Grid>

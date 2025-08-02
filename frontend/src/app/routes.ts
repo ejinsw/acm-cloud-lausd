@@ -19,7 +19,6 @@ export const routes = {
   exploreSessions: '/sessions/explore',
   mySession: (id?: string) => id ? `/sessions/my/${id}` : '/sessions/my',
   sessionDetails: (id: string) => `/sessions/explore/${id}`,
-  session: (id: string) => `/sessions/${id}`,
   createSession: '/sessions/create',
   editSession: (id: string) => `/sessions/edit/${id}`,
   

@@ -26,7 +26,7 @@ interface SessionData {
  */
 export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { tutorName, name, subject, instructorId } = req.query;
+    const { tutorName, name, subject } = req.query;
 
     const where: any = {};
     if (name) {
@@ -38,9 +38,6 @@ export const getAllSessions = expressAsyncHandler(
           name: { contains: subject as string, mode: 'insensitive' },
         },
       };
-    }
-    if (instructorId) {
-      where.instructorId = instructorId as string;
     }
 
     if (tutorName) {
@@ -76,29 +73,8 @@ export const getSessionById = expressAsyncHandler(
     const session = await prisma.session.findUnique({
       where: { id },
       include: {
-        instructor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            bio: true,
-            averageRating: true,
-            profilePicture: true,
-            education: true,
-            experience: true,
-            certificationUrls: true,
-          },
-        },
+        instructor: { select: { firstName: true, lastName: true } },
         subjects: true,
-        students: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
       },
     });
 

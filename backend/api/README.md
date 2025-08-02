@@ -160,46 +160,20 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/signup` - Register a new user
-  - Body: `{ email, password, firstName, lastName, role, street, apartment, city, state, zip, country, schoolName, birthdate, grade (optional), subjects (optional), parentEmail (optional) }`
-  - Returns: `{ message, userSub }` or error
 
-- `POST /api/auth/login` - Login user
+- `POST /auth/register` - Register a new user
+
+  - Body: `{ email, password, firstName, lastName, role }`
+  - Returns: JWT token and user info
+
+- `POST /auth/login` - Login user
+
   - Body: `{ email, password }`
-  - Returns: `{ email, idToken, accessToken, refreshToken }` or error
+  - Returns: JWT token and user info
 
-- `POST /api/auth/verify-email` - Verify user's email
-  - Body: `{ code, email }`
-  - Returns: `{ message }` or error
-
-- `POST /api/auth/resend-verification` - Resend email verification code
-  - Body: `{ email }`
-  - Returns: `{ message, deliveryMedium, destination }` or error
-
-- `GET /api/auth/me` - Get user data from database
-  - Headers: `Authorization: Bearer <token>`
-  - Returns: User data (TODO: implementation)
-
-- `POST /api/auth/logout` - Logout user from Cognito
-  - Headers: `Authorization: Bearer <token>`
-  - Returns: `{ message }` or error
-
-- `GET /api/auth/tokens` - Get all active tokens for a user from Cognito
-  - Headers: `Authorization: Bearer <token>`
-  - Returns: (TODO: implementation)
-
-- `POST /api/auth/refresh-token` - Refresh access token using a refresh token
-  - Body: `{ refreshToken }`
-  - Returns: `{ accessToken, idToken, expiresIn, tokenType }` or error
-
-- `POST /api/auth/forgot-password` - Initiate forgot password flow (send reset code to email)
-  - Body: `{ email }`
-  - Returns: `{ message }` or error
-
-- `POST /api/auth/reset-password` - Reset password using code sent to email
-  - Body: `{ email, code, newPassword }`
-  - Returns: `{ message }` or error
-
+- `POST /auth/refresh` - Refresh JWT token
+  - Headers: `Authorization: Bearer <refresh_token>`
+  - Returns: New JWT token
 
 ### Users
 

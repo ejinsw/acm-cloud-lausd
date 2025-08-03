@@ -1,0 +1,122 @@
+name: Build and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to build and deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+  # workflow_run:
+  #   workflows: ["Test"]
+  #   types:
+  #     - completed
+  #   branches: [ "main" ]
+  # merge_group:
+
+env:
+  AWS_REGION: us-west-1
+  PROJECT_NAME: acm-cloud-lausd
+  ENVIRONMENT: dev
+
+jobs:
+  build-and-push-lambda-images:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      api_repo_url: ${{ steps.build-api.outputs.repo_url }}
+      websocket_repo_url: ${{ steps.build-websocket.outputs.repo_url }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Build and push API image
+      id: build-api
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-api-${{ env.ENVIRONMENT }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Get ECR repository URL
+        REPO_URL=$(aws ecr describe-repositories \
+          --repository-names "$ECR_REPOSITORY" \
+          --region ${{ env.AWS_REGION }} \
+          --query 'repositories[0].repositoryUri' \
+          --output text)
+        
+        # Build the image
+        docker buildx build --platform linux/amd64 --load -f backend/api/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/api
+        docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
+        
+        # Push the image
+        docker push $REPO_URL:$IMAGE_TAG
+        docker push $REPO_URL:latest
+        
+        echo "api_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+    
+    - name: Build and push WebSocket image
+      id: build-websocket
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: lambda-${{ env.PROJECT_NAME }}-websocket-${{ env.ENVIRONMENT }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Get ECR repository URL
+        REPO_URL=$(aws ecr describe-repositories \
+          --repository-names "$ECR_REPOSITORY" \
+          --region ${{ env.AWS_REGION }} \
+          --query 'repositories[0].repositoryUri' \
+          --output text)
+        
+        # Build the image
+        docker buildx build --platform linux/amd64 --load -f backend/websocket-server/server/Dockerfile.prod -t $REPO_URL:$IMAGE_TAG backend/websocket-server/server
+        docker tag $REPO_URL:$IMAGE_TAG $REPO_URL:latest
+        
+        # Push the image
+        docker push $REPO_URL:$IMAGE_TAG
+        docker push $REPO_URL:latest
+        
+        echo "websocket_image_uri=$REPO_URL:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+
+  update-ecs-services:
+    needs: [build-and-push-lambda-images]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Force new deployment for API ECS service
+      run: |
+        aws ecs update-service \
+          --cluster acmcloud \
+          --service acmcloud-api \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+
+    - name: Force new deployment for WebSocket ECS service
+      run: |
+        aws ecs update-service \
+          --cluster acmcloud \
+          --service acmcloud-websocket \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}

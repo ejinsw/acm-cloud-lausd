@@ -3,7 +3,7 @@
 import { Card, Avatar, Text, Group, Button, Rating, Badge } from '@mantine/core';
 import { Calendar, Clock, DollarSign } from 'lucide-react';
 import Link from 'next/link';
-
+import { routes } from '@/app/routes';
 export interface SessionCardProps {
   id: string;
   name: string;
@@ -117,7 +117,7 @@ export function SessionCard({
               Join Session
             </Button>
           ) : (
-            <Button component={Link} href={`/sessions/${id}`} fullWidth>
+            <Button component={Link} href={routes.sessionDetails(id)} fullWidth>
               View Details
             </Button>
           )}
@@ -166,7 +166,7 @@ export function SessionCard({
 
           <Button 
             component={Link} 
-            href={`/sessions/${id}`} 
+            href={routes.sessionDetails(id)} 
             variant="light" 
             fullWidth 
             size="xs"

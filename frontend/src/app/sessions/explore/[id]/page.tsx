@@ -1,299 +1,295 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { 
-  Container, 
-  Grid, 
-  Title, 
-  Text, 
-  Button, 
-  Card, 
-  Group, 
-  Avatar, 
-  Badge, 
-  Tabs, 
-  Textarea,
-  Paper,
-  ActionIcon,
-  ScrollArea,
+import {
+  Container,
+  Title,
+  Card,
+  Text,
+  Badge,
+  Button,
+  Grid,
+  Group,
+  Stack,
+  Box,
+  Loader,
+  Center,
+  ThemeIcon,
+  RingProgress,
   Divider,
-  Flex,
-  Box
 } from "@mantine/core";
-import { Calendar, Clock, Send, Star, Video } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Session } from "@/lib/types";
+import PageWrapper from "@/components/PageWrapper";
+import { SessionDetails } from "@/components/sessions/SessionDetails";
+import { getToken } from "@/actions/authentication";
+import {
+  IconCalendar,
+  IconArrowLeft,
+  IconPlayerPlay,
+  IconClockHour4,
+  IconStar,
+  IconUsersGroup,
+  IconUser,
+} from "@tabler/icons-react";
+import Link from "next/link";
+import { routes } from "@/app/routes";
 
-// Mock session data (would come from API in real app)
-const sessionsMockData = [
-  {
-    id: 1,
-    title: "Algebra Fundamentals",
-    instructor: {
-      id: 101,
-      name: "Dr. Alex Johnson",
-      avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-      rating: 4.8,
-      bio: "Mathematics professor with 15 years of teaching experience. Specializing in making algebra accessible and engaging for students of all levels.",
-      credentials: "Ph.D. in Mathematics, UCLA",
-    },
-    subject: "Mathematics",
-    level: "Beginner",
-    price: 25,
-    duration: 60,
-    description: "Master the basics of algebra including equations, inequalities, and functions. This session is perfect for students who are struggling with core algebra concepts or want to build a solid foundation.",
-    longDescription: "This comprehensive session covers all the fundamental concepts of algebra that students need to succeed. We'll start with basic operations and gradually move to solving equations, working with inequalities, and understanding functions. The session includes practice problems, visual explanations, and real-world applications to help solidify understanding. Students will leave with a stronger grasp of algebraic concepts and improved problem-solving skills.",
-    tags: ["Algebra", "Math", "Equations"],
-    availability: ["Monday", "Wednesday", "Friday"],
-    prerequisites: "Basic arithmetic skills",
-    materials: "Pencil, paper, and calculator",
-    goals: ["Understand basic algebraic operations", "Solve linear equations", "Graph simple functions"],
-    reviews: [
-      { id: 1, user: "Jamie S.", rating: 5, comment: "Dr. Johnson explained concepts clearly and was very patient with my questions." },
-      { id: 2, user: "Taylor W.", rating: 4, comment: "Very helpful session. I feel much more confident with algebra now." },
-      { id: 3, user: "Alex R.", rating: 5, comment: "Excellent tutor! Made complex topics easy to understand." },
-    ],
-    topics: ["Basic operations", "Linear equations", "Inequalities", "Introduction to functions", "Graphing"],
-  },
-  // More sessions would be here
-];
-
-// Mock chat messages
-const initialMessages = [
-  { id: 1, sender: "system", text: "Chat session started. You can message your instructor here before, during, or after your scheduled session.", timestamp: new Date(Date.now() - 3600000).toISOString() },
-  { id: 2, sender: "instructor", text: "Hello! I'm looking forward to our session. Do you have any specific topics you'd like to focus on?", timestamp: new Date(Date.now() - 1800000).toISOString() },
-];
-
-export default function SessionDetailPage() {
+function SessionDetailsContent() {
   const params = useParams();
-  const sessionId = Number(params.id);
-  const session = sessionsMockData.find(s => s.id === sessionId) || sessionsMockData[0];
-  
-  const [activeTab, setActiveTab] = useState<string | null>("details");
-  const [messages, setMessages] = useState(initialMessages);
-  const [newMessage, setNewMessage] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  // Scroll to bottom of messages when new ones are added
+  const router = useRouter();
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-  
-  const handleSendMessage = () => {
-    if (newMessage.trim() === "") return;
-    
-    const newMsg = {
-      id: messages.length + 1,
-      sender: "student",
-      text: newMessage,
-      timestamp: new Date().toISOString(),
+    const fetchSession = async () => {
+      try {
+        setIsLoading(true);
+        const token = await getToken();
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${params.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Session not found");
+        }
+
+        const data = await response.json();
+        setSession(data.session);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load session");
+      } finally {
+        setIsLoading(false);
+      }
     };
-    
-    setMessages([...messages, newMsg]);
-    setNewMessage("");
-    
-    // Simulate instructor response after a delay
-    setTimeout(() => {
-      const response = {
-        id: messages.length + 2,
-        sender: "instructor",
-        text: "Thanks for your message! I'll make sure to address that during our session.",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, response]);
-    }, 2000);
+
+    if (params.id) {
+      fetchSession();
+    }
+  }, [params.id]);
+
+
+
+  const getDuration = (startTime?: string, endTime?: string) => {
+    if (!startTime || !endTime) return "TBD";
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${diffHours}h ${diffMinutes}m`;
   };
-  
-  function formatMessageTime(timestamp: string) {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isLoading) {
+    return (
+      <Container size="lg" py="xl">
+        <Center py="xl" style={{ minHeight: '60vh' }}>
+          <Stack align="center" gap="xl">
+            <RingProgress
+              size={120}
+              thickness={8}
+              sections={[{ value: 100, color: 'blue' }]}
+              label={
+                <Center>
+                  <Loader size="lg" />
+                </Center>
+              }
+            />
+            <Stack align="center" gap="xs">
+              <Text size="xl" fw={600}>Loading Session</Text>
+              <Text size="md" c="dimmed">Getting all the details ready...</Text>
+            </Stack>
+          </Stack>
+        </Center>
+      </Container>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <Container size="lg" py="xl">
+        <Center py="xl" style={{ minHeight: '60vh' }}>
+          <Stack align="center" gap="xl">
+            <ThemeIcon size={120} radius="xl" color="red" variant="light">
+              <IconCalendar size={60} />
+            </ThemeIcon>
+            <Stack align="center" gap="md">
+              <Title order={2} c="red">Session Not Found</Title>
+              <Text size="lg" c="dimmed" ta="center">
+                {error || "The session you're looking for doesn't exist or has been removed."}
+              </Text>
+              <Button 
+                size="lg" 
+                onClick={() => router.push(routes.exploreSessions)}
+                leftSection={<IconArrowLeft size={20} />}
+              >
+                Back to Explore Sessions
+              </Button>
+            </Stack>
+          </Stack>
+        </Center>
+      </Container>
+    );
   }
 
   return (
     <Container size="xl" py="xl">
-      <Grid>
-        {/* Left column: Session details */}
+      {/* Back Button */}
+      <Button
+        variant="subtle"
+        leftSection={<IconArrowLeft size={16} />}
+        onClick={() => router.push(routes.exploreSessions)}
+        mb="lg"
+      >
+        Back to Sessions
+      </Button>
+
+      {/* Main Content */}
+      <Grid gutter="xl">
+        {/* Left Column - Session Details */}
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Title order={1} mb="xs">{session.title}</Title>
-          
-          <Group mb="lg">
-            <Badge size="lg" color="blue">{session.subject}</Badge>
-            <Badge size="lg" color="gray">{session.level}</Badge>
-            <Badge size="lg" color="green">
-              <Group gap={4}>
-                <Star size={14} />
-                <span>{session.instructor.rating}/5</span>
-              </Group>
-            </Badge>
-          </Group>
-          
-          <Tabs value={activeTab} onChange={setActiveTab}>
-            <Tabs.List>
-              <Tabs.Tab value="details">Details</Tabs.Tab>
-              <Tabs.Tab value="instructor">Instructor</Tabs.Tab>
-              <Tabs.Tab value="reviews">Reviews ({session.reviews.length})</Tabs.Tab>
-            </Tabs.List>
-            
-            <Tabs.Panel value="details" pt="md">
-              <Text mb="md">{session.longDescription}</Text>
+          <Stack gap="lg">
+            {/* Session Header */}
+            <Box>
+              <Title order={1} mb="md">{session.name}</Title>
               
-              <Title order={3} mt="lg" mb="sm">What You&apos;ll Learn</Title>
-              <ul className="list-disc ml-5 mb-4">
-                {session.topics.map((topic, i) => (
-                  <li key={i}><Text>{topic}</Text></li>
+              <Group gap="sm" mb="lg">
+                {session.subjects?.map((subject) => (
+                  <Badge key={subject.id} size="lg" color="blue">
+                    {subject.name}
+                  </Badge>
                 ))}
-              </ul>
-              
-              <Title order={3} mt="lg" mb="sm">Goals</Title>
-              <ul className="list-disc ml-5 mb-4">
-                {session.goals.map((goal, i) => (
-                  <li key={i}><Text>{goal}</Text></li>
-                ))}
-              </ul>
-              
-              <Grid mt="lg">
-                <Grid.Col span={6}>
-                  <Card withBorder>
-                    <Title order={4} mb="sm">Prerequisites</Title>
-                    <Text>{session.prerequisites}</Text>
-                  </Card>
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <Card withBorder>
-                    <Title order={4} mb="sm">Materials Needed</Title>
-                    <Text>{session.materials}</Text>
-                  </Card>
-                </Grid.Col>
-              </Grid>
-            </Tabs.Panel>
-            
-            <Tabs.Panel value="instructor" pt="md">
-              <Group mb="md">
-                <Avatar src={session.instructor.avatar} size="xl" radius="xl" />
-                <div>
-                  <Title order={3}>{session.instructor.name}</Title>
-                  <Text c="dimmed">{session.instructor.credentials}</Text>
-                  <Group gap={4} mt={5}>
-                    <Star size={16} className="text-yellow-500" />
-                    <Text>{session.instructor.rating}/5 Rating</Text>
-                  </Group>
-                </div>
+                <Badge size="lg" color="green">
+                  BEGINNER
+                </Badge>
+                {session.instructor?.averageRating && (
+                  <Badge size="lg" color="green" leftSection={<IconStar size={14} />}>
+                    {session.instructor.averageRating.toFixed(1)}/5
+                  </Badge>
+                )}
               </Group>
-              
-              <Text mb="md">{session.instructor.bio}</Text>
-              
-              <Button variant="outline" leftSection={<Video size={16} />}>
-                View Instructor Profile
-              </Button>
-            </Tabs.Panel>
-            
-            <Tabs.Panel value="reviews" pt="md">
-              {session.reviews.map((review) => (
-                <Paper key={review.id} withBorder p="md" mb="md">
-                  <Group justify="space-between" mb="xs">
-                    <Text fw={600}>{review.user}</Text>
-                    <Group gap={4}>
-                      <Star size={16} className="text-yellow-500" />
-                      <Text>{review.rating}/5</Text>
-                    </Group>
-                  </Group>
-                  <Text>{review.comment}</Text>
-                </Paper>
-              ))}
-            </Tabs.Panel>
-          </Tabs>
+            </Box>
+
+            {/* Session Details Component */}
+            <SessionDetails 
+              session={session} 
+              showJoinButton={false}
+            />
+          </Stack>
         </Grid.Col>
-        
-        {/* Right column: Booking and chat */}
+
+        {/* Right Column - Booking Sidebar */}
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder shadow="sm" mb="lg">
-            <Title order={3} mb="md">Book This Session</Title>
-            
-            <Group mb="xs">
-              <Clock size={20} />
-              <Text>{session.duration} minutes</Text>
-            </Group>
-            
-            <Group mb="md">
-              <Calendar size={20} />
-              <Text>Available: {session.availability.join(", ")}</Text>
-            </Group>
-            
-            <Button fullWidth mb="md" color="blue">Schedule Session</Button>
-            <Button fullWidth variant="outline">Contact Instructor</Button>
-          </Card>
-          
-          <Card withBorder shadow="sm">
-            <Title order={3} mb="md">Session Chat</Title>
-            
-            <ScrollArea h={300} mb="md">
-              {messages.map((message) => (
-                <Box
-                  key={message.id}
-                  className={`mb-3 ${
-                    message.sender === "student" 
-                      ? "ml-auto max-w-[80%]" 
-                      : "mr-auto max-w-[80%]"
-                  }`}
-                >
-                  {message.sender === "system" ? (
-                    <Paper p="xs" withBorder className="bg-gray-100 text-center">
-                      <Text size="sm">{message.text}</Text>
-                    </Paper>
-                  ) : (
-                    <Paper 
-                      p="sm" 
-                      withBorder 
-                      className={message.sender === "student" ? "bg-blue-50" : ""}
-                    >
-                      <Flex justify="space-between" align="center" mb={4}>
-                        <Text size="sm" fw={600}>
-                          {message.sender === "instructor" 
-                            ? session.instructor.name 
-                            : "You"}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {formatMessageTime(message.timestamp)}
-                        </Text>
-                      </Flex>
-                      <Text>{message.text}</Text>
-                    </Paper>
-                  )}
-                </Box>
-              ))}
-              <div ref={messagesEndRef} />
-            </ScrollArea>
-            
-            <Divider mb="md" />
-            
-            <Group>
-              <Textarea
-                placeholder="Type your message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.currentTarget.value)}
-                style={{ flex: 1 }}
-                autosize
-                minRows={1}
-                maxRows={4}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-              />
-              <ActionIcon 
-                size="lg" 
-                variant="filled" 
-                color="blue"
-                onClick={handleSendMessage}
-                disabled={newMessage.trim() === ""}
-              >
-                <Send size={18} />
-              </ActionIcon>
-            </Group>
-          </Card>
+          <Stack gap="lg">
+            {/* Book This Session */}
+            <Card shadow="sm" p="lg" radius="md" withBorder>
+              <Title order={3} mb="lg">Book This Session</Title>
+              
+              <Stack gap="md">
+                <Group gap="sm">
+                  <ThemeIcon size="md" radius="xl" color="blue">
+                    <IconClockHour4 size={16} />
+                  </ThemeIcon>
+                  <Text fw={500}>{getDuration(session.startTime, session.endTime)}</Text>
+                </Group>
+                
+                <Group gap="sm">
+                  <ThemeIcon size="md" radius="xl" color="green">
+                    <IconCalendar size={16} />
+                  </ThemeIcon>
+                  <Text fw={500}>Available: Monday, Wednesday, Friday</Text>
+                </Group>
+                
+                <Stack gap="sm" mt="md">
+                  <Button 
+                    fullWidth 
+                    size="md"
+                    leftSection={<IconPlayerPlay size={16} />}
+                    component={Link}
+                    href={routes.session(session.id)}
+                  >
+                    Schedule Session
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    fullWidth 
+                    size="md"
+                    leftSection={<IconUser size={16} />}
+                    component={Link}
+                    href={routes.instructorProfile(session.instructor?.id || "")}
+                  >
+                    View Instructor Profile
+                  </Button>
+                </Stack>
+              </Stack>
+            </Card>
+
+            {/* Session Timeline */}
+            <Card shadow="sm" p="lg" radius="md" withBorder>
+              <Title order={3} mb="lg">Session Timeline</Title>
+              
+              <Stack gap="md">
+                <Group gap="sm">
+                  <ThemeIcon size="md" radius="xl" color="blue">
+                    <IconCalendar size={16} />
+                  </ThemeIcon>
+                  <Text fw={500}>Date & Time</Text>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  {session.startTime ? new Date(session.startTime).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  }) : "TBD"}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {session.startTime ? new Date(session.startTime).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZoneName: "short",
+                  }) : "TBD"}
+                </Text>
+                
+                <Divider />
+                
+                <Group gap="sm">
+                  <ThemeIcon size="md" radius="xl" color="green">
+                    <IconClockHour4 size={16} />
+                  </ThemeIcon>
+                  <Text fw={500}>Duration</Text>
+                </Group>
+                <Text size="sm" c="dimmed">{getDuration(session.startTime, session.endTime)}</Text>
+                
+                <Divider />
+                
+                <Group gap="sm">
+                  <ThemeIcon size="md" radius="xl" color="orange">
+                    <IconUsersGroup size={16} />
+                  </ThemeIcon>
+                  <Text fw={500}>Capacity</Text>
+                </Group>
+                <Text size="sm" c="dimmed">{session.maxAttendees || "∞"} attendees</Text>
+              </Stack>
+            </Card>
+          </Stack>
         </Grid.Col>
       </Grid>
     </Container>
   );
-} 
+}
+
+export default function SessionDetailsPage() {
+  return (
+    <PageWrapper>
+      <SessionDetailsContent />
+    </PageWrapper>
+  );
+}

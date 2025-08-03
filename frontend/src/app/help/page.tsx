@@ -12,8 +12,7 @@ import {
   Group,
   Button,
 } from "@mantine/core";
-import { 
-  BookOpen, 
+import {  
   MessageSquare, 
   HelpCircle,
   ArrowRight
@@ -28,13 +27,6 @@ const helpSections = [
     icon: <HelpCircle size={24} />,
     color: "blue",
     link: "/help/faq",
-  },
-  {
-    title: "Getting Started Guide",
-    description: "Learn how to set up your account and start your first tutoring session.",
-    icon: <BookOpen size={24} />,
-    color: "violet",
-    link: "/help/getting-started",
   },
   {
     title: "Contact Support",
@@ -67,7 +59,7 @@ export default function HelpPage() {
       {/* Help Sections */}
       <Box py={60}>
         <Container size="lg">
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing={30}>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={50}>
             {helpSections.map((section) => (
               <Paper key={section.title} radius="md" p="xl" withBorder>
                 <Stack gap="md">

@@ -13,3 +13,21 @@ export interface User {
     role?: string;
   };
 }
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
+
+export interface CognitoUser {
+  sub: string;
+  email: string;
+  role?: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user: CognitoUser;
+}

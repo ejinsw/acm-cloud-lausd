@@ -59,8 +59,6 @@ interface UserProfile {
   subjects?: Array<{ id: string; name: string }>;
 }
 
-
-
 function ProfileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -72,8 +70,6 @@ function ProfileContent() {
   const initialTab = searchParams.get("tab") || "profile";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
   const [photo, setPhoto] = useState<File | null>(null);
-
-
 
   // Update URL when tab changes
   useEffect(() => {
@@ -290,8 +286,6 @@ function ProfileContent() {
       closeDeleteModal();
     }
   };
-
-
 
   // Helper function to normalize grade value
   const normalizeGrade = (grade: string | undefined): string => {
@@ -534,10 +528,6 @@ function ProfileContent() {
               </Stack>
             </Box>
           </Tabs.Panel>
-
-
-
-
 
           <Tabs.Panel value="privacy">
             <Box pt="md">

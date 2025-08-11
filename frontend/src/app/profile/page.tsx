@@ -16,9 +16,7 @@ import {
   Button,
   Select,
   Grid,
-  PasswordInput,
   FileButton,
-  Checkbox,
   Modal,
   Textarea,
   LoadingOverlay,
@@ -59,8 +57,6 @@ interface UserProfile {
   subjects?: Array<{ id: string; name: string }>;
 }
 
-
-
 function ProfileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -72,8 +68,6 @@ function ProfileContent() {
   const initialTab = searchParams.get("tab") || "profile";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
   const [photo, setPhoto] = useState<File | null>(null);
-
-
 
   // Update URL when tab changes
   useEffect(() => {
@@ -135,11 +129,12 @@ function ProfileContent() {
         country: data.user?.country
       });
       setUser(data.user);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Profile fetch error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to load profile data";
       notifications.show({
         title: "Error",
-        message: error.message || "Failed to load profile data",
+        message: errorMessage,
         color: "red",
         icon: <XCircle size={16} />,
       });
@@ -223,10 +218,11 @@ function ProfileContent() {
         router.push(user.role === 'INSTRUCTOR' ? routes.instructorDashboard : routes.studentDashboard);
       }, 2000);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update profile";
       notifications.show({
         title: "Error",
-        message: error.message || "Failed to update profile",
+        message: errorMessage,
         color: "red",
         icon: <XCircle size={16} />,
       });
@@ -278,10 +274,11 @@ function ProfileContent() {
         router.push(routes.home);
       }, 2000);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete account";
       notifications.show({
         title: "Error",
-        message: error.message || "Failed to delete account",
+        message: errorMessage,
         color: "red",
         icon: <XCircle size={16} />,
       });
@@ -290,8 +287,6 @@ function ProfileContent() {
       closeDeleteModal();
     }
   };
-
-
 
   // Helper function to normalize grade value
   const normalizeGrade = (grade: string | undefined): string => {
@@ -534,10 +529,6 @@ function ProfileContent() {
               </Stack>
             </Box>
           </Tabs.Panel>
-
-
-
-
 
           <Tabs.Panel value="privacy">
             <Box pt="md">

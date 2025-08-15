@@ -87,4 +87,6 @@ export interface SessionRequest {
 
   studentId: string;
   student?: User;
+  sessionId: string;
+  session?: Session;
 }

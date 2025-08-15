@@ -408,6 +408,7 @@ export const getUserData = expressAsyncHandler(
           parentPhone: true,
           interests: true,
           learningGoals: true,
+          sessionRequests: true,
         },
       });
 

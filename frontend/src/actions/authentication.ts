@@ -37,19 +37,12 @@ export async function refreshToken(): Promise<string | null> {
 
 export async function logout(): Promise<void> {
   try {
-    // Clear tokens from storage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('refreshToken');
-    }
-    
-    // Call logout endpoint
+    // Call logout endpoint to clear cookies
     await fetch('/api/auth/logout', {
       method: 'POST',
     });
   } catch (error) {
     console.error('Error during logout:', error);
+    // Even if the API call fails, we should continue with logout
   }
 }

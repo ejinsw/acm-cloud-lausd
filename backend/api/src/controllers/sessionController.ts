@@ -744,51 +744,23 @@ export const deleteSessionRequest = expressAsyncHandler(async (req: Request, res
     return;
   }
 
-  // Check if user is an instructor
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-
-  if (!user || user.role !== 'INSTRUCTOR') {
-    res.status(403).json({ message: 'Only instructors can delete session requests' });
-    return;
-  }
-
   const { id } = req.params;
 
-  // Check if session request exists and belongs to instructor's session
-  const sessionRequest = await prisma.sessionRequest.findFirst({
-    where: {
-      id: id,
-      session: {
-        instructorId: userId
-      }
-    },
-    include: {
-      student: { select: { id: true, firstName: true, lastName: true, email: true } },
-      session: { select: { id: true, name: true } }
-    }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { sessionRequests: { where: { id: id } } },
   });
 
-  if (!sessionRequest) {
+  if (user?.sessionRequests.length === 0) {
     res.status(404).json({ message: 'Session request not found or you do not have permission to delete it' });
     return;
   }
 
-  // Delete the session request
-  await prisma.sessionRequest.delete({
+  const deletedRequest = await prisma.sessionRequest.delete({
     where: { id: id }
   });
 
-  res.status(200).json({ 
-    message: 'Session request deleted successfully',
-    deletedRequest: {
-      id: sessionRequest.id,
-      student: sessionRequest.student,
-      session: sessionRequest.session
-    }
-  });
+  res.status(200).json({ message: 'Session request deleted successfully', deletedRequest });
 });
 
 export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res: Response) => {

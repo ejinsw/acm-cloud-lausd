@@ -1,4 +1,3 @@
-// Add 'use client' at the top
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
@@ -35,6 +34,7 @@ interface Room {
 interface DisplayMessage extends MessagePayload {
   isMyMessage: boolean;
   isDeleted?: boolean;
+  type: 'message'; // Add the 'type' property to match NotificationMessage
 }
 
 interface NotificationMessage {
@@ -82,8 +82,7 @@ const ChatPage: React.FC = () => {
    * @param type - The message type.
    * @param payload - The message payload.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sendToServer = useCallback((type: string, payload: any) => {
+  const sendToServer = useCallback((type: string, payload: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type, payload }));
     } else {
@@ -138,6 +137,7 @@ const ChatPage: React.FC = () => {
               (joinedRoom.messages || []).map(msg => ({ // Ensure messages array exists
                 ...msg,
                 isMyMessage: currentUser?.id === msg.sender.id, // Check against potentially stale currentUser
+                type: 'message', // Add the required 'type' property
               }))
             );
             setShowRoomManagementSection(false);
@@ -160,7 +160,7 @@ const ChatPage: React.FC = () => {
           case 'NEW_MESSAGE':
             if (currentRoom && currentRoom.id === data.payload.roomId) {
               const newMessage = data.payload as MessagePayload;
-              setChatMessages(prev => [...prev, { ...newMessage, isMyMessage: currentUser?.id === newMessage.sender.id }]);
+              setChatMessages(prev => [...prev, { ...newMessage, isMyMessage: currentUser?.id === newMessage.sender.id, type: 'message' }]);
             }
             break;
           case 'USER_LEFT':
@@ -175,7 +175,7 @@ const ChatPage: React.FC = () => {
               const { messageId } = data.payload;
               setChatMessages(prevMsgs =>
                 prevMsgs.map(msg => {
-                  if (msg.id === messageId && (msg as NotificationMessage).type !== 'notification') { // Ensure it's a DisplayMessage
+                  if (msg.id === messageId && 'isMyMessage' in msg) { // Ensure it's a DisplayMessage
                     return { ...(msg as DisplayMessage), text: 'Message deleted.', isDeleted: true, sender: {id:'system', username: 'System', type:'instructor'} };
                   }
                   return msg;
@@ -553,12 +553,12 @@ const ChatPage: React.FC = () => {
                   return (
                     <div
                       key={msg.id}
-                      className={`message-item ${(msg as DisplayMessage).isMyMessage ? 'my-message' : ''} ${(msg as DisplayMessage).isDeleted ? 'deleted' : ''}`}
+                      className={`message-item ${'isMyMessage' in msg && msg.isMyMessage ? 'my-message' : ''} ${'isDeleted' in msg && msg.isDeleted ? 'deleted' : ''}`}
                     >
-                      {!(msg as DisplayMessage).isDeleted && <span className="sender">{(msg as DisplayMessage).sender.username || 'Unknown'}{(msg as DisplayMessage).sender.type ? ` (${(msg as DisplayMessage).sender.type})` : ''}:</span>}
-                      <span className="text">{(msg as DisplayMessage).text}</span>
-                      {!(msg as DisplayMessage).isDeleted && <span className="timestamp">{new Date((msg as DisplayMessage).timestamp).toLocaleTimeString()}</span>}
-                      {currentUser.type === 'instructor' && !(msg as DisplayMessage).isMyMessage && !(msg as DisplayMessage).isDeleted && (
+                      {'isDeleted' in msg && !msg.isDeleted && <span className="sender">{msg.sender.username || 'Unknown'}{msg.sender.type ? ` (${msg.sender.type})` : ''}:</span>}
+                      <span className="text">{msg.text}</span>
+                      {'isDeleted' in msg && !msg.isDeleted && <span className="timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
+                      {currentUser.type === 'instructor' && 'isMyMessage' in msg && !msg.isMyMessage && !msg.isDeleted && (
                         <button
                           className="delete-msg-btn"
                           style={{ fontSize: '0.8em', padding: '2px 4px', marginLeft: '10px' }}

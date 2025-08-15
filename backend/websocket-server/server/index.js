@@ -423,127 +423,101 @@ server.on('connection', ws => {
       }
     }
 
-    switch (type) {
-      case 'IDENTIFY_USER':
-        if (payload && payload.id && payload.username && payload.type) {
-          const sanitizedUser = {
-            id: sanitizeInput(payload.id),
-            username: sanitizeInput(payload.username),
-            type: sanitizeInput(payload.type),
-          };
-          users[sanitizedUser.id] = { ...users[sanitizedUser.id], ws, ...sanitizedUser };
-          ws.userId = sanitizedUser.id;
-          delete ws.tempId;
-          console.log(
-            `User identified: ${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type})`
-          );
-          ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: sanitizedUser }));
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Invalid user identification data.' },
-            })
-          );
+        switch (type) {
+            case 'IDENTIFY_USER':
+                if (payload && payload.token) {
+                    const userData = verifyToken(payload.token);
+
+                    // If the token is invalid, reject the connection
+                    if (!userData) {
+                        ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid authentication token.' } }));
+                        ws.close();
+                        return; 
+                    }
+
+                    // Check if a user with this ID is already connected
+                    if (users[userData.id] && users[userData.id].ws) {
+                        console.log(`Duplicate login for user ${userData.username}. Closing old connection.`);
+                        const oldWs = users[userData.id].ws;
+                        
+                        oldWs.send(JSON.stringify({ 
+                            type: 'ERROR', 
+                            payload: { message: 'You have logged in from another location. This session is being disconnected.' } 
+                        }));
+                        oldWs.close();
+                    }
+
+                    users[userData.id] = { ws, ...userData };
+                    ws.userId = userData.id; 
+                    
+                    console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id})`);
+                    ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: userData }));
+
+                } else {
+                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Authentication token required.' } }));
+                }
+                break;
+            case 'CREATE_ROOM':
+                if (payload && payload.roomName && payload.user && payload.user.id) {
+                    if (!ws.userId) { 
+                         users[payload.user.id] = { ws, ...payload.user, currentRoomId: null };
+                         ws.userId = payload.user.id;
+                         delete ws.tempId;
+                         console.log(`User identified via CREATE_ROOM: ${payload.user.username} (ID: ${payload.user.id})`);
+                         ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: payload.user })); 
+                    }
+                    createRoom(ws, payload.roomName, users[ws.userId]); 
+                } else {
+                     ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Room name and complete user info (with ID) are required.' } }));
+                }
+                break;
+            case 'JOIN_ROOM':
+                if (payload && payload.roomId && payload.user && payload.user.id) {
+                    if (!ws.userId) { 
+                        users[payload.user.id] = { ws, ...payload.user, currentRoomId: null };
+                        ws.userId = payload.user.id;
+                        delete ws.tempId;
+                        console.log(`User identified via JOIN_ROOM: ${payload.user.username} (ID: ${payload.user.id})`);
+                        ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: payload.user })); 
+                    }
+                    joinRoom(ws, payload.roomId, users[ws.userId]); 
+                } else {
+                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Room ID and complete user info (with ID) are required.' } }));
+                }
+                break;
+            case 'SEND_MESSAGE':
+                if (payload && payload.roomId && typeof payload.text === 'string' && ws.userId) {
+                    handleMessage(ws, payload);
+                } else {
+                     ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid message data or user not identified.' } }));
+                }
+                break;
+            case 'LEAVE_ROOM':
+                if (payload && payload.roomId && ws.userId) {
+                    leaveRoom(ws, payload.roomId, ws.userId);
+                } else {
+                     ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Room ID required or user not identified.' } }));
+                }
+                break;
+            case 'DELETE_MESSAGE':
+                if (payload && payload.roomId && payload.messageId && ws.userId) {
+                    deleteMessage(ws, payload.roomId, payload.messageId);
+                } else {
+                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid delete message data or user not identified.' } }));
+                }
+                break;
+            case 'KICK_USER':
+                if (payload && payload.roomId && payload.userIdToKick && ws.userId) {
+                    kickUser(ws, payload.roomId, payload.userIdToKick);
+                } else {
+                    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid kick user data or user not identified.' } }));
+                }
+                break;
+            default:
+                console.log('Unknown message type:', type);
+                ws.send(JSON.stringify({ type: 'ERROR', payload: { message: `Unknown message type: ${type}` } }));
         }
-        break;
-      case 'CREATE_ROOM':
-        if (payload && payload.roomName && payload.user && payload.user.id) {
-          if (!ws.userId) {
-            users[payload.user.id] = { ws, ...payload.user, currentRoomId: null };
-            ws.userId = payload.user.id;
-            delete ws.tempId;
-            console.log(
-              `User identified via CREATE_ROOM: ${payload.user.username} (ID: ${payload.user.id})`
-            );
-            ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: payload.user }));
-          }
-          createRoom(ws, payload.roomName, users[ws.userId]);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Room name and complete user info (with ID) are required.' },
-            })
-          );
-        }
-        break;
-      case 'JOIN_ROOM':
-        if (payload && payload.roomId && payload.user && payload.user.id) {
-          if (!ws.userId) {
-            users[payload.user.id] = { ws, ...payload.user, currentRoomId: null };
-            ws.userId = payload.user.id;
-            delete ws.tempId;
-            console.log(
-              `User identified via JOIN_ROOM: ${payload.user.username} (ID: ${payload.user.id})`
-            );
-            ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: payload.user }));
-          }
-          joinRoom(ws, payload.roomId, users[ws.userId]);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Room ID and complete user info (with ID) are required.' },
-            })
-          );
-        }
-        break;
-      case 'SEND_MESSAGE':
-        if (payload && payload.roomId && typeof payload.text === 'string' && ws.userId) {
-          handleMessage(ws, payload);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Invalid message data or user not identified.' },
-            })
-          );
-        }
-        break;
-      case 'LEAVE_ROOM':
-        if (payload && payload.roomId && ws.userId) {
-          leaveRoom(ws, payload.roomId, ws.userId);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Room ID required or user not identified.' },
-            })
-          );
-        }
-        break;
-      case 'DELETE_MESSAGE':
-        if (payload && payload.roomId && payload.messageId && ws.userId) {
-          deleteMessage(ws, payload.roomId, payload.messageId);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Invalid delete message data or user not identified.' },
-            })
-          );
-        }
-        break;
-      case 'KICK_USER':
-        if (payload && payload.roomId && payload.userIdToKick && ws.userId) {
-          kickUser(ws, payload.roomId, payload.userIdToKick);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Invalid kick user data or user not identified.' },
-            })
-          );
-        }
-        break;
-      default:
-        console.log('Unknown message type:', type);
-        ws.send(
-          JSON.stringify({ type: 'ERROR', payload: { message: `Unknown message type: ${type}` } })
-        );
-    }
-  });
+    });
 
   ws.on('close', () => {
     const userId = ws.userId;
@@ -590,3 +564,26 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
+const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000; 
+
+setInterval(() => {
+    const now = Date.now();
+    let roomsChanged = false;
+
+    console.log('Running inactivity check...');
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        // Clean up rooms that are both empty and inactive for the timeout period (5 min)
+        if (room.clients.size === 0 && (now - room.lastActivity) > INACTIVITY_TIMEOUT) {
+            console.log(`Cleaning up inactive and empty room: ${room.name} (ID: ${roomId})`);
+            delete rooms[roomId];
+            roomsChanged = true;
+        }
+    }
+
+    if (roomsChanged) {
+        console.log('Broadcasting updated room list after cleanup.');
+        broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
+    }
+}, ROOM_CLEANUP_INTERVAL);

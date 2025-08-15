@@ -34,6 +34,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
+import { notifications } from "@mantine/notifications";
 
 function SessionDetailsContent() {
   const params = useParams();
@@ -74,7 +75,33 @@ function SessionDetailsContent() {
     }
   }, [params.id]);
 
+  const handleRequestSession = async (sessionId: string) => {
+    try {
+      const token = await getToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/session-requests`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+      });
 
+      if (!response.ok) {
+        throw new Error("Failed to request session");
+      }
+
+      const data = await response.json();
+      console.log('Session request response:', data);
+      notifications.show({
+        title: "Session Request Sent",
+        message: "Your session request has been sent to the instructor. You will be notified when the instructor accepts or rejects your request.",
+        color: "green",
+      });
+    } catch (err) {
+      console.error('Error requesting session:', err);
+    }
+  };
 
   const getDuration = (startTime?: string, endTime?: string) => {
     if (!startTime || !endTime) return "TBD";
@@ -211,10 +238,9 @@ function SessionDetailsContent() {
                     fullWidth 
                     size="md"
                     leftSection={<IconPlayerPlay size={16} />}
-                    component={Link}
-                    href={routes.session(session.id)}
+                    onClick={() => handleRequestSession(session.id)}
                   >
-                    Schedule Session
+                    Request Session
                   </Button>
                   
                   <Button 

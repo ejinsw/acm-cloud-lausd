@@ -196,7 +196,7 @@ function Actions({ routes }: NavigationProps) {
             <Menu.Item component={Link} href={routes.profile} leftSection={<User size={14} />}>
               My Profile
             </Menu.Item>
-            <Menu.Item component={Link} href={`${routes.profile}?tab=settings`} leftSection={<Settings size={14} />}>
+            <Menu.Item component={Link} href={`${routes.profile}`} leftSection={<Settings size={14} />}>
               Account Settings
             </Menu.Item>
             <Menu.Divider />

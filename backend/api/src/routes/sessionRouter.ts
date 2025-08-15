@@ -7,6 +7,11 @@ import {
   joinSession,
   leaveSession,
   getAllSessions,
+  createSessionRequest,
+  getSessionRequests,
+  deleteSessionRequest,
+  acceptSessionRequest,
+  rejectSessionRequest,
 } from '../controllers/sessionController';
 import { authenticateToken, checkRole } from '../middleware/auth';
 
@@ -22,5 +27,12 @@ router.get('/sessions', authenticateToken, getAllSessions); //works
 // Session participation
 router.post('/sessions/:id/join', authenticateToken, checkRole(['STUDENT']), joinSession); //works
 router.post('/sessions/:id/leave', authenticateToken, checkRole(['STUDENT']), leaveSession); //works
+
+// Session requests
+router.post('/session-requests', authenticateToken, checkRole(['STUDENT']), createSessionRequest); //works
+router.get('/session-requests', authenticateToken, checkRole(['INSTRUCTOR']), getSessionRequests); //works
+router.delete('/session-requests/:id', authenticateToken, checkRole(['INSTRUCTOR']), deleteSessionRequest); //works
+router.post('/session-requests/:id/accept', authenticateToken, checkRole(['INSTRUCTOR']), acceptSessionRequest); //works
+router.post('/session-requests/:id/reject', authenticateToken, checkRole(['INSTRUCTOR']), rejectSessionRequest); //works
 
 export default router;

@@ -593,3 +593,363 @@ export const leaveSession = expressAsyncHandler(async (req: Request, res: Respon
   });
   res.status(200).json({ message: 'Left session successfully', session: updatedSession });
 });
+
+export const createSessionRequest = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    res.status(400).json({ message: 'Session ID is required' });
+    return;
+  }
+
+  // Check if session exists
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      students: { select: { id: true } },
+      sessionRequests: {
+        where: { studentId: userId },
+        select: { id: true, status: true, studentId: true }
+      }
+    },
+  });
+
+  if (!session) {
+    res.status(404).json({ message: 'Session not found' });
+    return;
+  }
+
+  // Check if user is already a student in the session
+  if (session.students.some(student => student.id === userId)) {
+    res.status(400).json({ message: 'You are already a member of this session' });
+    return;
+  }
+
+  // Check if user already has a pending request for this session
+  const existingRequest = session.sessionRequests.find(request => request.studentId === userId);
+  if (existingRequest) {
+    res.status(400).json({ message: 'You already have a request for this session' });
+    return;
+  }
+
+  // Create session request
+  const sessionRequest = await prisma.sessionRequest.create({
+    data: {
+      studentId: userId,
+      sessionId: sessionId,
+    },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          instructor: { select: { id: true, firstName: true, lastName: true, email: true } }
+        }
+      }
+    },
+  });
+
+  res.status(201).json({ 
+    message: 'Session request created successfully', 
+    sessionRequest 
+  });
+});
+
+export const getSessionRequests = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can view session requests' });
+    return;
+  }
+
+  // Get query parameters for filtering
+  const { status, sessionId } = req.query;
+  const whereClause: any = {
+    session: {
+      instructorId: userId
+    }
+  };
+
+  // Add status filter if provided
+  if (status && ['PENDING', 'ACCEPTED', 'REJECTED'].includes(status as string)) {
+    whereClause.status = status;
+  }
+
+  // Add session filter if provided
+  if (sessionId) {
+    whereClause.sessionId = sessionId;
+  }
+
+  // Get session requests for instructor's sessions
+  const sessionRequests = await prisma.sessionRequest.findMany({
+    where: whereClause,
+    include: {
+      student: { 
+        select: { 
+          id: true, 
+          firstName: true, 
+          lastName: true, 
+          email: true,
+          grade: true,
+          schoolName: true
+        } 
+      },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          startTime: true,
+          endTime: true,
+          maxAttendees: true,
+          students: { select: { id: true } }
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  res.status(200).json({ 
+    message: 'Session requests retrieved successfully', 
+    sessionRequests,
+    count: sessionRequests.length
+  });
+});
+
+export const deleteSessionRequest = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can delete session requests' });
+    return;
+  }
+
+  const { id } = req.params;
+
+  // Check if session request exists and belongs to instructor's session
+  const sessionRequest = await prisma.sessionRequest.findFirst({
+    where: {
+      id: id,
+      session: {
+        instructorId: userId
+      }
+    },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      session: { select: { id: true, name: true } }
+    }
+  });
+
+  if (!sessionRequest) {
+    res.status(404).json({ message: 'Session request not found or you do not have permission to delete it' });
+    return;
+  }
+
+  // Delete the session request
+  await prisma.sessionRequest.delete({
+    where: { id: id }
+  });
+
+  res.status(200).json({ 
+    message: 'Session request deleted successfully',
+    deletedRequest: {
+      id: sessionRequest.id,
+      student: sessionRequest.student,
+      session: sessionRequest.session
+    }
+  });
+});
+
+export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can accept session requests' });
+    return;
+  }
+
+  const { id } = req.params;
+
+  // Check if session request exists and belongs to instructor's session
+  const sessionRequest = await prisma.sessionRequest.findFirst({
+    where: {
+      id: id,
+      session: {
+        instructorId: userId
+      }
+    },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          maxAttendees: true,
+          students: { select: { id: true } }
+        }
+      }
+    }
+  });
+
+  if (!sessionRequest) {
+    res.status(404).json({ message: 'Session request not found or you do not have permission to accept it' });
+    return;
+  }
+
+  // Check if request is still pending
+  if (sessionRequest.status !== 'PENDING') {
+    res.status(400).json({ message: 'Session request has already been processed' });
+    return;
+  }
+
+  // Check if session is at maximum capacity
+  if (sessionRequest.session.maxAttendees && 
+      sessionRequest.session.students.length >= sessionRequest.session.maxAttendees) {
+    res.status(400).json({ message: 'Session is at maximum capacity' });
+    return;
+  }
+
+  // Check if student is already in the session
+  if (sessionRequest.session.students.some(student => student.id === sessionRequest.student.id)) {
+    res.status(400).json({ message: 'Student is already a member of this session' });
+    return;
+  }
+
+  // Use a transaction to update request status and add student to session
+  const result = await prisma.$transaction(async (tx) => {
+    // Update session request status to accepted
+    const updatedRequest = await tx.sessionRequest.update({
+      where: { id: id },
+      data: { status: 'ACCEPTED' },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+        session: { select: { id: true, name: true } }
+      }
+    });
+
+    // Add student to session
+    const updatedSession = await tx.session.update({
+      where: { id: sessionRequest.session.id },
+      data: {
+        students: {
+          connect: { id: sessionRequest.student.id }
+        }
+      },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true } },
+        subjects: true,
+        students: { select: { id: true, firstName: true, lastName: true } }
+      }
+    });
+
+    return { updatedRequest, updatedSession };
+  });
+
+  res.status(200).json({ 
+    message: 'Session request accepted successfully',
+    sessionRequest: result.updatedRequest,
+    session: result.updatedSession
+  });
+});
+
+export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can reject session requests' });
+    return;
+  }
+
+  const { id } = req.params;
+
+  // Check if session request exists and belongs to instructor's session
+  const sessionRequest = await prisma.sessionRequest.findFirst({
+    where: {
+      id: id,
+      session: {
+        instructorId: userId
+      }
+    },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      session: { select: { id: true, name: true } }
+    }
+  });
+
+  if (!sessionRequest) {
+    res.status(404).json({ message: 'Session request not found or you do not have permission to reject it' });
+    return;
+  }
+
+  // Check if request is still pending
+  if (sessionRequest.status !== 'PENDING') {
+    res.status(400).json({ message: 'Session request has already been processed' });
+    return;
+  }
+
+  // Update session request status to rejected
+  const updatedRequest = await prisma.sessionRequest.update({
+    where: { id: id },
+    data: { status: 'REJECTED' },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      session: { select: { id: true, name: true } }
+    }
+  });
+
+  res.status(200).json({ 
+    message: 'Session request rejected successfully',
+    sessionRequest: updatedRequest
+  });
+});

@@ -48,7 +48,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 export const checkRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user as CognitoUser;
-    const userRole = user?.role;
+    const userRole = user?.role?.toUpperCase();
+
+    if (userRole === "ADMIN") {
+      next();
+      return;
+    }
 
     if (!userRole || !roles.includes(userRole)) {
       return res.status(403).json({

@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
@@ -15,12 +15,12 @@ datasource db {
 }
 
 model User {
-  id        String   @id // Auth0 user_id
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  email     String   @unique
+  id        String    @id // Auth0 user_id
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  email     String    @unique
   role      UserRole
-  verified  Boolean  @default(false)
+  verified  Boolean   @default(false)
   firstName String
   lastName  String
   birthdate DateTime?
@@ -38,27 +38,28 @@ model User {
 
   // Profile
   profilePicture String?
-  bio           String?
+  bio            String?
 
   // Role-specific fields
-  grade            String?  // For students
-  parentFirstName  String?  // For students
-  parentLastName   String?  // For students
-  parentEmail      String?  // For students
-  parentPhone      String?  // For students
-  interests        String[] // For students
-  learningGoals    String[] // For students
-  education        String[] // For instructors
-  experience       String[] // For instructors
+  grade             String? // For students
+  parentFirstName   String? // For students
+  parentLastName    String? // For students
+  parentEmail       String? // For students
+  parentPhone       String? // For students
+  interests         String[] // For students
+  learningGoals     String[] // For students
+  education         String[] // For instructors
+  experience        String[] // For instructors
   certificationUrls String[] // For instructors
-  averageRating    Float?   // For instructors
+  averageRating     Float? // For instructors
 
   // Relations
-  studentReviews     Review[]  @relation("StudentReviews")
-  instructorReviews  Review[]  @relation("InstructorReviews")
-  instructorSessions Session[] @relation("InstructorSessions")
-  studentSessions    Session[] @relation("StudentSessions")
+  studentReviews     Review[]         @relation("StudentReviews")
+  instructorReviews  Review[]         @relation("InstructorReviews")
+  instructorSessions Session[]        @relation("InstructorSessions")
+  studentSessions    Session[]        @relation("StudentSessions")
   subjects           Subject[] // For instructors
+  sessionRequests    SessionRequest[] @relation("StudentSessionRequests")
 }
 
 model Session {
@@ -73,16 +74,32 @@ model Session {
   updatedAt    DateTime  @updatedAt
 
   // Session Details
-  status      SessionStatus @default(SCHEDULED)
-  materials   String[]
-  objectives  String[]
+  status     SessionStatus @default(SCHEDULED)
+  materials  String[]
+  objectives String[]
 
-  instructorId String
-  instructor   User     @relation("InstructorSessions", fields: [instructorId], references: [id])
-  students     User[]   @relation("StudentSessions")
-  subjects     Subject[]
+  instructorId   String
+  instructor     User             @relation("InstructorSessions", fields: [instructorId], references: [id])
+  students       User[]           @relation("StudentSessions")
+  subjects       Subject[]
+  sessionRequests SessionRequest[] @relation("SessionRequests")
 
   @@index([instructorId])
+}
+
+model SessionRequest {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  status    SessionRequestStatus @default(PENDING)
+
+  studentId String
+  student   User    @relation("StudentSessionRequests", fields: [studentId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   Session @relation("SessionRequests", fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([sessionId])
 }
 
 model Review {
@@ -93,17 +110,17 @@ model Review {
   updatedAt DateTime @updatedAt
 
   studentId    String
-  student      User     @relation("StudentReviews", fields: [studentId], references: [id])
+  student      User   @relation("StudentReviews", fields: [studentId], references: [id])
   instructorId String
-  instructor   User     @relation("InstructorReviews", fields: [instructorId], references: [id])
+  instructor   User   @relation("InstructorReviews", fields: [instructorId], references: [id])
 
   @@index([studentId])
   @@index([instructorId])
 }
 
 model Subject {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
   category    String?
   level       String?
@@ -123,4 +140,10 @@ enum SessionStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+enum SessionRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }

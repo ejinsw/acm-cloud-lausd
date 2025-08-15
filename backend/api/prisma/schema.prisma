@@ -115,6 +115,7 @@ model Subject {
 enum UserRole {
   STUDENT
   INSTRUCTOR
+  ADMIN
 }
 
 enum SessionStatus {

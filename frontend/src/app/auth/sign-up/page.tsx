@@ -46,6 +46,13 @@ interface SignUpFormData {
   instructorId?: FileWithPath | null;
   parentEmail?: string;
   credentialedSubjects?: string[];
+  // Address fields
+  street: string;
+  apartment?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
 }
 
 const gradeLevels = [
@@ -96,13 +103,25 @@ export default function SignUpPage() {
       instructorId: null,
       parentEmail: "",
       credentialedSubjects: [],
+      // Address fields
+      street: "",
+      apartment: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "",
     },
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
-      password: (value) =>
-        value.length < 8
-          ? "Password must be at least 8 characters long"
-          : null,
+      password: (value) => {
+        if (!value) return "Password is required";
+        if (value.length < 8) return "Password must be at least 8 characters long";
+        if (!/[A-Z]/.test(value)) return "Password must contain at least one uppercase letter";
+        if (!/[a-z]/.test(value)) return "Password must contain at least one lowercase letter";
+        if (!/\d/.test(value)) return "Password must contain at least one number";
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)) return "Password must contain at least one symbol (!@#$%^&*...)";
+        return null;
+      },
       confirmPassword: (value, values) =>
         value !== values.password ? "Passwords do not match" : null,
       firstName: (value) =>
@@ -131,6 +150,12 @@ export default function SignUpPage() {
         values.role === "student" && (!value || !/^\S+@\S+$/.test(value))
           ? "Please enter a valid parent email address"
           : null,
+      // Address validation
+      street: (value) => (!value ? "Street address is required" : null),
+      city: (value) => (!value ? "City is required" : null),
+      state: (value) => (!value ? "State is required" : null),
+      zip: (value) => (!value ? "ZIP code is required" : null),
+      country: (value) => (!value ? "Country is required" : null),
     },
   });
 
@@ -257,6 +282,71 @@ export default function SignUpPage() {
                       {...form.getInputProps("schoolName")}
                     />
                   </div>
+
+                  {/* Address Section */}
+                  <Text size="lg" fw={500} mt="md">Address Information</Text>
+                  <TextInput
+                    label="Street Address"
+                    placeholder="Enter your street address"
+                    required
+                    {...form.getInputProps("street")}
+                  />
+                  <TextInput
+                    label="Apartment/Suite"
+                    placeholder="Apartment, suite, etc. (optional)"
+                    {...form.getInputProps("apartment")}
+                  />
+                  <Group grow>
+                    <TextInput
+                      label="City"
+                      placeholder="Enter your city"
+                      required
+                      {...form.getInputProps("city")}
+                    />
+                    <TextInput
+                      label="State"
+                      placeholder="Enter your state"
+                      required
+                      {...form.getInputProps("state")}
+                    />
+                  </Group>
+                  <Group grow>
+                    <TextInput
+                      label="ZIP Code"
+                      placeholder="Enter your ZIP code"
+                      required
+                      {...form.getInputProps("zip")}
+                    />
+                    <TextInput
+                      label="Country"
+                      placeholder="Enter your country"
+                      required
+                      {...form.getInputProps("country")}
+                    />
+                  </Group>
+                  
+                  {form.values.password && (
+                    <Box>
+                      <Text size="sm" fw={500} mb={8}>Password Requirements:</Text>
+                      <Stack gap={4}>
+                        <Text size="xs" c={form.values.password.length >= 8 ? "green" : "red"}>
+                          ✓ At least 8 characters long
+                        </Text>
+                        <Text size="xs" c={/[A-Z]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains uppercase letter
+                        </Text>
+                        <Text size="xs" c={/[a-z]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains lowercase letter
+                        </Text>
+                        <Text size="xs" c={/\d/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains number
+                        </Text>
+                        <Text size="xs" c={/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains symbol (!@#$%^&*...)
+                        </Text>
+                      </Stack>
+                    </Box>
+                  )}
 
                   <PasswordInput
                     label="Password"

@@ -14,12 +14,14 @@ import {
   Loader,
   Alert,
 } from "@mantine/core";
-import { Search, Sparkles, BookOpen, Calendar, AlertCircle } from "lucide-react";
+import { Search, Sparkles, BookOpen, Calendar, AlertCircle, MessageCircle, Play } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
 import { UpcomingSessionsTab } from "@/components/dashboard/instructor/UpcomingSessionsTab";
 import { SessionManagementTab } from "@/components/dashboard/instructor/SessionManagementTab";
+import { SessionRequestsManager } from "@/components/dashboard/instructor/SessionRequestsManager";
+import { ActiveSessionManager } from "@/components/dashboard/instructor/ActiveSessionManager";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
 import { Session } from "@/lib/types";
@@ -179,6 +181,12 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="sessions" leftSection={<BookOpen size={16} />}>
               My Sessions ({totalSessions})
             </Tabs.Tab>
+            <Tabs.Tab value="requests" leftSection={<MessageCircle size={16} />}>
+              Session Requests
+            </Tabs.Tab>
+            <Tabs.Tab value="active" leftSection={<Play size={16} />}>
+              Active Sessions
+            </Tabs.Tab>
             <Tabs.Tab value="schedule" leftSection={<Calendar size={16} />}>
               Schedule ({upcomingSessions.length})
             </Tabs.Tab>
@@ -195,6 +203,21 @@ function InstructorDashboardContent() {
           <Tabs.Panel value="sessions">
             <Box pt="md">
               <SessionManagementTab 
+                sessions={sessions} 
+                onSessionUpdate={handleSessionUpdate}
+              />
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="requests">
+            <Box pt="md">
+              <SessionRequestsManager onSessionUpdate={handleSessionUpdate} />
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="active">
+            <Box pt="md">
+              <ActiveSessionManager 
                 sessions={sessions} 
                 onSessionUpdate={handleSessionUpdate}
               />

@@ -2,6 +2,7 @@ import { Card, Text, Group, Badge, Button, ActionIcon, Menu } from "@mantine/cor
 import { Eye, Edit, Trash, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { Session } from "@/lib/types";
+import { routes } from "@/app/routes";
 
 interface SessionCardProps {
   session: Session;
@@ -31,14 +32,14 @@ export function SessionCard({ session, onDelete }: SessionCardProps) {
               <Menu.Item 
                 leftSection={<Eye size={14} />}
                 component={Link}
-                href={`/sessions/${session.id}`}
+                href={routes.sessionDetails(session.id)}
               >
                 View Details
               </Menu.Item>
               <Menu.Item 
                 leftSection={<Edit size={14} />}
                 component={Link}
-                href={`/sessions/edit/${session.id}`}
+                href={routes.editSession(session.id)}
               >
                 Edit Session
               </Menu.Item>
@@ -94,7 +95,7 @@ export function SessionCard({ session, onDelete }: SessionCardProps) {
           variant="light" 
           size="xs" 
           component={Link} 
-          href={`/sessions/${session.id}`}
+          href={routes.sessionDetails(session.id)}
         >
           View Details
         </Button>
@@ -102,7 +103,7 @@ export function SessionCard({ session, onDelete }: SessionCardProps) {
           variant="outline" 
           size="xs" 
           component={Link} 
-          href={`/sessions/edit/${session.id}`}
+          href={routes.editSession(session.id)}
         >
           Edit
         </Button>

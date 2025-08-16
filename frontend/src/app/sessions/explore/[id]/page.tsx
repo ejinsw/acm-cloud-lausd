@@ -379,196 +379,123 @@ function SessionDetailsContent() {
             </Box>
 
             {/* Session Details Component */}
-            <SessionDetails session={session} showJoinButton={false} />
+            <SessionDetails session={session} />
           </Stack>
         </Grid.Col>
 
         {/* Right Column - Booking Sidebar */}
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack gap="lg">
-            {/* Book This Session */}
-            <Card shadow="sm" p="lg" radius="md" withBorder>
-              <Title order={3} mb="lg">
-                Book This Session
+            {/* Book This Session / Session Management */}
+            <Card 
+              shadow="sm" 
+              p="lg" 
+              radius="md" 
+              withBorder
+              style={{
+                backgroundColor: user?.role === 'INSTRUCTOR' && user?.id === session.instructorId ? '#f8f9fa' : '#fff',
+                borderColor: user?.role === 'INSTRUCTOR' && user?.id === session.instructorId ? '#007bff' : '#dee2e6'
+              }}
+            >
+              <Title 
+                order={3} 
+                mb="lg"
+                c={user?.role === 'INSTRUCTOR' && user?.id === session.instructorId ? 'blue' : 'dark'}
+              >
+                {user?.role === 'INSTRUCTOR' && user?.id === session.instructorId 
+                  ? 'Session Management' 
+                  : 'Book This Session'
+                }
               </Title>
 
-              <Stack gap="md">
-                <Group gap="sm">
-                  <ThemeIcon size="md" radius="xl" color="blue">
-                    <IconClockHour4 size={16} />
-                  </ThemeIcon>
-                  <Text fw={500}>
-                    {getDuration(session.startTime, session.endTime)}
+              {user?.role === 'INSTRUCTOR' && user?.id === session.instructorId ? (
+                /* Instructor Owner View */
+                <Stack gap="md">
+                  <Text size="sm" c="dimmed">
+                    As the instructor, you can manage this session from the Management tab in the session details.
                   </Text>
-                </Group>
-
-                <Group gap="sm">
-                  <ThemeIcon size="md" radius="xl" color="green">
-                    <IconCalendar size={16} />
-                  </ThemeIcon>
-                  <Text fw={500}>Available: Monday, Wednesday, Friday</Text>
-                </Group>
-
-                <Stack gap="sm" mt="md">
-                  {/* NULL STATUS - No request made yet */}
-                  {sessionRequestStatus === null && (
+                  
+                  {/* Zoom Meeting Button for Instructors */}
+                  {session.zoomLink && (
                     <Button
                       fullWidth
                       size="md"
+                      color="blue"
                       leftSection={<IconPlayerPlay size={16} />}
-                      onClick={() => handleRequestSession(session.id)}
-                      loading={isRequesting}
-                      disabled={isRequesting}
+                      component={Link}
+                      href={session.zoomLink}
+                      target="_blank"
                     >
-                      {isRequesting ? "Sending Request..." : "Request Session"}
+                      Join Zoom Meeting
                     </Button>
                   )}
-
-                  {/* PENDING STATUS - Request sent, can cancel */}
-                  {sessionRequestStatus === "PENDING" && (
-                    <>
-                      <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
-                        <Button
-                          fullWidth
-                          size="md"
-                          variant="outline"
-                          leftSection={<IconClockHour4 size={16} />}
-                          disabled
-                        >
-                          Request Pending
-                        </Button>
-                        {getCurrentSessionRequestId() && (
-                          <Button
-                            size="md"
-                            color="red"
-                            variant="outline"
-                            onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
-                            title="Cancel Request"
-                          >
-                            <LogOut size={16} />
-                          </Button>
-                        )}
-                      </Group>
-                      
-                      {/* Pending info */}
-                      <Box
-                        p="sm"
-                        bg="yellow.0"
-                        style={{ border: '1px solid var(--mantine-color-yellow-3)', borderRadius: 'var(--mantine-radius-sm)' }}
-                      >
-                        <Group gap="xs" align="center">
-                          <IconAlertCircle size={16} color="var(--mantine-color-yellow-8)" />
-                          <Text size="sm" c="yellow.8" fw={500}>
-                            Waiting for instructor response
-                          </Text>
-                        </Group>
-                        <Text size="xs" c="yellow.7" mt={4} ml={20}>
-                          Your request has been sent. The instructor will review and respond soon. You can cancel anytime.
-                        </Text>
-                      </Box>
-                    </>
-                  )}
-
-                  {/* ACCEPTED STATUS - Can join session or cancel */}
-                  {sessionRequestStatus === "ACCEPTED" && (
-                    <>
-                      <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
-                        <Button
-                          fullWidth
-                          size="md"
-                          color="green"
-                          leftSection={<IconPlayerPlay size={16} />}
-                          component={Link}
-                          href={session.zoomLink || "#"}
-                          target="_blank"
-                          disabled={!session.zoomLink}
-                        >
-                          {session.zoomLink ? "Join Session" : "Session Link TBD"}
-                        </Button>
-                        {getCurrentSessionRequestId() && (
-                          <Button
-                            size="md"
-                            color="red"
-                            variant="outline"
-                            onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
-                            title="Cancel Session"
-                          >
-                            <LogOut size={16} />
-                          </Button>
-                        )}
-                      </Group>
-                      
-                      {/* Session reminder for accepted sessions */}
-                      {session.startTime && (
-                        <Box
-                          p="sm"
-                          bg="green.0"
-                          style={{ border: '1px solid var(--mantine-color-green-3)', borderRadius: 'var(--mantine-radius-sm)' }}
-                        >
-                          <Group gap="xs" align="center">
-                            <IconCheck size={16} color="var(--mantine-color-green-8)" />
-                            <Text size="sm" c="green.8" fw={500}>
-                              Your session is confirmed!
-                            </Text>
-                          </Group>
-                          <Text size="xs" c="green.7" mt={4} ml={20}>
-                            Session starts at {new Date(session.startTime).toLocaleTimeString("en-US", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              timeZoneName: "short",
-                            })}
-                          </Text>
-                        </Box>
-                      )}
-                    </>
-                  )}
-
-                  {/* REJECTED STATUS - Show rejection message */}
-                  {sessionRequestStatus === "REJECTED" && (
-                    <>
-                      <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
-                        <Button
-                          fullWidth
-                          size="md"
-                          color="red"
-                          variant="outline"
-                          leftSection={<IconX size={16} />}
-                          disabled
-                        >
-                          Request Rejected
-                        </Button>
-                        <Button
-                          size="md"
-                          color="blue"
-                          variant="outline"
-                          onClick={handleReRequestSession}
-                          title="Try Again"
-                          loading={isRequesting}
-                          disabled={isRequesting}
-                        >
-                          {isRequesting ? "Sending..." : "Try Again"}
-                        </Button>
-                      </Group>
-                      
-                      {/* Rejection info */}
-                      <Box
-                        p="sm"
-                        bg="red.0"
-                        style={{ border: '1px solid var(--mantine-color-red-3)', borderRadius: 'var(--mantine-radius-sm)' }}
-                      >
-                        <Group gap="xs" align="center">
-                          <IconX size={16} color="var(--mantine-color-red-8)" />
-                          <Text size="sm" c="red.8" fw={500}>
-                            Your session request was not accepted
-                          </Text>
-                        </Group>
-                        <Text size="xs" c="red.7" mt={4} ml={20}>
-                          The instructor has declined your request. You can explore other sessions, contact the instructor for more information, or try requesting again.
-                        </Text>
-                      </Box>
-                    </>
-                  )}
-
+                  
+                  <Group gap="sm">
+                    <Button
+                      fullWidth
+                      size="md"
+                      variant="outline"
+                      leftSection={<IconCalendar size={16} />}
+                      component={Link}
+                      href={`/sessions/edit/${session.id}`}
+                    >
+                      Edit Session
+                    </Button>
+                    <Button
+                      fullWidth
+                      size="md"
+                      variant="outline"
+                      leftSection={<IconUser size={16} />}
+                      component={Link}
+                      href="/dashboard/instructor"
+                    >
+                      Go to Dashboard
+                    </Button>
+                  </Group>
+                  
+                  {/* Session Info for Instructors */}
+                  <Box
+                    p="sm"
+                    bg="blue.0"
+                    style={{ border: '1px solid var(--mantine-color-blue-3)', borderRadius: 'var(--mantine-radius-sm)' }}
+                  >
+                    <Group gap="xs" align="center">
+                      <IconClockHour4 size={16} color="var(--mantine-color-blue-8)" />
+                      <Text size="sm" c="blue.8" fw={500}>
+                        Session Details
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="blue.7" mt={4} ml={20}>
+                      Duration: {getDuration(session.startTime, session.endTime)} | 
+                      Capacity: {session.maxAttendees || "∞"} attendees
+                    </Text>
+                  </Box>
+                </Stack>
+              ) : user?.role === 'INSTRUCTOR' && user?.id !== session.instructorId ? (
+                /* Other Instructor View - No request option */
+                <Stack gap="md">
+                  <Text size="sm" c="dimmed">
+                    As an instructor, you can view this session but cannot request to join it.
+                  </Text>
+                  
+                  {/* Session Info for Other Instructors */}
+                  <Box
+                    p="sm"
+                    bg="gray.0"
+                    style={{ border: '1px solid var(--mantine-color-gray-3)', borderRadius: 'var(--mantine-radius-sm)' }}
+                  >
+                    <Group gap="xs" align="center">
+                      <IconClockHour4 size={16} color="var(--mantine-color-gray-8)" />
+                      <Text size="sm" c="gray.8" fw={500}>
+                        Session Information
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="gray.7" mt={4} ml={20}>
+                      Duration: {getDuration(session.startTime, session.endTime)} | 
+                      Capacity: {session.maxAttendees || "∞"} attendees
+                    </Text>
+                  </Box>
+                  
                   <Button
                     variant="outline"
                     fullWidth
@@ -582,7 +509,200 @@ function SessionDetailsContent() {
                     View Instructor Profile
                   </Button>
                 </Stack>
-              </Stack>
+              ) : (
+                /* Student View */
+                <Stack gap="md">
+                  <Group gap="sm">
+                    <ThemeIcon size="md" radius="xl" color="blue">
+                      <IconClockHour4 size={16} />
+                    </ThemeIcon>
+                    <Text fw={500}>
+                      {getDuration(session.startTime, session.endTime)}
+                    </Text>
+                  </Group>
+
+                  <Group gap="sm">
+                    <ThemeIcon size="md" radius="xl" color="green">
+                      <IconCalendar size={16} />
+                    </ThemeIcon>
+                    <Text fw={500}>Available: Monday, Wednesday, Friday</Text>
+                  </Group>
+
+                  <Stack gap="sm" mt="md">
+                    {/* NULL STATUS - No request made yet */}
+                    {sessionRequestStatus === null && (
+                      <Button
+                        fullWidth
+                        size="md"
+                        leftSection={<IconPlayerPlay size={16} />}
+                        onClick={() => handleRequestSession(session.id)}
+                        loading={isRequesting}
+                        disabled={isRequesting}
+                      >
+                        {isRequesting ? "Sending Request..." : "Request Session"}
+                      </Button>
+                    )}
+
+                    {/* PENDING STATUS - Request sent, can cancel */}
+                    {sessionRequestStatus === "PENDING" && (
+                      <>
+                        <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
+                          <Button
+                            fullWidth
+                            size="md"
+                            variant="outline"
+                            leftSection={<IconClockHour4 size={16} />}
+                            disabled
+                          >
+                            Request Pending
+                          </Button>
+                          {getCurrentSessionRequestId() && (
+                            <Button
+                              size="md"
+                              color="red"
+                              variant="outline"
+                              onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
+                              title="Cancel Request"
+                            >
+                              <LogOut size={16} />
+                            </Button>
+                          )}
+                        </Group>
+                        
+                        {/* Pending info */}
+                        <Box
+                          p="sm"
+                          bg="yellow.0"
+                          style={{ border: '1px solid var(--mantine-color-yellow-3)', borderRadius: 'var(--mantine-radius-sm)' }}
+                        >
+                          <Group gap="xs" align="center">
+                            <IconAlertCircle size={16} color="var(--mantine-color-yellow-8)" />
+                            <Text size="sm" c="yellow.8" fw={500}>
+                              Waiting for instructor response
+                            </Text>
+                          </Group>
+                          <Text size="xs" c="yellow.7" mt={4} ml={20}>
+                            Your request has been sent. The instructor will review and respond soon. You can cancel anytime.
+                          </Text>
+                        </Box>
+                      </>
+                    )}
+
+                    {/* ACCEPTED STATUS - Can join session or cancel */}
+                    {sessionRequestStatus === "ACCEPTED" && (
+                      <>
+                        <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
+                          <Button
+                            fullWidth
+                            size="md"
+                            color="green"
+                            leftSection={<IconPlayerPlay size={16} />}
+                            component={Link}
+                            href={session.zoomLink || "#"}
+                            target="_blank"
+                            disabled={!session.zoomLink}
+                          >
+                            {session.zoomLink ? "Join Session" : "Session Link TBD"}
+                          </Button>
+                          {getCurrentSessionRequestId() && (
+                            <Button
+                              size="md"
+                              color="red"
+                              variant="outline"
+                              onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
+                              title="Cancel Session"
+                            >
+                              <LogOut size={16} />
+                            </Button>
+                          )}
+                        </Group>
+                        
+                        {/* Session reminder for accepted sessions */}
+                        {session.startTime && (
+                          <Box
+                            p="sm"
+                            bg="green.0"
+                            style={{ border: '1px solid var(--mantine-color-green-3)', borderRadius: 'var(--mantine-radius-sm)' }}
+                          >
+                            <Group gap="xs" align="center">
+                              <IconCheck size={16} color="var(--mantine-color-green-8)" />
+                              <Text size="sm" c="green.8" fw={500}>
+                                Your session is confirmed!
+                              </Text>
+                            </Group>
+                            <Text size="xs" c="green.7" mt={4} ml={20}>
+                              Session starts at {new Date(session.startTime).toLocaleTimeString("en-US", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZoneName: "short",
+                              })}
+                            </Text>
+                          </Box>
+                        )}
+                      </>
+                    )}
+
+                    {/* REJECTED STATUS - Show rejection message */}
+                    {sessionRequestStatus === "REJECTED" && (
+                      <>
+                        <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
+                          <Button
+                            fullWidth
+                            size="md"
+                            color="red"
+                            variant="outline"
+                            leftSection={<IconX size={16} />}
+                            disabled
+                          >
+                            Request Rejected
+                          </Button>
+                          <Button
+                            size="md"
+                            color="blue"
+                            variant="outline"
+                            onClick={handleReRequestSession}
+                            title="Try Again"
+                            loading={isRequesting}
+                            disabled={isRequesting}
+                          >
+                            {isRequesting ? "Sending..." : "Try Again"}
+                          </Button>
+                        </Group>
+                        
+                        {/* Rejection info */}
+                        <Box
+                          p="sm"
+                          bg="red.0"
+                          style={{ border: '1px solid var(--mantine-color-red-3)', borderRadius: 'var(--mantine-radius-sm)' }}
+                        >
+                          <Group gap="xs" align="center">
+                            <IconX size={16} color="var(--mantine-color-red-8)" />
+                            <Text size="sm" c="red.8" fw={500}>
+                              Your session request was not accepted
+                            </Text>
+                          </Group>
+                          <Text size="xs" c="red.7" mt={4} ml={20}>
+                            The instructor has declined your request. You can explore other sessions, contact the instructor for more information, or try requesting again.
+                          </Text>
+                        </Box>
+                      </>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      fullWidth
+                      size="md"
+                      leftSection={<IconUser size={16} />}
+                      component={Link}
+                      href={routes.instructorProfile(
+                        session.instructor?.id || ""
+                      )}
+                    >
+                      View Instructor Profile
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
             </Card>
 
             {/* Session Timeline */}

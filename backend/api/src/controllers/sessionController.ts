@@ -844,26 +844,26 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
     return;
   }
 
-  // Check if request is still pending
-  if (sessionRequest.status !== 'PENDING') {
-    res.status(400).json({ message: 'Session request has already been processed' });
+  // Allow accepting both PENDING and REJECTED requests
+  if (sessionRequest.status !== 'PENDING' && sessionRequest.status !== 'REJECTED') {
+    res.status(400).json({ message: 'Session request cannot be accepted. Only pending or rejected requests can be accepted.' });
     return;
   }
 
-  // Check if session is at maximum capacity
-  if (sessionRequest.session.maxAttendees && 
+  // Check if session is at maximum capacity (only for new students)
+  if (sessionRequest.status === 'PENDING' && sessionRequest.session.maxAttendees && 
       sessionRequest.session.students.length >= sessionRequest.session.maxAttendees) {
     res.status(400).json({ message: 'Session is at maximum capacity' });
     return;
   }
 
-  // Check if student is already in the session
-  if (sessionRequest.session.students.some(student => student.id === sessionRequest.student.id)) {
+  // Check if student is already in the session (only for new students)
+  if (sessionRequest.status === 'PENDING' && sessionRequest.session.students.some(student => student.id === sessionRequest.student.id)) {
     res.status(400).json({ message: 'Student is already a member of this session' });
     return;
   }
 
-  // Use a transaction to update request status and add student to session
+  // Use a transaction to update request status and manage student enrollment
   const result = await prisma.$transaction(async (tx) => {
     // Update session request status to accepted
     const updatedRequest = await tx.sessionRequest.update({
@@ -875,26 +875,47 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
       }
     });
 
-    // Add student to session
-    const updatedSession = await tx.session.update({
-      where: { id: sessionRequest.session.id },
-      data: {
-        students: {
-          connect: { id: sessionRequest.student.id }
+    let updatedSession = null;
+
+    if (sessionRequest.status === 'PENDING') {
+      // Add new student to session
+      updatedSession = await tx.session.update({
+        where: { id: sessionRequest.session.id },
+        data: {
+          students: {
+            connect: { id: sessionRequest.student.id }
+          }
+        },
+        include: {
+          instructor: { select: { id: true, firstName: true, lastName: true } },
+          subjects: true,
+          students: { select: { id: true, firstName: true, lastName: true } }
         }
-      },
-      include: {
-        instructor: { select: { id: true, firstName: true, lastName: true } },
-        subjects: true,
-        students: { select: { id: true, firstName: true, lastName: true } }
-      }
-    });
+      });
+    } else if (sessionRequest.status === 'REJECTED') {
+      // Re-add previously rejected student to session
+      updatedSession = await tx.session.update({
+        where: { id: sessionRequest.session.id },
+        data: {
+          students: {
+            connect: { id: sessionRequest.student.id }
+          }
+        },
+        include: {
+          instructor: { select: { id: true, firstName: true, lastName: true } },
+          subjects: true,
+          students: { select: { id: true, firstName: true, lastName: true } }
+        }
+      });
+    }
 
     return { updatedRequest, updatedSession };
   });
 
   res.status(200).json({ 
-    message: 'Session request accepted successfully',
+    message: sessionRequest.status === 'PENDING' 
+      ? 'Session request accepted successfully'
+      : 'Student re-added to session successfully',
     sessionRequest: result.updatedRequest,
     session: result.updatedSession
   });
@@ -930,7 +951,13 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
     },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, email: true } },
-      session: { select: { id: true, name: true } }
+      session: { 
+        select: { 
+          id: true, 
+          name: true,
+          students: { select: { id: true } }
+        } 
+      }
     }
   });
 
@@ -939,24 +966,202 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
     return;
   }
 
-  // Check if request is still pending
-  if (sessionRequest.status !== 'PENDING') {
-    res.status(400).json({ message: 'Session request has already been processed' });
+  // Allow rejecting both PENDING and ACCEPTED requests
+  if (sessionRequest.status !== 'PENDING' && sessionRequest.status !== 'ACCEPTED') {
+    res.status(400).json({ message: 'Session request cannot be rejected. Only pending or accepted requests can be rejected.' });
     return;
   }
 
-  // Update session request status to rejected
-  const updatedRequest = await prisma.sessionRequest.update({
-    where: { id: id },
-    data: { status: 'REJECTED' },
+  // Use a transaction to update request status and manage student enrollment
+  const result = await prisma.$transaction(async (tx) => {
+    // Update session request status to rejected
+    const updatedRequest = await tx.sessionRequest.update({
+      where: { id: id },
+      data: { status: 'REJECTED' },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+        session: { select: { id: true, name: true } }
+      }
+    });
+
+    // If the request was previously accepted, remove the student from the session
+    if (sessionRequest.status === 'ACCEPTED') {
+      const updatedSession = await tx.session.update({
+        where: { id: sessionRequest.session.id },
+        data: {
+          students: {
+            disconnect: { id: sessionRequest.student.id }
+          }
+        },
+        include: {
+          instructor: { select: { id: true, firstName: true, lastName: true } },
+          subjects: true,
+          students: { select: { id: true, firstName: true, lastName: true } }
+        }
+      });
+
+      return { updatedRequest, updatedSession };
+    }
+
+    return { updatedRequest, updatedSession: null };
+  });
+
+  res.status(200).json({ 
+    message: sessionRequest.status === 'ACCEPTED' 
+      ? 'Student removed from session and request rejected successfully'
+      : 'Session request rejected successfully',
+    sessionRequest: result.updatedRequest,
+    session: result.updatedSession
+  });
+});
+
+/**
+ * Start a session (change status from SCHEDULED to IN_PROGRESS)
+ * @route POST /sessions/:id/start
+ * @access Private/Instructor
+ */
+export const startSession = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can start sessions' });
+    return;
+  }
+
+  const { id } = req.params;
+
+  // Check if session exists and belongs to instructor
+  const session = await prisma.session.findFirst({
+    where: {
+      id: id,
+      instructorId: userId
+    },
     include: {
-      student: { select: { id: true, firstName: true, lastName: true, email: true } },
-      session: { select: { id: true, name: true } }
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      students: { select: { id: true, firstName: true, lastName: true, email: true } },
+      subjects: true
+    }
+  });
+
+  if (!session) {
+    res.status(404).json({ message: 'Session not found or you do not have permission to start it' });
+    return;
+  }
+
+  // Check if session is in SCHEDULED status
+  if (session.status !== 'SCHEDULED') {
+    res.status(400).json({ message: 'Session cannot be started. Only scheduled sessions can be started.' });
+    return;
+  }
+
+  // Check if session has students
+  if (!session.students || session.students.length === 0) {
+    res.status(400).json({ message: 'Session cannot be started without students' });
+    return;
+  }
+
+  // Update session status to IN_PROGRESS
+  const updatedSession = await prisma.session.update({
+    where: { id: id },
+    data: { 
+      status: 'IN_PROGRESS',
+      startTime: new Date() // Set actual start time when session begins
+    },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      students: { select: { id: true, firstName: true, lastName: true, email: true } },
+      subjects: true
     }
   });
 
   res.status(200).json({ 
-    message: 'Session request rejected successfully',
-    sessionRequest: updatedRequest
+    message: 'Session started successfully',
+    session: updatedSession
+  });
+});
+
+/**
+ * Stop/Complete a session (change status from IN_PROGRESS to COMPLETED)
+ * @route POST /sessions/:id/stop
+ * @access Private/Instructor
+ */
+export const stopSession = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  // Check if user is an instructor
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can stop sessions' });
+    return;
+  }
+
+  const { id } = req.params;
+  const { notes } = req.body;
+
+  // Check if session exists and belongs to instructor
+  const session = await prisma.session.findFirst({
+    where: {
+      id: id,
+      instructorId: userId
+    },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      students: { select: { id: true, firstName: true, lastName: true, email: true } },
+      subjects: true
+    }
+  });
+
+  if (!session) {
+    res.status(404).json({ message: 'Session not found or you do not have permission to stop it' });
+    return;
+  }
+
+  // Check if session is in IN_PROGRESS status
+  if (session.status !== 'IN_PROGRESS') {
+    res.status(400).json({ message: 'Session cannot be stopped. Only sessions in progress can be stopped.' });
+    return;
+  }
+
+  // Update session status to COMPLETED and set end time
+  const updatedSession = await prisma.session.update({
+    where: { id: id },
+    data: { 
+      status: 'COMPLETED',
+      endTime: new Date() // Set actual end time when session ends
+    },
+    include: {
+      instructor: { select: { id: true, firstName: true, lastName: true } },
+      students: { select: { id: true, firstName: true, lastName: true, email: true } },
+      subjects: true
+    }
+  });
+
+  // TODO: Store session notes in a separate table if needed
+  // For now, we'll just log them
+  if (notes) {
+    console.log(`Session ${id} notes: ${notes}`);
+  }
+
+  res.status(200).json({ 
+    message: 'Session completed successfully',
+    session: updatedSession
   });
 });

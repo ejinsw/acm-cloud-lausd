@@ -290,6 +290,7 @@ export const createSession = expressAsyncHandler(
  * @body {Date} [endTime] - The updated end time (optional).
  * @body {string} [zoomLink] - The updated meeting link (optional).
  * @body {number} [maxAttendees] - The updated maximum attendees (optional).
+ * @body {string} [status] - The updated session status (optional).
  */
 export const updateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -319,6 +320,7 @@ export const updateSession = expressAsyncHandler(
       materials,
       objectives,
       subjects,
+      status,
     } = req.body;
 
     // Build update data object, skip empty strings/arrays
@@ -334,6 +336,7 @@ export const updateSession = expressAsyncHandler(
       data.materials = materials;
     if (objectives !== undefined && Array.isArray(objectives) && objectives.length > 0)
       data.objectives = objectives;
+    if (status !== undefined && status !== '') data.status = status;
 
     // Validate that dates are actually valid if being updated
     if (data.startTime) {
@@ -383,6 +386,15 @@ export const updateSession = expressAsyncHandler(
     if (data.maxAttendees !== undefined) {
       if (!Number.isInteger(data.maxAttendees) || data.maxAttendees <= 0) {
         res.status(400).json({ message: 'Max attendees must be a positive integer' });
+        return;
+      }
+    }
+
+    // Validate status if being updated
+    if (data.status !== undefined) {
+      const validStatuses = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+      if (!validStatuses.includes(data.status)) {
+        res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
         return;
       }
     }

@@ -192,14 +192,18 @@ export function SessionDetails({ session: initialSession }: SessionDetailsProps)
         throw new Error('Failed to update session status');
       }
 
+      const result = await response.json();
+
       notifications.show({
         title: "Status Updated",
         message: `Session status has been updated to ${newStatus}.`,
         color: "green",
       });
 
-      // Refresh the page or update the session data
-      window.location.reload();
+      // Update local state without page refresh
+      if (result.session) {
+        setSession(result.session);
+      }
     } catch (error) {
       console.error('Error updating session status:', error);
       notifications.show({

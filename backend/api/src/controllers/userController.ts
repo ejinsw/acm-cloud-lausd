@@ -606,10 +606,13 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
 
   const data = { ...req.body };
 
-  const validation = await validateUserUpdatePayload(data, user.role);
-  if (!validation.valid) {
-    res.status(400).json({ message: validation.message });
-    return;
+  // For admin users, we'll skip validation since they can update any field
+  if (user.role !== 'ADMIN') {
+    const validation = await validateUserUpdatePayload(data, user.role as 'INSTRUCTOR' | 'STUDENT');
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
   }
 
   if (user.role === 'INSTRUCTOR') {

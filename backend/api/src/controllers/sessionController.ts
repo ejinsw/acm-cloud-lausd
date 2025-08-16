@@ -150,8 +150,8 @@ export const createSession = expressAsyncHandler(
       endTime,
       zoomLink,
       maxAttendees,
-      materials = [],
-      objectives = [],
+      materials,
+      objectives,
       subjects = [],
     } = req.body;
 
@@ -167,16 +167,23 @@ export const createSession = expressAsyncHandler(
       !startTime ||
       !endTime ||
       !zoomLink ||
-      !maxAttendees ||
-      !Array.isArray(materials) ||
-      materials.length === 0 ||
-      !Array.isArray(objectives) ||
-      objectives.length === 0
+      !maxAttendees
     ) {
       res.status(400).json({
         message:
-          'Missing required fields: description, startTime, endTime, zoomLink, maxAttendees, materials, and objectives',
+          'Missing required fields: description, startTime, endTime, zoomLink, and maxAttendees',
       });
+      return;
+    }
+
+    // Validate that materials and objectives are arrays (if provided)
+    if (materials && !Array.isArray(materials)) {
+      res.status(400).json({ message: 'materials must be an array' });
+      return;
+    }
+
+    if (objectives && !Array.isArray(objectives)) {
+      res.status(400).json({ message: 'objectives must be an array' });
       return;
     }
 
@@ -255,8 +262,8 @@ export const createSession = expressAsyncHandler(
         endTime: endTime ? new Date(endTime) : undefined,
         zoomLink,
         maxAttendees,
-        materials,
-        objectives,
+        materials: materials || [],
+        objectives: objectives || [],
         instructorId: userId,
         subjects: {
           connect: subjectRecords.map(s => ({ id: s.id })),

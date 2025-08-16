@@ -6,15 +6,15 @@ const prisma = new PrismaClient();
 
 export const verifyInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.user as { sub: string })?.sub;
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
 
-    if (!userId) {
+    if (!user?.sub) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    if (userId.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
       res.status(403).json({ message: 'You must be an admin to verify an instructor' });
       return;
     }
@@ -48,15 +48,15 @@ export const verifyInstructor = expressAsyncHandler(
 
 export const adminDeleteUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.user as { sub: string })?.sub;
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
 
-    if (!userId) {
+    if (!user?.sub) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    if (userId.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
       res.status(403).json({ message: 'You must be an admin' });
       return;
     }
@@ -82,7 +82,7 @@ export const adminUpdateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    const userId = (req.user as { sub: string })?.sub;
+    const user = (req.user as { sub: string; role: string });
 
     // Find the session
     const session = await prisma.session.findUnique({ where: { id } });
@@ -90,7 +90,7 @@ export const adminUpdateSession = expressAsyncHandler(
       res.status(404).json({ message: 'Session not found' });
       return;
     }
-    if (userId.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
       res.status(403).json({ message: 'You must be an admin to update this session' });
       return;
     }
@@ -216,7 +216,7 @@ export const adminUpdateSession = expressAsyncHandler(
 export const adminDeleteSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const userId = (req.user as { sub: string })?.sub;
+    const user = (req.user as { sub: string; role: string });
 
     // Find the session
     const session = await prisma.session.findUnique({ where: { id } });
@@ -226,7 +226,7 @@ export const adminDeleteSession = expressAsyncHandler(
       return;
     }
 
-    if (userId.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
       res.status(403).json({ message: 'You do not have permission to delete this session' });
       return;
     }

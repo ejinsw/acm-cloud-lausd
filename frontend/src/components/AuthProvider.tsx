@@ -11,17 +11,17 @@ import { useRouter, usePathname } from "next/navigation";
 import { showNotification } from "@mantine/notifications";
 import { getToken, refreshToken, logout } from "@/actions/authentication";
 import { User } from "@/lib/types";
+import { routes } from "@/app/routes";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
-  apiCallWithRefresh: (apiCall: () => Promise<unknown>, onRefreshSuccess?: () => void) => Promise<unknown>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -192,7 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Login function
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<User | null> => {
     try {
       setIsLoading(true);
       const response = await fetch("/api/auth/sign-in", {
@@ -213,7 +213,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             message: `Hello, ${userData.firstName}!`,
             color: "green",
           });
-          return true;
+          return userData;
         }
       } else {
         const errorData = await response.json();
@@ -222,8 +222,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           message: errorData.error || "Invalid credentials",
           color: "red",
         });
+        console.log(errorData);
+        if (errorData.error === "User is not confirmed") {
+          router.push(`${routes.emailVerification}?email=${encodeURIComponent(email)}`);
+        }
       }
-      return false;
+      return null;
     } catch (error) {
       console.error("Login error:", error);
       showNotification({
@@ -231,7 +235,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         message: "An error occurred during login",
         color: "red",
       });
-      return false;
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -305,32 +309,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     refreshAuth,
     updateUser,
     refreshUser,
-    apiCallWithRefresh: async (apiCall, onRefreshSuccess) => {
-      try {
-        const result = await apiCall();
-        return result;
-      } catch (error) {
-        console.error("API call failed, attempting refresh:", error);
-        // Don't refresh if already refreshing
-        if (!isRefreshing) {
-          try {
-            await refreshAuth();
-            const result = await apiCall();
-            onRefreshSuccess?.();
-            return result;
-          } catch (refreshError) {
-            console.error("Failed to refresh token and retry API call:", refreshError);
-            await logout();
-            router.push("/auth/sign-in");
-            throw refreshError; // Re-throw the error after logout
-          }
-        } else {
-          // If already refreshing, wait a bit and retry the original call
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return await apiCall();
-        }
-      }
-    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

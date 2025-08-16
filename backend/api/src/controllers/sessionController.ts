@@ -670,36 +670,46 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
     return;
   }
 
-  // Check if user is an instructor
+  // Get user role
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true },
   });
 
-  if (!user || user.role !== 'INSTRUCTOR') {
-    res.status(403).json({ message: 'Only instructors can view session requests' });
+  if (!user) {
+    res.status(404).json({ message: 'User not found' });
     return;
   }
 
-  // Get query parameters for filtering
-  const { status, sessionId } = req.query;
-  const whereClause: any = {
-    session: {
-      instructorId: userId
-    }
-  };
+  let whereClause: any = {};
 
+  if (user.role === 'INSTRUCTOR') {
+    // For instructors: get requests for their sessions
+    whereClause.session = {
+      instructorId: userId
+    };
+  } else if (user.role === 'STUDENT') {
+    // For students: get their own requests
+    whereClause.studentId = userId;
+  } else {
+    res.status(403).json({ message: 'Invalid user role' });
+    return;
+  }
+
+  // Get query parameters for filtering (only for instructors)
+  const { status, sessionId } = req.query;
+  
   // Add status filter if provided
   if (status && ['PENDING', 'ACCEPTED', 'REJECTED'].includes(status as string)) {
     whereClause.status = status;
   }
 
-  // Add session filter if provided
-  if (sessionId) {
+  // Add session filter if provided (only for instructors)
+  if (sessionId && user.role === 'INSTRUCTOR') {
     whereClause.sessionId = sessionId;
   }
 
-  // Get session requests for instructor's sessions
+  // Get session requests
   const sessionRequests = await prisma.sessionRequest.findMany({
     where: whereClause,
     include: {
@@ -721,7 +731,24 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
           startTime: true,
           endTime: true,
           maxAttendees: true,
-          students: { select: { id: true } }
+          students: { select: { id: true } },
+          instructor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              profilePicture: true,
+              averageRating: true
+            }
+          },
+          subjects: {
+            select: {
+              id: true,
+              name: true,
+              description: true
+            }
+          }
         }
       }
     },
@@ -733,7 +760,8 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
   res.status(200).json({ 
     message: 'Session requests retrieved successfully', 
     sessionRequests,
-    count: sessionRequests.length
+    count: sessionRequests.length,
+    userRole: user.role
   });
 });
 

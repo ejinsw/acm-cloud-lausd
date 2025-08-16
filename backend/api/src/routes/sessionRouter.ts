@@ -31,7 +31,7 @@ router.post('/sessions/:id/leave', authenticateToken, checkRole(['STUDENT']), le
 // Session requests
 router.post('/session-requests', authenticateToken, checkRole(['STUDENT']), createSessionRequest); //works
 router.delete('/session-requests/:id', authenticateToken, deleteSessionRequest); //works
-router.get('/session-requests', authenticateToken, checkRole(['INSTRUCTOR']), getSessionRequests); //works
+router.get('/session-requests', authenticateToken, getSessionRequests); //works - both students and instructors
 router.post('/session-requests/:id/accept', authenticateToken, checkRole(['INSTRUCTOR']), acceptSessionRequest); //works
 router.post('/session-requests/:id/reject', authenticateToken, checkRole(['INSTRUCTOR']), rejectSessionRequest); //works
 

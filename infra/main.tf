@@ -103,7 +103,8 @@ module "ecs" {
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUER", value = module.cognito.user_pool_client_issuer },
-    { name = "NEXT_PUBLIC_COGNITO_CLIENT_ID", value = module.cognito.user_pool_client_id }
+    { name = "NEXT_PUBLIC_COGNITO_CLIENT_ID", value = module.cognito.user_pool_client_id },
+    { name = "COGNITO_USER_POOL_ID", value = module.cognito.user_pool_id }
   ]
   websocket_environment = [
     { name = "NODE_ENV", value = var.environment },

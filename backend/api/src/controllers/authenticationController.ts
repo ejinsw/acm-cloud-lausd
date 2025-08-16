@@ -9,6 +9,7 @@ import {
   GlobalSignOutCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
+  AdminDeleteUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { prisma } from '../config/prisma';
 import crypto from 'crypto';
@@ -97,39 +98,47 @@ export const signup = expressAsyncHandler(
       });
       return;
     }
+
+    let cognitoUserSub: string | undefined;
+    let cognitoUserCreated = false;
+
     try {
-      const hash = generateSecretHash(
-        email,
-        process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
-        process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
-      );
+      // Start database transaction
+      await prisma.$transaction(async (tx) => {
+        // Step 1: Create user in Cognito
+        const hash = generateSecretHash(
+          email,
+          process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+          process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!
+        );
 
-      console.log('Attempting to create user with email:', email);
+        console.log('Attempting to create user with email:', email);
 
-      const command = new SignUpCommand({
-        ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
-        SecretHash: hash,
-        Username: email,
-        Password: password,
-        UserAttributes: [{ Name: 'email', Value: email }],
-      });
+        const command = new SignUpCommand({
+          ClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+          SecretHash: hash,
+          Username: email,
+          Password: password,
+          UserAttributes: [{ Name: 'email', Value: email }],
+        });
 
-      console.log('Create on cognito');
-      const response = await cognito.send(command);
+        console.log('Creating user in Cognito...');
+        const response = await cognito.send(command);
 
-      console.log('Finished creating on cognito');
-      if (!response.UserSub) {
-        res.status(401).json('No user sub');
-        return;
-      }
+        if (!response.UserSub) {
+          throw new Error('Failed to create Cognito user - no user sub returned');
+        }
 
-      //call the database
-      try {
+        cognitoUserSub = response.UserSub;
+        cognitoUserCreated = true;
+        console.log('Successfully created Cognito user with sub:', cognitoUserSub);
+
+        // Step 2: Create user in PostgreSQL database
         if (role === 'student') {
-          console.log('Create student');
-          await prisma.user.create({
+          console.log('Creating student in database...');
+          await tx.user.create({
             data: {
-              id: response.UserSub,
+              id: cognitoUserSub,
               firstName: firstName,
               lastName: lastName,
               grade: grade,
@@ -146,28 +155,34 @@ export const signup = expressAsyncHandler(
               role: 'STUDENT',
             },
           });
+          console.log('Successfully created student in database');
+        } else if (role === 'instructor') {
+          console.log('Creating instructor in database...');
+          
+          // Validate subjects exist
+          if (!subjects || subjects.length === 0) {
+            throw new Error('Instructors must have at least one credentialed subject');
+          }
 
-          res.status(201).json({ message: 'Signup successful', userSub: response.UserSub });
-          return;
-        } else {
-          const subjects_to_add = await prisma.subject.findMany({
+          const subjectsToAdd = await tx.subject.findMany({
             where: {
               name: {
-                in: subjects ? (Array.isArray(subjects) ? subjects : [subjects]) : [],
+                in: Array.isArray(subjects) ? subjects : [subjects],
               },
             },
             select: { id: true },
           });
 
-          if (subjects_to_add.length !== (subjects?.length ?? 0)) {
-            console.log('Here');
-            res.status(400).json({ error: 'One or more subjects not found' });
-            return;
+          if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
+            const foundSubjectNames = subjectsToAdd.map(s => s.id);
+            const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
+            const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
+            throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
           }
-          console.log('Create instructor');
-          await prisma.user.create({
+
+          await tx.user.create({
             data: {
-              id: response.UserSub,
+              id: cognitoUserSub,
               firstName: firstName,
               lastName: lastName,
               email: email,
@@ -180,25 +195,46 @@ export const signup = expressAsyncHandler(
               country: country,
               schoolName: schoolName,
               subjects: {
-                connect: subjects_to_add.map(s => ({ id: s.id })),
+                connect: subjectsToAdd.map(s => ({ id: s.id })),
               },
               role: 'INSTRUCTOR',
             },
           });
-
-          res.status(201).json({ message: 'Signup successful', userSub: response.UserSub });
-          return;
+          console.log('Successfully created instructor in database');
+        } else {
+          throw new Error(`Invalid role: ${role}`);
         }
-      } catch (dbError) {
-        console.error(dbError);
-        res.status(500).json({ error: 'Internal DB error' });
-        return;
-      }
-    } catch (error: any) {
-      console.error('Cognito signup error:', error);
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
 
+        console.log('Transaction completed successfully');
+      });
+
+      // If we reach here, both Cognito and database operations succeeded
+      res.status(201).json({ 
+        message: 'Signup successful', 
+        userSub: cognitoUserSub,
+        role: role 
+      });
+
+    } catch (error: any) {
+      console.error('Signup error:', error);
+
+      // If Cognito user was created but database failed, clean up Cognito user
+      if (cognitoUserCreated && cognitoUserSub) {
+        try {
+          console.log('Cleaning up Cognito user due to database failure...');
+          const deleteCommand = new AdminDeleteUserCommand({
+            UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+            Username: email,
+          });
+          await cognito.send(deleteCommand);
+          console.log('Successfully cleaned up Cognito user');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Cognito user:', cleanupError);
+          // Log but don't fail the response - this is a cleanup error
+        }
+      }
+
+      // Handle specific error types
       if (error.name === 'UsernameExistsException') {
         res.status(409).json({
           error: 'A user with this email already exists. Please try signing in instead.',
@@ -207,8 +243,18 @@ export const signup = expressAsyncHandler(
         return;
       }
 
-      res.status(500).json({ error: 'Internal server error' });
-      return;
+      if (error.message?.includes('Subjects not found')) {
+        res.status(400).json({ 
+          error: error.message,
+          code: 'INVALID_SUBJECTS'
+        });
+        return;
+      }
+
+      res.status(500).json({ 
+        error: 'Internal server error during signup',
+        details: error.message 
+      });
     }
   }
 );

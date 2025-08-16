@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import { notifications } from "@mantine/notifications";
 import { getToken } from "@/actions/authentication";
 import { SessionRequestsTab } from "./SessionRequestsTab";
@@ -13,11 +13,9 @@ export function SessionRequestsManager({
   sessionRequests, 
   onSessionRequestsChange 
 }: SessionRequestsManagerProps) {
-  const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
   const handleCancelRequest = async (requestId: string) => {
     try {
-      setIsCancelling(requestId);
       const token = await getToken();
       
       const response = await fetch(
@@ -50,7 +48,7 @@ export function SessionRequestsManager({
         color: "red",
       });
     } finally {
-      setIsCancelling(null);
+      // Request cancelled
     }
   };
 

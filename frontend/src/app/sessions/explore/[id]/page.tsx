@@ -318,7 +318,7 @@ function SessionDetailsContent() {
               </Title>
               <Text size="lg" c="dimmed" ta="center">
                 {error ||
-                  "The session you're looking for doesn't exist or has been removed."}
+                  "The session you&apos;re looking for doesn&apos;t exist or has been removed."}
               </Text>
               <Button
                 size="lg"

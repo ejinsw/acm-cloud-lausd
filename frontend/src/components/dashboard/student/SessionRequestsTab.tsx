@@ -1,5 +1,5 @@
-import { Grid, Card, Group, Avatar, Text, Badge, Button, Stack } from "@mantine/core";
-import { Calendar, Clock, User, BookOpen, X } from "lucide-react";
+import { Grid, Card, Group, Text, Badge, Button, Stack } from "@mantine/core";
+import { Calendar, User, BookOpen, X } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { SessionRequest } from "@/lib/types";

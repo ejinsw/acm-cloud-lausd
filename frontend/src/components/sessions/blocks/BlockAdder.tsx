@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Paper, Text, Button, Group, Menu, Box, Stack } from "@mantine/core";
+import { Paper, Text, Button, Menu, Box, Stack } from "@mantine/core";
 import { Plus, BookOpen, Upload, Tag } from "lucide-react";
 
 interface BlockAdderProps {

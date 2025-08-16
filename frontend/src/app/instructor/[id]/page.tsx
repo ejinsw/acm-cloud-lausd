@@ -124,7 +124,7 @@ function InstructorProfileContent() {
             <Stack align="center" gap="md">
               <Title order={2} c="red">Instructor Not Found</Title>
               <Text size="lg" c="dimmed" ta="center">
-                {error || "The instructor you're looking for doesn't exist or has been removed."}
+                {error || "The instructor you&apos;re looking for doesn&apos;t exist or has been removed."}
               </Text>
               <Button 
                 size="lg" 

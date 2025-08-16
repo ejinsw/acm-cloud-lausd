@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Paper, TextInput, Text, Group, ActionIcon, Box, Button } from "@mantine/core";
+import { Paper, TextInput, Text, Group, ActionIcon, Box } from "@mantine/core";
 import { Edit3, Check, X, BookOpen, Trash2 } from "lucide-react";
 
 interface SessionTitleBlockProps {

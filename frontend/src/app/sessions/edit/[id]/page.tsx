@@ -97,7 +97,7 @@ export default function EditSessionPage() {
     return (
       <Container size="xl" py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Session Not Found" color="red">
-          The session you're looking for could not be found.
+          The session you&apos;re looking for could not be found.
         </Alert>
         <Group mt="md">
           <Button variant="outline" onClick={() => router.back()}>

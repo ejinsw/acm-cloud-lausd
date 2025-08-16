@@ -1,4 +1,4 @@
-import { Grid, Card, Group, Avatar, Text, Badge, Button, Rating, Stack } from "@mantine/core";
+import { Grid, Card, Group, Text, Badge, Button, Rating, Stack } from "@mantine/core";
 import { Calendar, Star, Clock, User } from "lucide-react";
 import { Session } from "@/lib/types";
 

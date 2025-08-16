@@ -27,9 +27,7 @@ export const routes = {
   instructorProfile: (id: string) => `/instructor/${id}`,
 
   // Account routes
-  profile: '/profile',
-  settings: '/profile?tab=settings',
-  billing: '/account/billing',
+  settings: '/profile',
   notifications: '/account/notifications',
   
   // Help center

@@ -1,26 +1,19 @@
 "use client";
 
-import {
-  Group,
-  Button,
-  Text,
-  NavLink,
-  Avatar,
-  Menu,
-} from "@mantine/core";
+import { Group, Button, Text, NavLink, Avatar, Menu } from "@mantine/core";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { 
-  BookOpen, 
-  ChevronDown, 
-  Home, 
-  LogIn, 
-  Plus, 
-  Search, 
-  Settings, 
-  User, 
+import {
+  BookOpen,
+  ChevronDown,
+  Home,
+  LogIn,
+  Plus,
+  Search,
+  Settings,
+  User,
   Users,
-  LogOut
+  LogOut,
 } from "lucide-react";
 import { Routes } from "../app/routes";
 import { useAuth } from "./AuthProvider";
@@ -34,7 +27,9 @@ function Logo() {
     <Link href="/" style={{ textDecoration: "none", color: "inherit" }}>
       <Group>
         <BookOpen size={24} />
-        <Text fw={700} size="lg">LAUSD Tutoring</Text>
+        <Text fw={700} size="lg">
+          LAUSD Tutoring
+        </Text>
       </Group>
     </Link>
   );
@@ -43,24 +38,34 @@ function Logo() {
 function DesktopNav({ routes }: NavigationProps) {
   const pathname = usePathname();
   const { user, isAuthenticated } = useAuth();
-  
+
   return (
     <Group gap="lg" visibleFrom="sm">
-      <Link href={routes.home} style={{ textDecoration: "none", color: "inherit" }}>
+      <Link
+        href={routes.home}
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
         <Text fw={pathname === routes.home ? 700 : 400}>Home</Text>
       </Link>
-      
+
       {isAuthenticated && (
-        <Link href={routes.exploreSessions} style={{ textDecoration: "none", color: "inherit" }}>
-          <Text fw={pathname.includes('/sessions/explore') ? 700 : 400}>Explore</Text>
+        <Link
+          href={routes.exploreSessions}
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <Text fw={pathname.includes("/sessions/explore") ? 700 : 400}>
+            Explore
+          </Text>
         </Link>
       )}
-      
+
       {isAuthenticated && user?.role === "INSTRUCTOR" && (
         <Menu offset={0} position="bottom-end" withArrow>
           <Menu.Target>
             <Group style={{ cursor: "pointer" }} gap={4}>
-              <Text fw={pathname.includes('/dashboard/instructor') ? 700 : 400}>Instructor</Text>
+              <Text fw={pathname.includes("/dashboard/instructor") ? 700 : 400}>
+                Instructor
+              </Text>
               <ChevronDown size={16} />
             </Group>
           </Menu.Target>
@@ -71,14 +76,14 @@ function DesktopNav({ routes }: NavigationProps) {
             <Menu.Item component={Link} href={routes.createSession}>
               Create New Session
             </Menu.Item>
-            <Menu.Item component={Link} href={routes.profile}>
-              My Profile
-            </Menu.Item>
           </Menu.Dropdown>
         </Menu>
       )}
-      
-      <Link href={routes.help} style={{ textDecoration: "none", color: "inherit" }}>
+
+      <Link
+        href={routes.help}
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
         <Text fw={pathname === routes.help ? 700 : 400}>Help</Text>
       </Link>
     </Group>
@@ -88,7 +93,7 @@ function DesktopNav({ routes }: NavigationProps) {
 function MobileNav({ routes }: NavigationProps) {
   const pathname = usePathname();
   const { user, isAuthenticated } = useAuth();
-  
+
   return (
     <>
       <NavLink
@@ -98,17 +103,17 @@ function MobileNav({ routes }: NavigationProps) {
         href={routes.home}
         active={pathname === routes.home}
       />
-      
+
       {isAuthenticated && (
         <NavLink
           label="Explore Sessions"
           leftSection={<Search size={18} />}
           component={Link}
           href={routes.exploreSessions}
-          active={pathname.includes('/sessions/explore')}
+          active={pathname.includes("/sessions/explore")}
         />
       )}
-      
+
       {isAuthenticated && user?.role === "INSTRUCTOR" && (
         <>
           <NavLink
@@ -118,7 +123,7 @@ function MobileNav({ routes }: NavigationProps) {
             href={routes.instructorDashboard}
             active={pathname === routes.instructorDashboard}
           />
-          
+
           <NavLink
             label="Create Session"
             leftSection={<Plus size={18} />}
@@ -128,7 +133,7 @@ function MobileNav({ routes }: NavigationProps) {
           />
         </>
       )}
-      
+
       <NavLink
         label="Help Center"
         leftSection={<Search size={18} />}
@@ -136,14 +141,14 @@ function MobileNav({ routes }: NavigationProps) {
         href={routes.help}
         active={pathname === routes.help}
       />
-      
+
       {isAuthenticated ? (
         <NavLink
           label="Account Settings"
           leftSection={<Settings size={18} />}
           component={Link}
-          href={routes.profile}
-          active={pathname === routes.profile || pathname.includes('/profile')}
+          href={routes.settings}
+          active={pathname === routes.settings || pathname.includes("/profile")}
         />
       ) : (
         <NavLink
@@ -160,17 +165,17 @@ function MobileNav({ routes }: NavigationProps) {
 
 function Actions({ routes }: NavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
-  
+
   return (
     <Group>
       {isAuthenticated && user ? (
         <Menu position="bottom-end" withArrow offset={4}>
           <Menu.Target>
             <Group style={{ cursor: "pointer" }} gap="xs">
-              <Avatar 
-                src={`https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}`} 
-                size="sm" 
-                radius="xl" 
+              <Avatar
+                src={`https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}`}
+                size="sm"
+                radius="xl"
               />
               <Text fw={500} hiddenFrom="sm">
                 {user.firstName} {user.lastName}
@@ -179,28 +184,53 @@ function Actions({ routes }: NavigationProps) {
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Label>
-              Signed in as<br />
+              Signed in as
+              <br />
               <Text fw={500}>{user.email}</Text>
             </Menu.Label>
             <Menu.Divider />
             {user.role === "STUDENT" && (
-              <Menu.Item component={Link} href={routes.studentDashboard} leftSection={<Home size={14} />}>
+              <Menu.Item
+                component={Link}
+                href={routes.studentDashboard}
+                leftSection={<Home size={14} />}
+              >
                 Student Dashboard
               </Menu.Item>
             )}
             {user.role === "INSTRUCTOR" && (
-              <Menu.Item component={Link} href={routes.instructorDashboard} leftSection={<Home size={14} />}>
+              <Menu.Item
+                component={Link}
+                href={routes.instructorDashboard}
+                leftSection={<Home size={14} />}
+              >
                 Instructor Dashboard
               </Menu.Item>
             )}
-            <Menu.Item component={Link} href={routes.profile} leftSection={<User size={14} />}>
-              My Profile
-            </Menu.Item>
-            <Menu.Item component={Link} href={`${routes.profile}`} leftSection={<Settings size={14} />}>
+
+            {user.role === "INSTRUCTOR" && (
+              <Menu.Item
+                component={Link}
+                href={routes.instructorProfile(user.id)}
+                leftSection={<User size={14} />}
+              >
+                My Profile
+              </Menu.Item>
+            )}
+
+            <Menu.Item
+              component={Link}
+              href={`${routes.settings}`}
+              leftSection={<Settings size={14} />}
+            >
               Account Settings
             </Menu.Item>
             <Menu.Divider />
-            <Menu.Item color="red" leftSection={<LogOut size={14} />} onClick={logout}>
+            <Menu.Item
+              color="red"
+              leftSection={<LogOut size={14} />}
+              onClick={logout}
+            >
               Sign Out
             </Menu.Item>
           </Menu.Dropdown>
@@ -226,4 +256,4 @@ const Navigation = {
   Actions,
 };
 
-export default Navigation; 
+export default Navigation;

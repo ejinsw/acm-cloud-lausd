@@ -23,11 +23,11 @@ export interface User {
   parentLastName?: string;
   parentEmail?: string;
   parentPhone?: string;
-  interests?: string;
-  learningGoals?: string;
-  education?: string;
-  experience?: string;
-  certificationUrls?: string;
+  interests?: string[];
+  learningGoals?: string[];
+  education?: string[];
+  experience?: string[];
+  certificationUrls?: string[];
   subjects?: Array<{ id: string; name: string }>;
   averageRating?: number;
   sessionRequests?: SessionRequest[];

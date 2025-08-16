@@ -34,9 +34,14 @@ function ProfileContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<UserType | null>(null);
+  const [originalUser, setOriginalUser] = useState<UserType | null>(null);
   const [
     deleteModalOpened,
     { open: openDeleteModal, close: closeDeleteModal },
+  ] = useDisclosure(false);
+  const [
+    resetModalOpened,
+    { open: openResetModal, close: closeResetModal },
   ] = useDisclosure(false);
 
   // Get initial tab from URL or default to "profile"
@@ -52,6 +57,29 @@ function ProfileContent() {
       router.push(`?${params.toString()}`);
     }
   }, [activeTab, router, searchParams]);
+
+  // Warn user before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return 'You have unsaved changes. Are you sure you want to leave?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user, originalUser]);
+
+  // Update page title when there are unsaved changes
+  useEffect(() => {
+    if (hasUnsavedChanges()) {
+      document.title = 'Profile & Settings - *Unsaved Changes*';
+    } else {
+      document.title = 'Profile & Settings';
+    }
+  }, [user, originalUser]);
 
   // Fetch user profile on component mount
   useEffect(() => {
@@ -111,6 +139,7 @@ function ProfileContent() {
           country: data.user?.country,
         });
         setUser(data.user);
+        setOriginalUser(data.user); // Store original user data
       } catch (error: unknown) {
         console.error("Profile fetch error:", error);
         const errorMessage =
@@ -132,7 +161,7 @@ function ProfileContent() {
   }, [router]);
 
   const handleSaveProfile = async () => {
-    if (!user) return;
+    if (!user || !originalUser) return;
 
     try {
       setLoading(true);
@@ -150,30 +179,92 @@ function ProfileContent() {
         return;
       }
 
-      const updateData = {
-        // Common fields for both roles
-        street: user.street,
-        ...(user.apartment && { apartment: user.apartment }), // Only include if apartment has a value
-        city: user.city,
-        state: user.state,
-        zip: user.zip,
-        country: user.country,
-        ...(user.bio && { bio: user.bio }), // Only include if bio has a value
-        ...(user.role === "STUDENT" && {
-          // Student-specific fields only
-          grade: user.grade,
-          parentEmail: user.parentEmail,
-        }),
-        ...(user.role === "INSTRUCTOR" && {
-          // Instructor-specific fields only
-          firstName: user.firstName,
-          lastName: user.lastName,
-          education: user.education,
-          experience: user.experience,
-          certificationUrls: user.certificationUrls,
-          subjects: user.subjects?.map((s) => s.name) || [],
-        }),
+      // Only include fields that have actually changed from their original values
+      const updateData: Partial<{
+        street: string;
+        apartment: string;
+        city: string;
+        state: string;
+        zip: string;
+        country: string;
+        bio: string;
+        grade: string;
+        parentEmail: string;
+        education: string[];
+        experience: string[];
+        certificationUrls: string[];
+        subjects: string[];
+      }> = {};
+
+      // Helper function to check if a field has changed
+      const hasChanged = (field: keyof UserType, currentValue: unknown, originalValue: unknown) => {
+        if (Array.isArray(currentValue) && Array.isArray(originalValue)) {
+          return JSON.stringify(currentValue) !== JSON.stringify(originalValue);
+        }
+        return currentValue !== originalValue;
       };
+
+      // Common fields - only include if they have changed
+      if (hasChanged('street', user.street, originalUser.street)) {
+        updateData.street = user.street;
+      }
+      if (hasChanged('apartment', user.apartment, originalUser.apartment)) {
+        updateData.apartment = user.apartment;
+      }
+      if (hasChanged('city', user.city, originalUser.city)) {
+        updateData.city = user.city;
+      }
+      if (hasChanged('state', user.state, originalUser.state)) {
+        updateData.state = user.state;
+      }
+      if (hasChanged('zip', user.zip, originalUser.zip)) {
+        updateData.zip = user.zip;
+      }
+      if (hasChanged('country', user.country, originalUser.country)) {
+        updateData.country = user.country;
+      }
+      if (hasChanged('bio', user.bio, originalUser.bio)) {
+        updateData.bio = user.bio;
+      }
+
+      // Role-specific fields
+      if (user.role === "STUDENT") {
+        if (hasChanged('grade', user.grade, originalUser.grade)) {
+          updateData.grade = user.grade;
+        }
+        if (hasChanged('parentEmail', user.parentEmail, originalUser.parentEmail)) {
+          updateData.parentEmail = user.parentEmail;
+        }
+      }
+
+      if (user.role === "INSTRUCTOR") {
+        // Only include instructor fields if they have changed
+        if (hasChanged('education', user.education, originalUser.education)) {
+          // Filter out empty strings when sending to backend, but preserve user's ability to add items
+          updateData.education = user.education?.filter(line => line.trim() !== '') || [];
+        }
+        if (hasChanged('experience', user.experience, originalUser.experience)) {
+          // Filter out empty strings when sending to backend, but preserve user's ability to add items
+          updateData.experience = user.experience?.filter(line => line.trim() !== '') || [];
+        }
+        if (hasChanged('certificationUrls', user.certificationUrls, originalUser.certificationUrls)) {
+          updateData.certificationUrls = user.certificationUrls;
+        }
+        if (hasChanged('subjects', user.subjects, originalUser.subjects)) {
+          updateData.subjects = user.subjects?.map((s) => s.name) || [];
+        }
+      }
+
+      // Only proceed if there are fields to update
+      if (Object.keys(updateData).length === 0) {
+        notifications.show({
+          title: "No Changes",
+          message: "No changes detected to save",
+          color: "blue",
+          icon: <CheckCircle2 size={16} />,
+        });
+        return;
+      }
 
       console.log("Sending update data:", updateData);
 
@@ -201,6 +292,10 @@ function ProfileContent() {
             `Failed to update profile (${response.status})`
         );
       }
+
+      // Update the original user data after successful update
+      const updatedUserData = await response.json();
+      setOriginalUser(updatedUserData.user);
 
       notifications.show({
         title: "Success!",
@@ -285,6 +380,53 @@ function ProfileContent() {
     }
   };
 
+  const handleResetChanges = () => {
+    openResetModal();
+  };
+
+  const confirmResetChanges = () => {
+    if (originalUser) {
+      setUser(originalUser);
+      notifications.show({
+        title: "Changes Reset",
+        message: "Your changes have been reset to the original values",
+        color: "blue",
+        icon: <CheckCircle2 size={16} />,
+      });
+      closeResetModal();
+    }
+  };
+
+  const getChangedFields = () => {
+    if (!user || !originalUser) return [];
+    
+    const hasChanged = (field: keyof UserType, currentValue: unknown, originalValue: unknown) => {
+      if (Array.isArray(currentValue) && Array.isArray(originalValue)) {
+        return JSON.stringify(currentValue) !== JSON.stringify(originalValue);
+      }
+      return currentValue !== originalValue;
+    };
+
+    const fieldsToCheck: (keyof UserType)[] = [
+      'street', 'apartment', 'city', 'state', 'zip', 'country', 'bio'
+    ];
+
+    if (user.role === 'STUDENT') {
+      fieldsToCheck.push('grade', 'parentEmail');
+    }
+
+    if (user.role === 'INSTRUCTOR') {
+      fieldsToCheck.push('education', 'experience', 'certificationUrls');
+      // Note: subjects field is not in the UI, so we don't check it
+    }
+
+    return fieldsToCheck.filter(field => hasChanged(field, user[field], originalUser[field]));
+  };
+
+  const hasUnsavedChanges = () => {
+    return getChangedFields().length > 0;
+  };
+
   // Helper function to normalize grade value
   const normalizeGrade = (grade: string | undefined): string => {
     if (!grade) return "";
@@ -331,15 +473,27 @@ function ProfileContent() {
 
         <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
           <Tabs.List>
-            <Tabs.Tab value="profile" leftSection={<User size={16} />}>
+            <Tabs.Tab 
+              value="profile" 
+              leftSection={<User size={16} />}
+              rightSection={hasUnsavedChanges() ? <div className="w-2 h-2 bg-orange-500 rounded-full" /> : undefined}
+            >
               Profile
             </Tabs.Tab>
             {user.role === "STUDENT" && (
-              <Tabs.Tab value="parent" leftSection={<User size={16} />}>
+              <Tabs.Tab 
+                value="parent" 
+                leftSection={<User size={16} />}
+                rightSection={hasUnsavedChanges() ? <div className="w-2 h-2 bg-orange-500 rounded-full" /> : undefined}
+              >
                 Parent Info
               </Tabs.Tab>
             )}
-            <Tabs.Tab value="address" leftSection={<User size={16} />}>
+            <Tabs.Tab 
+              value="address" 
+              leftSection={<User size={16} />}
+              rightSection={hasUnsavedChanges() ? <div className="w-2 h-2 bg-orange-500 rounded-full" /> : undefined}
+            >
               Address
             </Tabs.Tab>
 
@@ -448,47 +602,70 @@ function ProfileContent() {
                         </Text>
                         <Textarea
                           label="Education"
-                          placeholder="Your educational background and qualifications"
-                          value={user.education || ""}
-                          onChange={(e) =>
+                          placeholder="Your educational background and qualifications (one per line)"
+                          value={(user.education || []).join('\n')}
+                          onChange={(e) => {
+                            // Split by newlines and preserve all lines, including empty ones
+                            const lines = e.target.value.split('\n');
                             setUser((prev) =>
                               prev
-                                ? { ...prev, education: e.target.value }
+                                ? { ...prev, education: lines }
                                 : null
-                            )
-                          }
+                            );
+                          }}
                           rows={3}
                         />
+                        <Text size="xs" c="dimmed">
+                          Enter each qualification on a new line. You can leave empty lines while typing.
+                        </Text>
                         <Textarea
                           label="Experience"
-                          placeholder="Your teaching and professional experience"
-                          value={user.experience || ""}
-                          onChange={(e) =>
+                          placeholder="Your teaching and professional experience (one per line)"
+                          value={(user.experience || []).join('\n')}
+                          onChange={(e) => {
+                            // Split by newlines and preserve all lines, including empty ones
+                            const lines = e.target.value.split('\n');
                             setUser((prev) =>
                               prev
-                                ? { ...prev, experience: e.target.value }
+                                ? { ...prev, experience: lines }
                                 : null
-                            )
-                          }
+                            );
+                          }}
                           rows={3}
                         />
+                        <Text size="xs" c="dimmed">
+                          Enter each experience on a new line. You can leave empty lines while typing.
+                        </Text>
                         <TextInput
                           label="Certification URLs"
                           placeholder="Links to your certifications (comma-separated)"
-                          value={user.certificationUrls || ""}
-                          onChange={(e) =>
+                          value={(user.certificationUrls || []).join(', ')}
+                          onChange={(e) => {
+                            const urls = e.target.value.split(',').map(url => url.trim()).filter(url => url !== '');
                             setUser((prev) =>
                               prev
-                                ? { ...prev, certificationUrls: e.target.value }
+                                ? { ...prev, certificationUrls: urls }
                                 : null
-                            )
-                          }
+                            );
+                          }}
                         />
                       </>
                     )}
 
                     <Group justify="flex-end">
-                      <Button onClick={handleSaveProfile}>Save Changes</Button>
+                      {hasUnsavedChanges() && (
+                        <>
+                          <Text size="sm" c="dimmed" style={{ flex: 1 }}>
+                            Changes: {getChangedFields().join(', ')}
+                          </Text>
+                          <Button variant="light" onClick={handleResetChanges}>
+                            Reset Changes
+                          </Button>
+                        </>
+                      )}
+                      <Button onClick={handleSaveProfile} disabled={!hasUnsavedChanges()}>
+                        Save Changes
+                      </Button>
                     </Group>
                   </Stack>
                 </Grid.Col>
@@ -515,7 +692,19 @@ function ProfileContent() {
                     }
                   />
                   <Group justify="flex-end">
-                    <Button onClick={handleSaveProfile}>Save Changes</Button>
+                    {hasUnsavedChanges() && (
+                      <>
+                        <Text size="sm" c="dimmed" style={{ flex: 1 }}>
+                          Changes: {getChangedFields().join(', ')}
+                        </Text>
+                        <Button variant="light" onClick={handleResetChanges}>
+                          Reset Changes
+                        </Button>
+                      </>
+                    )}
+                    <Button onClick={handleSaveProfile} disabled={!hasUnsavedChanges()}>
+                      Save Changes
+                    </Button>
                   </Group>
                 </Stack>
               </Box>
@@ -594,7 +783,19 @@ function ProfileContent() {
                   />
                 </Group>
                 <Group justify="flex-end">
-                  <Button onClick={handleSaveProfile}>Save Changes</Button>
+                  {hasUnsavedChanges() && (
+                    <>
+                      <Text size="sm" c="dimmed" style={{ flex: 1 }}>
+                        Changes: {getChangedFields().join(', ')}
+                      </Text>
+                      <Button variant="light" onClick={handleResetChanges}>
+                        Reset Changes
+                      </Button>
+                    </>
+                  )}
+                  <Button onClick={handleSaveProfile} disabled={!hasUnsavedChanges()}>
+                    Save Changes
+                  </Button>
                 </Group>
               </Stack>
             </Box>
@@ -652,6 +853,33 @@ function ProfileContent() {
             </Button>
             <Button color="red" onClick={handleDeleteAccount}>
               Delete Account
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Reset Changes Confirmation Modal */}
+      <Modal
+        opened={resetModalOpened}
+        onClose={closeResetModal}
+        title="Confirm Reset"
+        centered
+        size="md"
+      >
+        <Stack gap="md">
+          <Text>
+            Are you sure you want to reset your changes? This action cannot be
+            undone.
+          </Text>
+          <Text size="sm" c="dimmed">
+            Your current changes will be lost.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="light" onClick={closeResetModal}>
+              Cancel
+            </Button>
+            <Button color="blue" onClick={confirmResetChanges}>
+              Reset Changes
             </Button>
           </Group>
         </Stack>

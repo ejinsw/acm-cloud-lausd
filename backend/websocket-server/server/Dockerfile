@@ -21,14 +21,16 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy built application from builder stage
+# Copy source code and node_modules
 COPY --from=builder /app/index.js ./
+COPY --from=builder /app/node_modules ./node_modules
 
-# Expose the WebSocket port
-EXPOSE 8080
+# Expose the WebSocket port (will be overridden by environment variable)
+EXPOSE 9999
 
 # Set environment variables
 ENV NODE_ENV=production
+ENV PORT=9999
 
 # Start the server
 CMD ["node", "index.js"]

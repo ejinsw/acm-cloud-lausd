@@ -102,8 +102,8 @@ resource "aws_cognito_user_pool_client" "main" {
 
   # Token validity periods
   refresh_token_validity = 30  # 1 month
-  id_token_validity      = 7   # 7 days
-  access_token_validity  = 7   # 7 days
+  id_token_validity      = 1   # 1 day
+  access_token_validity  = 1   # 1 day
 
   # Prevent user existence errors
   prevent_user_existence_errors = "ENABLED"

@@ -34,6 +34,7 @@ import {
   IconCheck,
   IconX,
   IconAlertCircle,
+  IconMessage,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
@@ -415,20 +416,33 @@ function SessionDetailsContent() {
                     As the instructor, you can manage this session from the Management tab in the session details.
                   </Text>
                   
-                  {/* Zoom Meeting Button for Instructors */}
-                  {session.zoomLink && (
+                  {/* Live Session and Zoom Meeting Buttons for Instructors */}
+                  <Stack gap="sm">
                     <Button
                       fullWidth
                       size="md"
-                      color="blue"
-                      leftSection={<IconPlayerPlay size={16} />}
+                      color="green"
+                      leftSection={<IconMessage size={16} />}
                       component={Link}
-                      href={session.zoomLink}
-                      target="_blank"
+                      href={routes.session(session.id)}
                     >
-                      Join Zoom Meeting
+                      Join Live Session
                     </Button>
-                  )}
+                    
+                    {session.zoomLink && (
+                      <Button
+                        fullWidth
+                        size="md"
+                        color="blue"
+                        leftSection={<IconPlayerPlay size={16} />}
+                        component={Link}
+                        href={session.zoomLink}
+                        target="_blank"
+                      >
+                        Join Zoom Meeting
+                      </Button>
+                    )}
+                  </Stack>
                   
                   <Group gap="sm">
                     <Button
@@ -591,31 +605,45 @@ function SessionDetailsContent() {
                     {/* ACCEPTED STATUS - Can join session or cancel */}
                     {sessionRequestStatus === "ACCEPTED" && (
                       <>
-                        <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
-                          <Button
-                            fullWidth
-                            size="md"
-                            color="green"
-                            leftSection={<IconPlayerPlay size={16} />}
-                            component={Link}
-                            href={session.zoomLink || "#"}
-                            target="_blank"
-                            disabled={!session.zoomLink}
-                          >
-                            {session.zoomLink ? "Join Session" : "Session Link TBD"}
-                          </Button>
-                          {getCurrentSessionRequestId() && (
+                        <Stack gap="sm">
+                          <Group gap="sm" justify="space-between" w="100%" wrap="nowrap">
                             <Button
+                              fullWidth
                               size="md"
-                              color="red"
-                              variant="outline"
-                              onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
-                              title="Cancel Session"
+                              color="blue"
+                              leftSection={<IconMessage size={16} />}
+                              component={Link}
+                              href={routes.session(session.id)}
                             >
-                              <LogOut size={16} />
+                              Join Live Session
+                            </Button>
+                            {getCurrentSessionRequestId() && (
+                              <Button
+                                size="md"
+                                color="red"
+                                variant="outline"
+                                onClick={() => handleCancelRequest(getCurrentSessionRequestId()!)}
+                                title="Cancel Session"
+                              >
+                                <LogOut size={16} />
+                              </Button>
+                            )}
+                          </Group>
+                          
+                          {session.zoomLink && (
+                            <Button
+                              fullWidth
+                              size="md"
+                              color="green"
+                              leftSection={<IconPlayerPlay size={16} />}
+                              component={Link}
+                              href={session.zoomLink}
+                              target="_blank"
+                            >
+                              Join Zoom Meeting
                             </Button>
                           )}
-                        </Group>
+                        </Stack>
                         
                         {/* Session reminder for accepted sessions */}
                         {session.startTime && (
@@ -636,6 +664,8 @@ function SessionDetailsContent() {
                                 minute: "2-digit",
                                 timeZoneName: "short",
                               })}
+                              . Use the "Join Live Session" button to access the chat and session materials.
+                              {session.zoomLink && " You can also join the Zoom meeting separately."}
                             </Text>
                           </Box>
                         )}

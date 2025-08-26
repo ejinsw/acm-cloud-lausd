@@ -85,6 +85,17 @@ module "cognito" {
   frontend_url          = "https://acm-cloud-lausd.vercel.app/"
 }
 
+# Cognito Admin IAM Setup
+module "cognito_admin" {
+  source = "./modules/cognito_admin"
+
+  environment    = var.environment
+  user_pool_arn  = module.cognito.user_pool_arn
+  user_pool_id   = module.cognito.user_pool_id
+
+  depends_on = [module.cognito]
+}
+
 # --- Remove Lambda and API Gateway modules ---
 # module "lambda_api" { ... }
 # module "lambda_websocket" { ... }
@@ -104,7 +115,10 @@ module "ecs" {
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUER", value = module.cognito.user_pool_client_issuer },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ID", value = module.cognito.user_pool_client_id },
-    { name = "COGNITO_USER_POOL_ID", value = module.cognito.user_pool_id }
+    { name = "COGNITO_USER_POOL_ID", value = module.cognito.user_pool_id },
+    { name = "AWS_REGION", value = "us-west-1" },
+    { name = "AWS_ACCESS_KEY_ID", value = module.cognito_admin.admin_access_key_id },
+    { name = "AWS_SECRET_ACCESS_KEY", value = module.cognito_admin.admin_secret_access_key }
   ]
   websocket_environment = [
     { name = "NODE_ENV", value = var.environment },

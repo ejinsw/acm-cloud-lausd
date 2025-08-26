@@ -5,7 +5,7 @@
 export interface User {
   id: string;
   email: string;
-  role: "STUDENT" | "INSTRUCTOR";
+  role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
   firstName: string;
   lastName: string;
   birthdate?: string;

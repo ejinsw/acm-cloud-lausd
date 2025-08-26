@@ -22,7 +22,7 @@ resource "aws_cognito_user_pool" "main" {
   username_attributes = ["email"]
 
   # SMS verification message
-  sms_verification_message = "Your verification code."
+  sms_verification_message = "Your verification code is {####}."
 
   # Email verification message
   email_verification_message = "Your verification code is {####}.\n\nOr use this link: ${var.frontend_url}/auth/email-verification?code={####}"

@@ -50,3 +50,15 @@ output "ecs_cluster_id" {
 output "alb_dns_name" {
   value = module.ecs.alb_dns_name
 }
+
+output "admin_access_key_id" {
+  description = "AWS Access Key ID for Cognito admin operations"
+  value       = module.cognito_admin.admin_access_key_id
+  sensitive   = true
+}
+
+output "admin_secret_access_key" {
+  description = "AWS Secret Access Key for Cognito admin operations"
+  value       = module.cognito_admin.admin_secret_access_key
+  sensitive   = true
+}

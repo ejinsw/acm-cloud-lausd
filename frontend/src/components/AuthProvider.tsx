@@ -287,8 +287,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user &&
         (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")
       ) {
-        // Redirect to dashboard if accessing public route while authenticated
-        router.push("/dashboard/student");
+        // Redirect to appropriate dashboard based on role
+        if (user.role === "ADMIN") {
+          router.push("/dashboard/admin");
+        } else if (user.role === "INSTRUCTOR") {
+          router.push("/dashboard/instructor");
+        } else {
+          router.push("/dashboard/student");
+        }
       }
     }
   }, [isInitialized, isLoading, user, pathname, router]);
@@ -326,7 +332,7 @@ export function useAuth() {
 // Higher-order component for route protection
 export function withAuth<P extends object>(
   Component: React.ComponentType<P>,
-  requiredRole?: "STUDENT" | "INSTRUCTOR"
+  requiredRole?: "STUDENT" | "INSTRUCTOR" | "ADMIN"
 ) {
   return function ProtectedComponent(props: P) {
     const { user, isLoading, isAuthenticated } = useAuth();

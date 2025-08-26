@@ -73,8 +73,14 @@ export default function SignInPage() {
       const userData = await login(values.email, values.password);
       
       if (userData) {
-        // Redirect based on user role (handled by AuthProvider)
-        router.push(userData.role === "INSTRUCTOR" ? routes.instructorDashboard : routes.studentDashboard);
+        // Redirect based on user role
+        if (userData.role === "ADMIN") {
+          router.push(routes.adminDashboard);
+        } else if (userData.role === "INSTRUCTOR") {
+          router.push(routes.instructorDashboard);
+        } else {
+          router.push(routes.studentDashboard);
+        }
       }
     } catch (error) {
       console.error('Login error:', error);

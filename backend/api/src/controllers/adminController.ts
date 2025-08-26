@@ -1,6 +1,8 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { cognito } from '../lib/cognitoSDK';
+import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const prisma = new PrismaClient();
 
@@ -75,7 +77,52 @@ export const adminDeleteUser = expressAsyncHandler(
 );
 
 export const resetUserPassword = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {}
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to reset passwords' });
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      return;
+    }
+
+    const existingUser = await prisma.user.findUnique({ 
+      where: { id },
+      select: { id: true, email: true }
+    });
+
+    if (!existingUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    try {
+      // Reset password in Cognito
+      const setPasswordCommand = new AdminSetUserPasswordCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: existingUser.email,
+        Password: newPassword,
+        Permanent: true
+      });
+
+      await cognito.send(setPasswordCommand);
+      res.status(200).json({ message: 'Password reset successfully' });
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      res.status(500).json({ message: 'Failed to reset password', details: error.message });
+    }
+  }
 );
 
 export const adminUpdateSession = expressAsyncHandler(
@@ -233,5 +280,346 @@ export const adminDeleteSession = expressAsyncHandler(
 
     await prisma.session.delete({ where: { id } });
     res.status(200).json({ message: 'Session deleted successfully' });
+  }
+);
+
+// Get all users for admin management
+export const getAllUsers = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+    const { page = 1, limit = 10, role: roleFilter, verified, search } = req.query;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to view all users' });
+      return;
+    }
+
+    try {
+      const skip = (Number(page) - 1) * Number(limit);
+      
+      // Build where clause for filtering
+      const where: any = {};
+      
+      if (roleFilter && ['STUDENT', 'INSTRUCTOR', 'ADMIN'].includes(roleFilter as string)) {
+        where.role = roleFilter;
+      }
+      
+      if (verified !== undefined) {
+        where.verified = verified === 'true';
+      }
+      
+      if (search) {
+        where.OR = [
+          { firstName: { contains: search as string, mode: 'insensitive' } },
+          { lastName: { contains: search as string, mode: 'insensitive' } },
+          { email: { contains: search as string, mode: 'insensitive' } }
+        ];
+      }
+
+      const [users, totalCount] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            verified: true,
+            createdAt: true,
+            updatedAt: true,
+            averageRating: true,
+            certificationUrls: true,
+          },
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.user.count({ where })
+      ]);
+
+      res.status(200).json({
+        users,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total: totalCount,
+          pages: Math.ceil(totalCount / Number(limit))
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ message: 'Failed to fetch users', details: error.message });
+    }
+  }
+);
+
+// Get unverified instructors for document review
+export const getUnverifiedInstructors = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to view unverified instructors' });
+      return;
+    }
+
+    try {
+      const unverifiedInstructors = await prisma.user.findMany({
+        where: {
+          role: 'INSTRUCTOR',
+          verified: false
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          education: true,
+          experience: true,
+          certificationUrls: true,
+          bio: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+
+      res.status(200).json({ instructors: unverifiedInstructors });
+    } catch (error: any) {
+      console.error('Error fetching unverified instructors:', error);
+      res.status(500).json({ message: 'Failed to fetch unverified instructors', details: error.message });
+    }
+  }
+);
+
+// Create a new admin account
+export const createAdminAccount = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+    const { email, firstName, lastName, password } = req.body;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to create admin accounts' });
+      return;
+    }
+
+    // Validate required fields
+    if (!email || !firstName || !lastName || !password) {
+      res.status(400).json({ message: 'Email, first name, last name, and password are required' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      return;
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      res.status(400).json({ message: 'User with this email already exists' });
+      return;
+    }
+
+    try {
+      // Create user in Cognito
+      const createUserCommand = new AdminCreateUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: email,
+        UserAttributes: [
+          { Name: 'email', Value: email },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+        TemporaryPassword: password,
+        MessageAction: 'SUPPRESS' // Don't send welcome email
+      });
+
+      const cognitoResponse = await cognito.send(createUserCommand);
+      const userId = cognitoResponse.User?.Username;
+
+      if (!userId) {
+        res.status(500).json({ message: 'Failed to create user in Cognito' });
+        return;
+      }
+
+      // Set permanent password
+      const setPasswordCommand = new AdminSetUserPasswordCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: email,
+        Password: password,
+        Permanent: true
+      });
+
+      await cognito.send(setPasswordCommand);
+
+      // Create user in database
+      const newUser = await prisma.user.create({
+        data: {
+          id: userId,
+          email,
+          firstName,
+          lastName,
+          role: 'ADMIN',
+          verified: true
+        }
+      });
+
+      res.status(201).json({ 
+        message: 'Admin account created successfully',
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          role: newUser.role
+        }
+      });
+    } catch (error: any) {
+      console.error('Error creating admin account:', error);
+      res.status(500).json({ message: 'Failed to create admin account', details: error.message });
+    }
+  }
+);
+
+// Update user role
+export const updateUserRole = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+    const { id } = req.params;
+    const { role: newRole } = req.body;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to update user roles' });
+      return;
+    }
+
+    if (!['STUDENT', 'INSTRUCTOR', 'ADMIN'].includes(newRole)) {
+      res.status(400).json({ message: 'Invalid role. Must be STUDENT, INSTRUCTOR, or ADMIN' });
+      return;
+    }
+
+    const existingUser = await prisma.user.findUnique({ 
+      where: { id },
+      select: { id: true, email: true, role: true }
+    });
+
+    if (!existingUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    try {
+      // Update role in Cognito
+      const updateAttributesCommand = new AdminUpdateUserAttributesCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: existingUser.email,
+        UserAttributes: [
+          { Name: 'custom:role', Value: newRole }
+        ]
+      });
+
+      await cognito.send(updateAttributesCommand);
+
+      // Update role in database
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: { role: newRole },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          verified: true
+        }
+      });
+
+      res.status(200).json({ 
+        message: 'User role updated successfully',
+        user: updatedUser
+      });
+    } catch (error: any) {
+      console.error('Error updating user role:', error);
+      res.status(500).json({ message: 'Failed to update user role', details: error.message });
+    }
+  }
+);
+
+// Get admin dashboard statistics
+export const getAdminStats = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to view statistics' });
+      return;
+    }
+
+    try {
+      const [
+        totalUsers,
+        totalStudents,
+        totalInstructors,
+        totalAdmins,
+        unverifiedInstructors,
+        totalSessions,
+        activeSessions,
+        totalReviews
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { role: 'STUDENT' } }),
+        prisma.user.count({ where: { role: 'INSTRUCTOR' } }),
+        prisma.user.count({ where: { role: 'ADMIN' } }),
+        prisma.user.count({ where: { role: 'INSTRUCTOR', verified: false } }),
+        prisma.session.count(),
+        prisma.session.count({ where: { status: 'IN_PROGRESS' } }),
+        prisma.review.count()
+      ]);
+
+      res.status(200).json({
+        users: {
+          total: totalUsers,
+          students: totalStudents,
+          instructors: totalInstructors,
+          admins: totalAdmins,
+          unverifiedInstructors
+        },
+        sessions: {
+          total: totalSessions,
+          active: activeSessions
+        },
+        reviews: {
+          total: totalReviews
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching admin stats:', error);
+      res.status(500).json({ message: 'Failed to fetch statistics', details: error.message });
+    }
   }
 );

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   BookOpen,
-  ChevronDown,
   Home,
   LogIn,
   Plus,
@@ -37,7 +36,7 @@ function Logo() {
 
 function DesktopNav({ routes }: NavigationProps) {
   const pathname = usePathname();
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   return (
     <Group gap="lg" visibleFrom="sm">
@@ -57,27 +56,6 @@ function DesktopNav({ routes }: NavigationProps) {
             Explore
           </Text>
         </Link>
-      )}
-
-      {isAuthenticated && user?.role === "INSTRUCTOR" && (
-        <Menu offset={0} position="bottom-end" withArrow>
-          <Menu.Target>
-            <Group style={{ cursor: "pointer" }} gap={4}>
-              <Text fw={pathname.includes("/dashboard/instructor") ? 700 : 400}>
-                Instructor
-              </Text>
-              <ChevronDown size={16} />
-            </Group>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item component={Link} href={routes.instructorDashboard}>
-              Dashboard
-            </Menu.Item>
-            <Menu.Item component={Link} href={routes.createSession}>
-              Create New Session
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
       )}
 
       <Link
@@ -205,6 +183,15 @@ function Actions({ routes }: NavigationProps) {
                 leftSection={<Home size={14} />}
               >
                 Instructor Dashboard
+              </Menu.Item>
+            )}
+            {user.role === "ADMIN" && (
+              <Menu.Item
+                component={Link}
+                href={routes.adminDashboard}
+                leftSection={<Home size={14} />}
+              >
+                Admin Dashboard
               </Menu.Item>
             )}
 

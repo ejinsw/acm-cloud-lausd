@@ -10,6 +10,7 @@ import {
   createAdminAccount,
   updateUserRole,
   getAdminStats,
+  confirmUserAccount,
 } from '../controllers/adminController';
 import { authenticateToken, checkRole } from '../middleware/auth';
 
@@ -26,6 +27,7 @@ router.get('/admin/users', ...adminAuth, getAllUsers);
 router.delete('/admin/users/:id', ...adminAuth, adminDeleteUser);
 router.put('/admin/users/:id/role', ...adminAuth, updateUserRole);
 router.post('/admin/users/:id/reset-password', ...adminAuth, resetUserPassword);
+router.post('/admin/users/:id/confirm', ...adminAuth, confirmUserAccount);
 
 // Instructor verification
 router.get('/admin/instructors/unverified', ...adminAuth, getUnverifiedInstructors);

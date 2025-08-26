@@ -2,7 +2,7 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
-import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const prisma = new PrismaClient();
 
@@ -620,6 +620,71 @@ export const getAdminStats = expressAsyncHandler(
     } catch (error: any) {
       console.error('Error fetching admin stats:', error);
       res.status(500).json({ message: 'Failed to fetch statistics', details: error.message });
+    }
+  }
+);
+
+// Manually confirm any user account
+export const confirmUserAccount = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string });
+    const { id } = req.params;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to confirm user accounts' });
+      return;
+    }
+
+    const existingUser = await prisma.user.findUnique({ 
+      where: { id },
+      select: { id: true, email: true, verified: true }
+    });
+
+    if (!existingUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (existingUser.verified) {
+      res.status(400).json({ message: 'User is already verified' });
+      return;
+    }
+
+    try {
+      // Confirm user in Cognito
+      const confirmCommand = new AdminConfirmSignUpCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: existingUser.email
+      });
+
+      await cognito.send(confirmCommand);
+
+      // Update verified status in database
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: { verified: true },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          verified: true
+        }
+      });
+
+      res.status(200).json({ 
+        message: 'User account confirmed successfully',
+        user: updatedUser
+      });
+    } catch (error: any) {
+      console.error('Error confirming user account:', error);
+      res.status(500).json({ message: 'Failed to confirm user account', details: error.message });
     }
   }
 );

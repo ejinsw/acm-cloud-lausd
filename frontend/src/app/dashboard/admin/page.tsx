@@ -287,6 +287,46 @@ function AdminDashboardContent() {
     }
   };
 
+  const confirmUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to manually confirm this user account? This will allow them to log in immediately.')) {
+      return;
+    }
+    
+    try {
+      const token = await getToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/users/${userId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        notifications.show({
+          title: 'Success',
+          message: 'User account confirmed successfully',
+          color: 'green'
+        });
+        await fetchUsers(usersPage, usersSearch, usersRoleFilter, usersVerifiedFilter);
+        await fetchStats();
+      } else {
+        const error = await response.json();
+        notifications.show({
+          title: 'Error',
+          message: error.message || 'Failed to confirm user',
+          color: 'red'
+        });
+      }
+    } catch (error) {
+      console.error('Error confirming user:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to confirm user',
+        color: 'red'
+      });
+    }
+  };
+
   useEffect(() => {
     const initializeData = async () => {
       setLoading(true);
@@ -516,6 +556,17 @@ function AdminDashboardContent() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap="xs">
+                        {!user.verified && (
+                          <Tooltip label="Confirm Account">
+                            <ActionIcon
+                              color="green"
+                              variant="light"
+                              onClick={() => confirmUser(user.id)}
+                            >
+                              <UserCheck size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
                         <Tooltip label="Delete User">
                           <ActionIcon
                             color="red"

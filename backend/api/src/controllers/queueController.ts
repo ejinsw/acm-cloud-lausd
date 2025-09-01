@@ -35,7 +35,7 @@ export const createStudentQueue = expressAsyncHandler(
     const newQueue = await prisma.studentQueue.create({
       data: { description, subjectId, studentId: userId },
     });
-    res.status(201).json({ newQueue });
+    res.status(201).json({ queue: newQueue });
   }
 );
 
@@ -80,11 +80,11 @@ export const acceptQueue = expressAsyncHandler(
       return;
     }
 
-    await prisma.studentQueue.update({
+    const updatedQueue = await prisma.studentQueue.update({
       where: { id: Number(id) },
       data: { acceptedInstructorId: userId, status: 'ACCEPTED' },
     });
-    res.status(200).json({ queue });
+    res.status(200).json({ queue: updatedQueue });
   }
 );
 
@@ -113,8 +113,11 @@ export const updateDescription = expressAsyncHandler(
       return;
     }
 
-    await prisma.studentQueue.update({ where: { id: Number(id) }, data: { description } });
-    res.status(200).json({ message: 'Queue updated successfully' });
+    const updatedQueue = await prisma.studentQueue.update({
+      where: { id: Number(id) },
+      data: { description },
+    });
+    res.status(200).json({ queue: updatedQueue });
   }
 );
 

@@ -60,6 +60,9 @@ model User {
   studentSessions    Session[]        @relation("StudentSessions")
   subjects           Subject[] // For instructors
   sessionRequests    SessionRequest[] @relation("StudentSessionRequests")
+  studentQueues      StudentQueue[]   @relation("StudentQueues")
+  acceptedInstructorQueues StudentQueue[] @relation("AcceptedInstructorQueues")
+
 }
 
 model Session {
@@ -102,6 +105,22 @@ model SessionRequest {
   @@index([sessionId])
 }
 
+model StudentQueue {
+  id          Int           @id @default(autoincrement())
+  createdAt   DateTime      @default(now())
+  description String
+  status      QueueStatus   @default(PENDING)
+
+  studentId   String
+  student     User          @relation("StudentQueues", fields: [studentId], references: [id], onDelete: Cascade)
+
+  subjectId   String
+  subject     Subject       @relation(fields: [subjectId], references: [id]) //Defaulted Restrict on Subject
+
+  acceptedInstructorId String?
+  acceptedInstructor   User?  @relation("AcceptedInstructorQueues", fields: [acceptedInstructorId], references: [id], onDelete: SetNull)
+}
+
 model Review {
   id        String   @id @default(uuid())
   rating    Float
@@ -127,6 +146,7 @@ model Subject {
 
   instructors User[]
   sessions    Session[]
+  studentQueues StudentQueue[]
 }
 
 enum UserRole {
@@ -146,4 +166,9 @@ enum SessionRequestStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+enum QueueStatus {
+  PENDING
+  ACCEPTED
 }

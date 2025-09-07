@@ -298,7 +298,7 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 
 ### StudentQueues
 
-- `POST /sessions` - Create new session
+- `POST /sessions` - Create new queue
 
   - Headers: `Authorization: Bearer <token>`
   - Body: `{ description, studentId }`
@@ -315,7 +315,7 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
   - Body: `{description}`
   - Returns: Updated Queue
 
-- `DELETE /queue/:id` - Delete session
+- `DELETE /queue/:id` - Delete queue
 
   - Headers: `Authorization: Bearer <token>`
   - Returns: "Queue deleted successfully"

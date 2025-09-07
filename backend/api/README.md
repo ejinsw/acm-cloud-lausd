@@ -301,8 +301,8 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 - `POST /sessions` - Create new session
 
   - Headers: `Authorization: Bearer <token>`
-  - Body: `{ name, description, startTime, endTime, zoomLink, maxAttendees, materials, objectives, subjects }`
-  - Returns: Created session
+  - Body: `{ description, studentId }`
+  - Returns: Created queue
 
 - `PUT /queue/:id/accept` - Instructor accept a queue
 

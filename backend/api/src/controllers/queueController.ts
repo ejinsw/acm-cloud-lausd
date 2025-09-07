@@ -23,6 +23,15 @@ export const createStudentQueue = expressAsyncHandler(
       return;
     }
 
+    if (!description) {
+      res.status(404).json({ message: 'Description not found' });
+      return;
+    }
+    if (!subjectId) {
+      res.status(404).json({ message: 'Subject ID not found' });
+      return;
+    }
+
     const subject = await prisma.subject.findUnique({
       where: { id: subjectId },
       select: { id: true },
@@ -98,9 +107,26 @@ export const updateDescription = expressAsyncHandler(
       return;
     }
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!currentUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (currentUser.role !== 'STUDENT') {
+      res
+        .status(403)
+        .json({ message: 'You must be a student to update student queue descriptions' });
+      return;
+    }
+
     const queue = await prisma.studentQueue.findUnique({ where: { id: Number(id) } });
     if (!queue) {
-      res.status(404).json({ message: 'Queue not found;' });
+      res.status(404).json({ message: 'Queue not found' });
       return;
     }
     if (queue.studentId !== userId) {

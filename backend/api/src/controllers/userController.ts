@@ -44,7 +44,7 @@ export const getAllInstructors = expressAsyncHandler(
       where,
       include: {
         subjects: true,
-        instructorReviews: true,
+        reviewsRecipient: true,
         instructorSessions: true,
       },
     });
@@ -66,7 +66,7 @@ export const getInstructorById = expressAsyncHandler(
       where: { id },
       include: {
         subjects: true,
-        instructorReviews: true,
+        reviewsRecipient: true,
         instructorSessions: true,
       },
     });
@@ -150,7 +150,7 @@ export const updateInstructor = expressAsyncHandler(
       data: filteredData,
       include: {
         subjects: true,
-        instructorReviews: true,
+        reviewsRecipient: true,
         instructorSessions: true,
       },
     });
@@ -527,7 +527,7 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
     data: filteredData,
     include: {
       subjects: true,
-      instructorReviews: true,
+      reviewsRecipient: true,
       instructorSessions: true,
       studentSessions: true,
     },
@@ -631,13 +631,13 @@ export const getInstructors = expressAsyncHandler(async (req: Request, res: Resp
               level: true,
             },
           },
-          instructorReviews: {
+          reviewsRecipient: {
             select: {
               id: true,
               rating: true,
               comment: true,
               createdAt: true,
-              student: {
+              owner: {
                 select: {
                   firstName: true,
                   lastName: true,
@@ -740,9 +740,9 @@ export const getUserReviews = expressAsyncHandler(async (req: Request, res: Resp
   const reviews =
     user.role === 'INSTRUCTOR'
       ? await prisma.review.findMany({
-          where: { instructorId: userId },
+          where: { recipientId: userId },
           include: {
-            student: {
+            owner: {
               select: {
                 firstName: true,
                 lastName: true,
@@ -751,9 +751,9 @@ export const getUserReviews = expressAsyncHandler(async (req: Request, res: Resp
           },
         })
       : await prisma.review.findMany({
-          where: { studentId: userId },
+          where: { ownerId: userId },
           include: {
-            instructor: {
+            recipient: {
               select: {
                 firstName: true,
                 lastName: true,

@@ -54,8 +54,8 @@ model User {
   averageRating     Float? // For instructors
 
   // Relations
-  studentReviews     Review[]         @relation("StudentReviews")
-  instructorReviews  Review[]         @relation("InstructorReviews")
+  reviewsOwn     Review[]         @relation("owner")
+  reviewsRecipient  Review[]         @relation("recipient")
   instructorSessions Session[]        @relation("InstructorSessions")
   studentSessions    Session[]        @relation("StudentSessions")
   subjects           Subject[] // For instructors
@@ -126,6 +126,7 @@ model SessionHistoryItem {
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
+  relatedReview Review? @relation("relatedReview")
 
   @@index([userId])
 }
@@ -137,13 +138,17 @@ model Review {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  studentId    String
-  student      User   @relation("StudentReviews", fields: [studentId], references: [id])
-  instructorId String
-  instructor   User   @relation("InstructorReviews", fields: [instructorId], references: [id])
+  sessionHistoryItemId String? @unique
+  sessionHistoryItem   SessionHistoryItem? @relation("relatedReview", fields: [sessionHistoryItemId], references: [id])
 
-  @@index([studentId])
-  @@index([instructorId])
+  ownerId    String
+  owner      User   @relation("owner", fields: [ownerId], references: [id])
+  recipientId String
+  recipient   User   @relation("recipient", fields: [recipientId], references: [id])
+
+  @@index([ownerId])
+  @@index([recipientId])
+  @@index([sessionHistoryItemId])
 }
 
 model Subject {

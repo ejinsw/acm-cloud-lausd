@@ -4,9 +4,9 @@ import { prisma } from '../config/prisma';
 
 /**
  * Get all reviews.
- * Supports filtering by student or instructor ID using query parameters:
- * - `studentId`: Filter reviews written by a specific student.
- * - `instructorId`: Filter reviews received by a specific instructor.
+ * Supports filtering by owner or recipient ID using query parameters:
+ * - `ownerId`: Filter reviews written by a specific user.
+ * - `recipientId`: Filter reviews received by a specific user.
  *
  * @route GET /reviews
  */
@@ -19,13 +19,13 @@ export const getAllReviews = expressAsyncHandler(
       return;
     }
 
-    const { studentId, instructorId } = req.query;
+    const { ownerId, recipientId } = req.query;
     const where: any = {};
-    if (studentId) {
-      where.studentId = studentId;
+    if (ownerId) {
+      where.ownerId = ownerId;
     }
-    if (instructorId) {
-      where.instructorId = instructorId;
+    if (recipientId) {
+      where.recipientId = recipientId;
     }
     const reviews = await prisma.review.findMany({ where });
     res.json({ reviews });
@@ -66,8 +66,8 @@ export const getReviewById = expressAsyncHandler(
 interface ReviewData {
   rating: number;
   comment?: string;
-  studentId: string;
-  instructorId: string;
+  ownerId: string;
+  recipientId: string;
 }
 
 /**
@@ -76,11 +76,11 @@ interface ReviewData {
  * @route POST /reviews
  * @body {number} rating - The rating given (1-5).
  * @body {string} [comment] - Additional comments (optional).
- * @body {string} instructorId - The ID of the instructor being reviewed.
+ * @body {string} recipientId - The ID of the user being reviewed.
  */
 export const createReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { rating, comment, instructorId } = req.body;
+    const { rating, comment, recipientId } = req.body;
     const userId = (req.user as { sub: string })?.sub; // Use authenticated user's ID
 
     if (!userId) {
@@ -95,7 +95,7 @@ export const createReview = expressAsyncHandler(
       return;
     }
 
-    if (rating === undefined || rating === null || rating === '' || !comment || !instructorId) {
+    if (rating === undefined || rating === null || rating === '' || !comment || !recipientId) {
       res.status(400).json({ message: 'Missing required fields!' });
       return;
     }
@@ -107,14 +107,14 @@ export const createReview = expressAsyncHandler(
       return;
     }
 
-    const existingInstructor = await prisma.user.findUnique({
+    const existingRecipient = await prisma.user.findUnique({
       where: {
-        id: instructorId,
+        id: recipientId,
       },
     });
 
-    if (!existingInstructor || existingInstructor.role !== 'INSTRUCTOR') {
-      res.status(400).json({ message: "Instructor doesn't exist" });
+    if (!existingRecipient) {
+      res.status(400).json({ message: "Recipient user doesn't exist" });
       return;
     }
 
@@ -122,8 +122,8 @@ export const createReview = expressAsyncHandler(
       data: {
         rating: ratingNum,
         comment,
-        studentId: userId, // Use the authenticated user's ID as the studentId
-        instructorId,
+        ownerId: userId, // Use the authenticated user's ID as the ownerId
+        recipientId,
       },
     });
 
@@ -165,7 +165,7 @@ export const updateReview = expressAsyncHandler(
     }
 
     // Check if the authenticated user is the one who created the review
-    if (existingReview.studentId !== userId) {
+    if (existingReview.ownerId !== userId) {
       res.status(403).json({ message: 'You can only update your own reviews' });
       return;
     }
@@ -236,7 +236,7 @@ export const deleteReview = expressAsyncHandler(
     }
 
     // Check if the authenticated user is the one who created the review
-    if (existingReview.studentId !== userId) {
+    if (existingReview.ownerId !== userId) {
       res.status(403).json({ message: 'You can only delete your reviews' });
       return;
     }

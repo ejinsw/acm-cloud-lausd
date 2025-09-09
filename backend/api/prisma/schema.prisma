@@ -60,6 +60,8 @@ model User {
   studentSessions    Session[]        @relation("StudentSessions")
   subjects           Subject[] // For instructors
   sessionRequests    SessionRequest[] @relation("StudentSessionRequests")
+
+  SessionHistoryItems SessionHistoryItem[]
 }
 
 model Session {
@@ -100,6 +102,32 @@ model SessionRequest {
 
   @@index([studentId])
   @@index([sessionId])
+}
+
+model SessionHistoryItem {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  name         String
+  description  String?
+  startTime    DateTime?
+  endTime      DateTime?
+  zoomLink     String?
+  maxAttendees Int?
+
+  // Session Details
+  status     SessionStatus @default(SCHEDULED)
+  materials  String[]
+  objectives String[]
+  subjects   String[]
+  instructorName String?
+  studentNames String[]
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+
+  @@index([userId])
 }
 
 model Review {

@@ -70,11 +70,17 @@ export default function SignInPage() {
   const handleSubmit = async (values: SignInFormData) => {
     setLoading(true);
     try {
-      const success = await login(values.email, values.password);
+      const userData = await login(values.email, values.password);
       
-      if (success) {
-        // Redirect based on user role (handled by AuthProvider)
-        router.push('/dashboard/student');
+      if (userData) {
+        // Redirect based on user role
+        if (userData.role === "ADMIN") {
+          router.push(routes.adminDashboard);
+        } else if (userData.role === "INSTRUCTOR") {
+          router.push(routes.instructorDashboard);
+        } else {
+          router.push(routes.studentDashboard);
+        }
       }
     } catch (error) {
       console.error('Login error:', error);

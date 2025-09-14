@@ -11,10 +11,10 @@ import { authenticateToken, checkRole } from '../middleware/auth';
 const router = express.Router();
 
 // Protected routes
-router.post('/subjects', authenticateToken, checkRole(['INSTRUCTOR']), createSubject);
+router.post('/subjects', authenticateToken, checkRole(['INSTRUCTOR', 'ADMIN']), createSubject);
 router.get('/subjects/:id', authenticateToken, getSubject);
 router.put('/subjects/:id', authenticateToken, checkRole(['INSTRUCTOR']), updateSubject);
 router.delete('/subjects/:id', authenticateToken, checkRole(['INSTRUCTOR']), deleteSubject);
-router.get('/subjects', authenticateToken, getSubjects);
+router.get('/subjects', getSubjects);
 
 export default router;

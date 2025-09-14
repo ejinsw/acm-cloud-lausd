@@ -18,7 +18,25 @@ interface SubjectData {
  */
 export const getAllSubjects = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res.json({ message: 'Hello World!' });
+    try {
+      const subjects = await prisma.subject.findMany({
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          category: true,
+          level: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      res.json(subjects);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      res.status(500).json({ error: 'Failed to fetch subjects' });
+    }
   }
 );
 
@@ -76,5 +94,23 @@ export const deleteSubject = expressAsyncHandler(async (req: Request, res: Respo
  * @access Private
  */
 export const getSubjects = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement get all subjects
+  try {
+    const subjects = await prisma.subject.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        category: true,
+        level: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    res.json(subjects);
+  } catch (error) {
+    console.error('Error fetching subjects:', error);
+    res.status(500).json({ error: 'Failed to fetch subjects' });
+  }
 });

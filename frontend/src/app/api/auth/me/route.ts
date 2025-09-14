@@ -22,7 +22,53 @@ export async function GET() {
 
     if (!response.ok) {
       if (response.status === 401) {
-        // Token is invalid, clear cookies
+        // Token is invalid, try to refresh it first
+        const refreshToken = cookieStore.get('refreshToken')?.value;
+        
+        if (refreshToken) {
+          try {
+            // Attempt to refresh the token
+            const refreshResponse = await fetch(`${apiUrl}/api/auth/refresh-token`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ refreshToken }),
+            });
+
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              
+              // Try the original request again with the new token
+              const retryResponse = await fetch(`${apiUrl}/api/auth/me`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${refreshData.accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (retryResponse.ok) {
+                const userData = await retryResponse.json();
+                const successResponse = NextResponse.json(userData);
+                
+                // Set the new access token in cookies
+                successResponse.cookies.set('accessToken', refreshData.accessToken, {
+                  httpOnly: true,
+                  secure: process.env.NODE_ENV === 'production',
+                  sameSite: 'lax',
+                  maxAge: 60 * 60 * 24 * 3, // 3 days
+                });
+                
+                return successResponse;
+              }
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+          }
+        }
+        
+        // If refresh failed or no refresh token, clear cookies and return error
         const errorResponse = NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         errorResponse.cookies.delete('accessToken');
         errorResponse.cookies.delete('refreshToken');

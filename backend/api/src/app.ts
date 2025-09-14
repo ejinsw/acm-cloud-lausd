@@ -10,6 +10,7 @@ import userRouter from './routes/userRouter';
 import sessionRouter from './routes/sessionRouter';
 import reviewRouter from './routes/reviewRouter';
 import subjectRouter from './routes/subjectRouter';
+import adminRouter from './routes/adminRouter';
 import { prisma } from './config/prisma';
 
 dotenv.config();
@@ -54,6 +55,7 @@ app.use('/api', userRouter);
 app.use('/api', sessionRouter);
 app.use('/api', reviewRouter);
 app.use('/api', subjectRouter);
+app.use('/api', adminRouter);
 
 // Health check endpoint
 app.get('/api/health', async (req: Request, res: Response) => {

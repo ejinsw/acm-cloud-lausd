@@ -52,11 +52,11 @@ export default function InstructorProfilePage() {
     email: "",
     phone: "",
     bio: "",
-    education: "",
+    education: [] as string[],
     educationLevel: "",
     subjects: [] as string[],
-    experience: "",
-    certifications: "",
+    experience: [] as string[],
+    certifications: [] as string[],
     profileImage: null as File | null,
     resume: null as File | null,
   });
@@ -157,10 +157,13 @@ export default function InstructorProfilePage() {
 
                 <Textarea
                   label="Education Details"
-                  placeholder="List your educational background"
+                  placeholder="List your educational background (one per line)"
                   minRows={3}
-                  value={formValues.education}
-                  onChange={(e) => handleChange("education", e.target.value)}
+                  value={(formValues.education || []).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim() !== '');
+                    handleChange("education", lines);
+                  }}
                 />
 
                 <MultiSelect
@@ -175,18 +178,24 @@ export default function InstructorProfilePage() {
 
                 <Textarea
                   label="Teaching Experience"
-                  placeholder="Describe your teaching experience"
+                  placeholder="Describe your teaching experience (one per line)"
                   minRows={3}
-                  value={formValues.experience}
-                  onChange={(e) => handleChange("experience", e.target.value)}
+                  value={(formValues.experience || []).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim() !== '');
+                    handleChange("experience", lines);
+                  }}
                 />
 
                 <Textarea
                   label="Certifications"
-                  placeholder="List your relevant certifications"
+                  placeholder="List your relevant certifications (one per line)"
                   minRows={2}
-                  value={formValues.certifications}
-                  onChange={(e) => handleChange("certifications", e.target.value)}
+                  value={(formValues.certifications || []).join('\n')}
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n').filter(line => line.trim() !== '');
+                    handleChange("certifications", lines);
+                  }}
                 />
 
                 <FileInput

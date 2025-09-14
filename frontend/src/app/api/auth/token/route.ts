@@ -37,7 +37,7 @@ export async function GET() {
               httpOnly: true,
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',
-              maxAge: 60 * 60 * 24 * 7, // 7 days
+              maxAge: 60 * 60 * 24 * 1, // 1 day
             });
             
             if (refreshData.refreshToken) {
@@ -45,7 +45,7 @@ export async function GET() {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
-                maxAge: 60 * 60 * 24 * 30, // 30 days
+                maxAge: 60 * 60 * 24 * 30, // 30 days (1 month)
               });
             }
             

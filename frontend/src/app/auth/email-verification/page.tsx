@@ -16,8 +16,19 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { routes } from "../../routes";
+import { useSearchParams } from "next/navigation";
+import PageWrapper from "@/components/PageWrapper";
 
 export default function EmailVerificationPage() {
+  return (
+    <PageWrapper>
+      <EmailVerificationContent />
+    </PageWrapper>
+  );
+}
+
+function EmailVerificationContent() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -26,8 +37,8 @@ export default function EmailVerificationPage() {
 
   useEffect(() => {
     setIsClient(true);
-    setEmail(localStorage.getItem("pendingVerificationEmail"));
-  }, []);
+    setEmail(searchParams.get("email") || localStorage.getItem("pendingVerificationEmail"));
+  }, [searchParams]);
 
   const form = useForm({
     initialValues: {

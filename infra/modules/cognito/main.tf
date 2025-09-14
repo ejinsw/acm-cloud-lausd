@@ -26,7 +26,7 @@ resource "aws_cognito_user_pool" "main" {
 
   # Email verification message
   email_verification_message = "Your verification code is {####}.\n\nOr use this link: ${var.frontend_url}/auth/email-verification?code={####}"
-  email_verification_subject = "Your verification code {####}"
+  email_verification_subject = "Your verification code"
 
   # User attribute update settings
   user_attribute_update_settings {
@@ -96,9 +96,14 @@ resource "aws_cognito_user_pool_client" "main" {
 
   token_validity_units {
     refresh_token = "days"
-    id_token      = "minutes"
-    access_token  = "minutes"
+    id_token      = "days"
+    access_token  = "days"
   }
+
+  # Token validity periods
+  refresh_token_validity = 30  # 1 month
+  id_token_validity      = 1   # 1 day
+  access_token_validity  = 1   # 1 day
 
   # Prevent user existence errors
   prevent_user_existence_errors = "ENABLED"

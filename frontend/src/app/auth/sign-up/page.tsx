@@ -18,6 +18,7 @@ import {
   Anchor,
   Image,
   MultiSelect,
+  Loader,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
@@ -27,9 +28,16 @@ import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { routes } from "../../routes";
-//import AllSchoolsDropdown from "./component/SchoolListDropdown";
+
+interface Subject {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  level?: string;
+}
 
 interface SignUpFormData {
   email: string;
@@ -46,6 +54,13 @@ interface SignUpFormData {
   instructorId?: FileWithPath | null;
   parentEmail?: string;
   credentialedSubjects?: string[];
+  // Address fields
+  street: string;
+  apartment?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
 }
 
 const gradeLevels = [
@@ -57,28 +72,43 @@ const gradeLevels = [
   { value: "12", label: "12th Grade" },
 ];
 
-const subjects = [
-  { value: "Mathematics", label: "Mathematics" },
-  { value: "Science", label: "Science" },
-  { value: "English", label: "English" },
-  { value: "History", label: "History" },
-  { value: "Computer Science", label: "Computer Science" },
-  { value: "Calculus", label: "Calculus" },
-  { value: "Algebra", label: "Algebra" },
-  { value: "Statistics", label: "Statistics" },
-  { value: "Geometry", label: "Geometry" },
-  { value: "Physics", label: "Physics" },
-  { value: "Chemistry", label: "Chemistry" },
-  { value: "Biology", label: "Biology" },
-  { value: "Spanish", label: "Spanish" },
-  { value: "French", label: "French" },
-  { value: "Programming", label: "Programming" }
-];
-
-
 export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+  const [subjectsError, setSubjectsError] = useState<string | null>(null);
+
+  // Fetch subjects from backend on component mount
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        setSubjectsLoading(true);
+        setSubjectsError(null);
+        
+        const response = await fetch('http://localhost:8080/api/subjects');
+        if (!response.ok) {
+          throw new Error('Failed to fetch subjects');
+        }
+        
+        const subjectsData = await response.json();
+        setSubjects(subjectsData);
+      } catch (error) {
+        console.error('Error fetching subjects:', error);
+        setSubjectsError('Failed to load subjects. Please refresh the page.');
+      } finally {
+        setSubjectsLoading(false);
+      }
+    };
+
+    fetchSubjects();
+  }, []);
+
+  // Transform subjects for MultiSelect component
+  const subjectOptions = subjects.map(subject => ({
+    value: subject.name,
+    label: subject.name,
+  }));
 
   const form = useForm<SignUpFormData>({
     initialValues: {
@@ -96,13 +126,25 @@ export default function SignUpPage() {
       instructorId: null,
       parentEmail: "",
       credentialedSubjects: [],
+      // Address fields
+      street: "",
+      apartment: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "",
     },
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
-      password: (value) =>
-        value.length < 8
-          ? "Password must be at least 8 characters long"
-          : null,
+      password: (value) => {
+        if (!value) return "Password is required";
+        if (value.length < 8) return "Password must be at least 8 characters long";
+        if (!/[A-Z]/.test(value)) return "Password must contain at least one uppercase letter";
+        if (!/[a-z]/.test(value)) return "Password must contain at least one lowercase letter";
+        if (!/\d/.test(value)) return "Password must contain at least one number";
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)) return "Password must contain at least one symbol (!@#$%^&*...)";
+        return null;
+      },
       confirmPassword: (value, values) =>
         value !== values.password ? "Passwords do not match" : null,
       firstName: (value) =>
@@ -125,12 +167,18 @@ export default function SignUpPage() {
         !value ? "You must agree to the terms and conditions" : null,
       birthdate: (value) =>
         !value ? "Please select your birthdate" : null,
-      instructorId: (value, values) =>
-        values.role === "instructor" && !value ? "Please upload your school ID" : null,
+      instructorId: () =>
+        null, // Photo ID is optional
       parentEmail: (value, values) =>
         values.role === "student" && (!value || !/^\S+@\S+$/.test(value))
           ? "Please enter a valid parent email address"
           : null,
+      // Address validation
+      street: (value) => (!value ? "Street address is required" : null),
+      city: (value) => (!value ? "City is required" : null),
+      state: (value) => (!value ? "State is required" : null),
+      zip: (value) => (!value ? "ZIP code is required" : null),
+      country: (value) => (!value ? "Country is required" : null),
     },
   });
 
@@ -142,9 +190,14 @@ export default function SignUpPage() {
       console.log("Credentialed subjects:", values.credentialedSubjects);
       console.log("Student subjects:", values.subjects);
       
+      // Prepare the data to send to the backend
       const submitData = {
         ...values,
+        // For instructors, use credentialedSubjects as subjects
+        // For students, use subjects as is
         subjects: values.role === "instructor" ? values.credentialedSubjects : values.subjects,
+        // Remove the credentialedSubjects field as backend expects 'subjects'
+        credentialedSubjects: undefined,
       };
 
       console.log("Submit data:", submitData);
@@ -159,7 +212,8 @@ export default function SignUpPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create account');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create account');
       }
 
       notifications.show({
@@ -175,10 +229,12 @@ export default function SignUpPage() {
 
       // Redirect to the email verification page
       router.push(routes.emailVerification);
-    } catch {
+    } catch (error: unknown) {
+      console.error('Signup error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to create account. Please try again.";
       notifications.show({
         title: "Error",
-        message: "Failed to create account. Please try again.",
+        message: errorMessage,
         color: "red",
         icon: <XCircle size={16} />,
         autoClose: 5000,
@@ -187,6 +243,45 @@ export default function SignUpPage() {
       setLoading(false);
     }
   };
+
+  // Show loading state while fetching subjects
+  if (subjectsLoading) {
+    return (
+      <main>
+        <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+          <Container size="sm">
+            <Paper radius="md" p={40} withBorder>
+              <Stack gap="xl" align="center">
+                <Loader size="lg" />
+                <Text>Loading subjects...</Text>
+              </Stack>
+            </Paper>
+          </Container>
+        </Box>
+      </main>
+    );
+  }
+
+  // Show error state if subjects failed to load
+  if (subjectsError) {
+    return (
+      <main>
+        <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+          <Container size="sm">
+            <Paper radius="md" p={40} withBorder>
+              <Stack gap="xl" align="center">
+                <XCircle size={48} color="red" />
+                <Text c="red">{subjectsError}</Text>
+                <Button onClick={() => window.location.reload()}>
+                  Refresh Page
+                </Button>
+              </Stack>
+            </Paper>
+          </Container>
+        </Box>
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -258,6 +353,71 @@ export default function SignUpPage() {
                     />
                   </div>
 
+                  {/* Address Section */}
+                  <Text size="lg" fw={500} mt="md">Address Information</Text>
+                  <TextInput
+                    label="Street Address"
+                    placeholder="Enter your street address"
+                    required
+                    {...form.getInputProps("street")}
+                  />
+                  <TextInput
+                    label="Apartment/Suite"
+                    placeholder="Apartment, suite, etc. (optional)"
+                    {...form.getInputProps("apartment")}
+                  />
+                  <Group grow>
+                    <TextInput
+                      label="City"
+                      placeholder="Enter your city"
+                      required
+                      {...form.getInputProps("city")}
+                    />
+                    <TextInput
+                      label="State"
+                      placeholder="Enter your state"
+                      required
+                      {...form.getInputProps("state")}
+                    />
+                  </Group>
+                  <Group grow>
+                    <TextInput
+                      label="ZIP Code"
+                      placeholder="Enter your ZIP code"
+                      required
+                      {...form.getInputProps("zip")}
+                    />
+                    <TextInput
+                      label="Country"
+                      placeholder="Enter your country"
+                      required
+                      {...form.getInputProps("country")}
+                    />
+                  </Group>
+                  
+                  {form.values.password && (
+                    <Box>
+                      <Text size="sm" fw={500} mb={8}>Password Requirements:</Text>
+                      <Stack gap={4}>
+                        <Text size="xs" c={form.values.password.length >= 8 ? "green" : "red"}>
+                          ✓ At least 8 characters long
+                        </Text>
+                        <Text size="xs" c={/[A-Z]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains uppercase letter
+                        </Text>
+                        <Text size="xs" c={/[a-z]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains lowercase letter
+                        </Text>
+                        <Text size="xs" c={/\d/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains number
+                        </Text>
+                        <Text size="xs" c={/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(form.values.password) ? "green" : "red"}>
+                          ✓ Contains symbol (!@#$%^&*...)
+                        </Text>
+                      </Stack>
+                    </Box>
+                  )}
+
                   <PasswordInput
                     label="Password"
                     placeholder="Create a password"
@@ -285,7 +445,7 @@ export default function SignUpPage() {
                       <MultiSelect
                         label="Subjects"
                         placeholder="Select subjects you need help with"
-                        data={subjects}
+                        data={subjectOptions}
                         required
                         searchable
                         {...form.getInputProps("subjects")}
@@ -306,7 +466,7 @@ export default function SignUpPage() {
                       <MultiSelect
                         label="Credentialed Subjects"
                         placeholder="Select subjects you are credentialed to teach"
-                        data={subjects}
+                        data={subjectOptions}
                         required
                         description="Select all subjects you are qualified and credentialed to teach"
                         searchable

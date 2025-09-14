@@ -1,27 +1,27 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { showNotification } from '@mantine/notifications';
-import { getToken, refreshToken, logout } from '@/actions/authentication';
-
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: 'STUDENT' | 'INSTRUCTOR';
-  verified: boolean;
-}
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { showNotification } from "@mantine/notifications";
+import { getToken, refreshToken, logout } from "@/actions/authentication";
+import { User } from "@/lib/types";
+import { routes } from "@/app/routes";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,37 +32,65 @@ interface AuthProviderProps {
 
 // Protected routes that require authentication
 const PROTECTED_ROUTES = [
-  '/dashboard',
-  '/sessions',
-  '/profile',
-  '/instructor',
-  '/help',
+  "/dashboard",
+  "/sessions",
+  "/profile",
+  "/instructor",
+  "/help",
 ];
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   // Check if current route requires authentication
   const isProtectedRoute = (path: string) => {
-    return PROTECTED_ROUTES.some(route => path.startsWith(route));
+    return PROTECTED_ROUTES.some((route) => path.startsWith(route));
+  };
+
+  // Helper function to check if token is valid and not expired
+  const isTokenValid = (token: string): boolean => {
+    try {
+      const tokenData = JSON.parse(atob(token.split(".")[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      return tokenData.exp > currentTime;
+    } catch {
+      return false;
+    }
+  };
+
+  // Helper function to check if token expires soon (within 5 minutes)
+  const isTokenExpiringSoon = (token: string): boolean => {
+    try {
+      const tokenData = JSON.parse(atob(token.split(".")[1]));
+      const expiryTime = tokenData.exp * 1000; // Convert to milliseconds
+      const currentTime = Date.now();
+      const timeUntilExpiry = expiryTime - currentTime;
+      return timeUntilExpiry < 5 * 60 * 1000; // 5 minutes
+    } catch {
+      return true; // If we can't parse the token, assume it's expiring soon
+    }
   };
 
   // Fetch user data from API
   const fetchUserData = async (): Promise<User | null> => {
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch("/api/auth/me");
 
       if (response.ok) {
         const userData = await response.json();
         return userData;
+      } else if (response.status === 401) {
+        // Token is expired or invalid, return null to trigger refresh
+        return null;
       }
       return null;
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error("Error fetching user data:", error);
       return null;
     }
   };
@@ -72,23 +100,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setIsLoading(true);
       const token = await getToken();
-      
-      if (token) {
+
+      if (token && isTokenValid(token)) {
         const userData = await fetchUserData();
         if (userData) {
           setUser(userData);
         } else {
-          // Token is invalid, clear it
-          await logout();
-          router.push('/auth/sign-in');
+          // Token might be expired, try to refresh once before giving up
+          try {
+            await refreshAuth();
+            // If refreshAuth succeeds, it will set the user
+            // If it fails, it will handle logout and redirect
+            return;
+          } catch (refreshError) {
+            console.error("Token refresh failed during initialization:", refreshError);
+            await logout();
+            router.push("/auth/sign-in");
+          }
         }
       } else {
-        await logout();
-        router.push('/auth/sign-in');
+        // No token found or token is invalid, redirect to login
+        router.push("/auth/sign-in");
       }
     } catch (error) {
-      console.error('Error initializing auth:', error);
+      console.error("Error initializing auth:", error);
       await logout();
+      router.push("/auth/sign-in");
     } finally {
       setIsLoading(false);
       setIsInitialized(true);
@@ -99,21 +136,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const setupTokenRefresh = () => {
     const refreshInterval = setInterval(async () => {
       try {
+        // Don't refresh if already refreshing
+        if (isRefreshing) {
+          return;
+        }
+
         const token = await getToken();
-        if (token) {
-          // Check if token is about to expire (refresh 5 minutes before expiry)
-          const tokenData = JSON.parse(atob(token.split('.')[1]));
-          const expiryTime = tokenData.exp * 1000; // Convert to milliseconds
-          const currentTime = Date.now();
-          const timeUntilExpiry = expiryTime - currentTime;
-          
-          // If token expires in less than 5 minutes, refresh it
-          if (timeUntilExpiry < 5 * 60 * 1000) {
-            await refreshAuth();
-          }
+        if (token && isTokenExpiringSoon(token)) {
+          await refreshAuth();
         }
       } catch (error) {
-        console.error('Error in token refresh:', error);
+        console.error("Error in token refresh:", error);
+        // If there's an error checking the token, try to refresh
+        if (!isRefreshing) {
+          try {
+            await refreshAuth();
+          } catch (refreshError) {
+            console.error("Failed to refresh token:", refreshError);
+          }
+        }
       }
     }, 60000); // Check every minute
 
@@ -122,31 +163,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Refresh authentication
   const refreshAuth = async () => {
+    // Prevent multiple simultaneous refresh attempts
+    if (isRefreshing) {
+      return;
+    }
+
     try {
-              const newToken = await refreshToken();
-        if (newToken) {
-          const userData = await fetchUserData();
-          if (userData) {
-            setUser(userData);
-            return;
-          }
+      setIsRefreshing(true);
+      const newToken = await refreshToken();
+      if (newToken) {
+        // Token refreshed successfully, fetch updated user data
+        const userData = await fetchUserData();
+        if (userData) {
+          setUser(userData);
+          return;
         }
-      // If refresh failed, logout
+      }
+      // If refresh failed or user data couldn't be fetched, logout
       await logout();
+      router.push("/auth/sign-in");
     } catch (error) {
-      console.error('Error refreshing auth:', error);
+      console.error("Error refreshing auth:", error);
       await logout();
+      router.push("/auth/sign-in");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   // Login function
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<User | null> => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/auth/sign-in', {
-        method: 'POST',
+      const response = await fetch("/api/auth/sign-in", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
@@ -157,29 +209,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (userData) {
           setUser(userData);
           showNotification({
-            title: 'Welcome back!',
+            title: "Welcome back!",
             message: `Hello, ${userData.firstName}!`,
-            color: 'green',
+            color: "green",
           });
-          return true;
+          return userData;
         }
       } else {
         const errorData = await response.json();
         showNotification({
-          title: 'Login failed',
-          message: errorData.error || 'Invalid credentials',
-          color: 'red',
+          title: "Login failed",
+          message: errorData.error || "Invalid credentials",
+          color: "red",
         });
+        console.log(errorData);
+        if (errorData.error === "User is not confirmed") {
+          router.push(`${routes.emailVerification}?email=${encodeURIComponent(email)}`);
+        }
       }
-      return false;
+      return null;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       showNotification({
-        title: 'Login failed',
-        message: 'An error occurred during login',
-        color: 'red',
+        title: "Login failed",
+        message: "An error occurred during login",
+        color: "red",
       });
-      return false;
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -191,13 +247,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await logout();
       setUser(null);
       showNotification({
-        title: 'Logged out',
-        message: 'You have been successfully logged out',
-        color: 'blue',
+        title: "Logged out",
+        message: "You have been successfully logged out",
+        color: "blue",
       });
-      router.push('/auth/sign-in');
+      router.push("/auth/sign-in");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -226,13 +282,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (isInitialized && !isLoading) {
       if (!user && isProtectedRoute(pathname)) {
         // Redirect to login if accessing protected route without auth
-        router.push('/auth/sign-in');
-      } else if (user && (pathname === '/auth/sign-in' || pathname === '/auth/sign-up')) {
-        // Redirect to dashboard if accessing public route while authenticated
-        router.push('/dashboard/student');
+        router.push("/auth/sign-in");
+      } else if (
+        user &&
+        (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")
+      ) {
+        // Redirect to appropriate dashboard based on role
+        if (user.role === "ADMIN") {
+          router.push("/dashboard/admin");
+        } else if (user.role === "INSTRUCTOR") {
+          router.push("/dashboard/instructor");
+        } else {
+          router.push("/dashboard/student");
+        }
       }
     }
   }, [isInitialized, isLoading, user, pathname, router]);
+
+  const refreshUser = async () => {
+    const userData = await fetchUserData();
+    if (userData) {
+      setUser(userData);
+    }
+  };
 
   const value: AuthContextType = {
     user,
@@ -242,20 +314,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout: handleLogout,
     refreshAuth,
     updateUser,
+    refreshUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 // Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
@@ -263,7 +332,7 @@ export function useAuth() {
 // Higher-order component for route protection
 export function withAuth<P extends object>(
   Component: React.ComponentType<P>,
-  requiredRole?: 'STUDENT' | 'INSTRUCTOR'
+  requiredRole?: "STUDENT" | "INSTRUCTOR" | "ADMIN"
 ) {
   return function ProtectedComponent(props: P) {
     const { user, isLoading, isAuthenticated } = useAuth();
@@ -287,8 +356,12 @@ export function withAuth<P extends object>(
       return (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h1>
-            <p className="text-gray-600">You don&apos;t have permission to access this page.</p>
+            <h1 className="text-2xl font-bold text-red-600 mb-2">
+              Access Denied
+            </h1>
+            <p className="text-gray-600">
+              You don&apos;t have permission to access this page.
+            </p>
           </div>
         </div>
       );

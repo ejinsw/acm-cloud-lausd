@@ -2,6 +2,61 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 
+export const getQueueList = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.user as { sub: string })?.sub;
+    if (!userId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, subjects: true },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (user.role !== 'INSTRUCTOR') {
+      res.status(403).json({ message: 'Only instructors can view the queue' });
+      return;
+    }
+
+    // Get all pending queue items with student and subject details
+    const queueItems = await prisma.studentQueue.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            level: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Add canTeach information to each item
+    queueItems.forEach(item => {
+      item.canTeach = user.subjects.some(subject => subject.id === item.subjectId);
+    });
+
+    res.status(200).json({ queueItems });
+  }
+);
+
 export const createStudentQueue = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { description, subjectId } = req.body;

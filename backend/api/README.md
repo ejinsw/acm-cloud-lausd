@@ -298,6 +298,11 @@ The backend is built with Express, TypeScript, and PostgreSQL using Prisma ORM.
 
 ### StudentQueues
 
+- `GET /queue` - List all queue
+
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: List of queues
+
 - `POST /queue` - Create new queue
 
   - Headers: `Authorization: Bearer <token>`

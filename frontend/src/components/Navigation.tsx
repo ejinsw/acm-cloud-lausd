@@ -13,6 +13,8 @@ import {
   User,
   Users,
   LogOut,
+  MessageCircle,
+  Clock,
 } from "lucide-react";
 import { Routes } from "../app/routes";
 import { useAuth } from "./AuthProvider";
@@ -89,6 +91,26 @@ function MobileNav({ routes }: NavigationProps) {
           component={Link}
           href={routes.exploreSessions}
           active={pathname.includes("/sessions/explore")}
+        />
+      )}
+
+      {isAuthenticated && user?.role === "STUDENT" && (
+        <NavLink
+          label="Join Queue"
+          leftSection={<Clock size={18} />}
+          component={Link}
+          href={routes.joinQueue}
+          active={pathname === routes.joinQueue}
+        />
+      )}
+
+      {isAuthenticated && user?.role === "INSTRUCTOR" && (
+        <NavLink
+          label="Manage Queue"
+          leftSection={<MessageCircle size={18} />}
+          component={Link}
+          href={routes.instructorQueue}
+          active={pathname === routes.instructorQueue}
         />
       )}
 

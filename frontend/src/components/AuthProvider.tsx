@@ -99,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
+
       const token = await getToken();
 
       if (token && isTokenValid(token)) {
@@ -113,7 +114,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // If it fails, it will handle logout and redirect
             return;
           } catch (refreshError) {
-            console.error("Token refresh failed during initialization:", refreshError);
+            console.error(
+              "Token refresh failed during initialization:",
+              refreshError
+            );
             await logout();
             router.push("/auth/sign-in");
           }
@@ -192,7 +196,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Login function
-  const login = async (email: string, password: string): Promise<User | null> => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<User | null> => {
     try {
       setIsLoading(true);
       const response = await fetch("/api/auth/sign-in", {
@@ -224,7 +231,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
         console.log(errorData);
         if (errorData.error === "User is not confirmed") {
-          router.push(`${routes.emailVerification}?email=${encodeURIComponent(email)}`);
+          router.push(
+            `${routes.emailVerification}?email=${encodeURIComponent(email)}`
+          );
         }
       }
       return null;
@@ -280,10 +289,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Route protection
   useEffect(() => {
     if (isInitialized && !isLoading) {
-      if (!user && isProtectedRoute(pathname)) {
-        // Redirect to login if accessing protected route without auth
-        router.push("/auth/sign-in");
-      } else if (
+      // Only redirect away from auth pages if user is logged in
+      if (
         user &&
         (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")
       ) {

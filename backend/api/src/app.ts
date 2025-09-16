@@ -11,6 +11,7 @@ import sessionRouter from './routes/sessionRouter';
 import reviewRouter from './routes/reviewRouter';
 import subjectRouter from './routes/subjectRouter';
 import adminRouter from './routes/adminRouter';
+import queueRouter from './routes/queueRouter';
 import { prisma } from './config/prisma';
 import sessionHistoryRouter from './routes/sessionHistoryRouter';
 
@@ -58,6 +59,7 @@ app.use('/api', reviewRouter);
 app.use('/api', subjectRouter);
 app.use('/api', adminRouter);
 app.use('/api', sessionHistoryRouter);
+app.use('/api', queueRouter);
 
 // Health check endpoint
 app.get('/api/health', async (req: Request, res: Response) => {

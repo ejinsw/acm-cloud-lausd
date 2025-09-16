@@ -27,7 +27,24 @@ export const getAllReviews = expressAsyncHandler(
     if (recipientId) {
       where.recipientId = recipientId;
     }
-    const reviews = await prisma.review.findMany({ where });
+    const reviews = await prisma.review.findMany({ 
+      where,
+      include: {
+        sessionHistoryItem: true,
+        owner: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        recipient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
     res.json({ reviews });
   }
 );
@@ -52,6 +69,21 @@ export const getReviewById = expressAsyncHandler(
       where: {
         id: id,
       },
+      include: {
+        sessionHistoryItem: true,
+        owner: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        recipient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
     if (!review) {
       res.status(404).json({ message: 'Review Not Found' });
@@ -63,12 +95,7 @@ export const getReviewById = expressAsyncHandler(
 );
 
 // Types
-interface ReviewData {
-  rating: number;
-  comment?: string;
-  ownerId: string;
-  recipientId: string;
-}
+
 
 /**
  * Create a new review.
@@ -77,10 +104,11 @@ interface ReviewData {
  * @body {number} rating - The rating given (1-5).
  * @body {string} [comment] - Additional comments (optional).
  * @body {string} recipientId - The ID of the user being reviewed.
+ * @body {string} [sessionHistoryItemId] - The ID of the session history item this review relates to (optional).
  */
 export const createReview = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { rating, comment, recipientId } = req.body;
+    const { rating, comment, recipientId, sessionHistoryItemId } = req.body;
     const userId = (req.user as { sub: string })?.sub; // Use authenticated user's ID
 
     if (!userId) {
@@ -88,14 +116,7 @@ export const createReview = expressAsyncHandler(
       return;
     }
 
-    // Check if the authenticated user is a student
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.role !== 'STUDENT') {
-      res.status(403).json({ message: 'Only students can create reviews' });
-      return;
-    }
-
-    if (rating === undefined || rating === null || rating === '' || !comment || !recipientId) {
+    if (rating === undefined || rating === null || rating === '' || !comment) {
       res.status(400).json({ message: 'Missing required fields!' });
       return;
     }
@@ -107,23 +128,69 @@ export const createReview = expressAsyncHandler(
       return;
     }
 
-    const existingRecipient = await prisma.user.findUnique({
-      where: {
-        id: recipientId,
-      },
-    });
+    // Validate sessionHistoryItemId if provided
+    if (sessionHistoryItemId) {
+      const existingSessionHistoryItem = await prisma.sessionHistoryItem.findUnique({
+        where: {
+          id: sessionHistoryItemId,
+        },
+      });
 
-    if (!existingRecipient) {
-      res.status(400).json({ message: "Recipient user doesn't exist" });
-      return;
+      if (!existingSessionHistoryItem) {
+        res.status(400).json({ message: "Session history item doesn't exist" });
+        return;
+      }
+
+      // Check if the authenticated user was part of this session
+      if (existingSessionHistoryItem.userId !== userId) {
+        res.status(403).json({ message: 'You can only review sessions you participated in' });
+        return;
+      }
+
+      // Check if a review already exists for this session history item
+      const existingReview = await prisma.review.findFirst({
+        where: {
+          sessionHistoryItemId: sessionHistoryItemId,
+        },
+      });
+
+      if (existingReview) {
+        res.status(400).json({ message: 'A review already exists for this session' });
+        return;
+      }
+    }
+
+    const reviewData: any = {
+      rating: ratingNum,
+      comment,
+      ownerId: userId, // Use the authenticated user's ID as the ownerId
+    };
+
+    // Add sessionHistoryItemId if provided
+    if (sessionHistoryItemId) {
+      reviewData.sessionHistoryItemId = sessionHistoryItemId;
+    }
+
+    if (recipientId) {
+      reviewData.recipientId = recipientId;
     }
 
     const newReview = await prisma.review.create({
-      data: {
-        rating: ratingNum,
-        comment,
-        ownerId: userId, // Use the authenticated user's ID as the ownerId
-        recipientId,
+      data: reviewData,
+      include: {
+        sessionHistoryItem: true,
+        owner: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        recipient: recipientId ? {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        } : undefined,
       },
     });
 
@@ -199,6 +266,21 @@ export const updateReview = expressAsyncHandler(
     const updatedReview = await prisma.review.update({
       where: { id },
       data: updateData,
+      include: {
+        sessionHistoryItem: true,
+        owner: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        recipient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
 
     res.json(updatedReview);

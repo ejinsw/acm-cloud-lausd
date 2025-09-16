@@ -62,10 +62,24 @@ export interface Review {
   createdAt?: string;
   updatedAt?: string;
 
-  studentId: string;
-  student?: User;
-  instructorId: string;
-  instructor?: User;
+  ownerId: string;
+  owner?: {
+    firstName: string;
+    lastName: string;
+  };
+  recipientId: string;
+  recipient?: {
+    firstName: string;
+    lastName: string;
+  };
+  sessionHistoryItemId?: string;
+  sessionHistoryItem?: {
+    id: string;
+    name: string;
+    description?: string;
+    startTime?: string;
+    endTime?: string;
+  };
 }
 
 export interface Subject {

@@ -122,6 +122,7 @@ model SessionHistoryItem {
   objectives String[]
   subjects   String[]
   instructorName String?
+  instructorId String?
   studentNames String[]
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -143,8 +144,8 @@ model Review {
 
   ownerId    String
   owner      User   @relation("owner", fields: [ownerId], references: [id])
-  recipientId String
-  recipient   User   @relation("recipient", fields: [recipientId], references: [id])
+  recipientId String?
+  recipient   User?   @relation("recipient", fields: [recipientId], references: [id])
 
   @@index([ownerId])
   @@index([recipientId])

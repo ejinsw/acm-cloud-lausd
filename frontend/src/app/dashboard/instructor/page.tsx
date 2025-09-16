@@ -14,7 +14,7 @@ import {
   Loader,
   Alert,
 } from "@mantine/core";
-import { Search, Sparkles, BookOpen, Calendar, AlertCircle, MessageCircle, Play } from "lucide-react";
+import { Search, Sparkles, BookOpen, Calendar, AlertCircle, MessageCircle, Play, History } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
@@ -22,9 +22,10 @@ import { UpcomingSessionsTab } from "@/components/dashboard/instructor/UpcomingS
 import { SessionManagementTab } from "@/components/dashboard/instructor/SessionManagementTab";
 import { SessionRequestsManager } from "@/components/dashboard/instructor/SessionRequestsManager";
 import { ActiveSessionManager } from "@/components/dashboard/instructor/ActiveSessionManager";
+import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session } from "@/lib/types";
+import { Session, SessionHistoryItem } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 
 function InstructorDashboardContent() {
@@ -34,6 +35,7 @@ function InstructorDashboardContent() {
   
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +75,10 @@ function InstructorDashboardContent() {
       setError(null);
       
       try {
-        await fetchInstructorSessions();
+        await Promise.all([
+          fetchInstructorSessions(),
+          fetchSessionHistory(),
+        ]);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
         setError('Failed to load dashboard data');
@@ -126,9 +131,35 @@ function InstructorDashboardContent() {
     totalSessions,
   };
 
+  // Fetch session history
+  const fetchSessionHistory = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/session-history`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch session history');
+      }
+
+      const data = await response.json();
+      setSessionHistory(data.sessions || []);
+    } catch (err) {
+      console.error('Error fetching session history:', err);
+      // Don't set error here as it's not critical for the dashboard
+    }
+  };
+
   // Handle session updates
   const handleSessionUpdate = () => {
     fetchInstructorSessions();
+    fetchSessionHistory();
   };
 
   if (isLoading) {
@@ -187,6 +218,9 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="active" leftSection={<Play size={16} />}>
               Active Sessions
             </Tabs.Tab>
+            <Tabs.Tab value="history" leftSection={<History size={16} />}>
+              Session History ({sessionHistory.length})
+            </Tabs.Tab>
             <Tabs.Tab value="schedule" leftSection={<Calendar size={16} />}>
               Schedule ({upcomingSessions.length})
             </Tabs.Tab>
@@ -220,6 +254,15 @@ function InstructorDashboardContent() {
               <ActiveSessionManager 
                 sessions={sessions} 
                 onSessionUpdate={handleSessionUpdate}
+              />
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="history">
+            <Box pt="md">
+              <SessionHistoryTab 
+                sessionHistory={sessionHistory} 
+                onReviewClick={() => {}} // Instructors don't review sessions, but keep interface consistent
               />
             </Box>
           </Tabs.Panel>

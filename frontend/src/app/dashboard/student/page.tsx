@@ -31,7 +31,7 @@ import { SessionRequestsManager } from "@/components/dashboard/student/SessionRe
 import { AchievementsPanel } from "@/components/dashboard/student/AchievementsPanel";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session, SessionRequest } from "@/lib/types";
+import { Session, SessionRequest, SessionHistoryItem } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 
 function StudentDashboardContent() {
@@ -46,6 +46,7 @@ function StudentDashboardContent() {
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionRequests, setSessionRequests] = useState<SessionRequest[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +104,31 @@ function StudentDashboardContent() {
     }
   };
 
+  // Fetch session history
+  const fetchSessionHistory = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/session-history`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch session history');
+      }
+
+      const data = await response.json();
+      setSessionHistory(data.sessions || []);
+    } catch (err) {
+      console.error('Error fetching session history:', err);
+      // Don't set error here as it's not critical for the dashboard
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     const loadData = async () => {
@@ -113,6 +139,7 @@ function StudentDashboardContent() {
         await Promise.all([
           fetchUserSessions(),
           fetchSessionRequests(),
+          fetchSessionHistory(),
         ]);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -176,8 +203,8 @@ function StudentDashboardContent() {
   // Handle opening the review modal
   function handleOpenReviewModal(session: PastSession) {
     setSessionToReview(session);
-    setRating(session.userRating || 0);
-    setReview(session.userReview || "");
+    setRating(session.relatedReview?.rating || 0);
+    setReview(session.relatedReview?.comment || "");
     open();
   }
   
@@ -199,6 +226,7 @@ function StudentDashboardContent() {
             rating,
             comment: review,
             instructorId: sessionToReview.instructorId,
+            sessionHistoryItemId: sessionToReview.id,
           }),
         }
       );
@@ -214,7 +242,10 @@ function StudentDashboardContent() {
       });
       
       // Refresh data
-      await fetchUserSessions();
+      await Promise.all([
+        fetchUserSessions(),
+        fetchSessionHistory(),
+      ]);
       close();
     } catch (err) {
       console.error('Error submitting review:', err);
@@ -285,7 +316,7 @@ function StudentDashboardContent() {
               Session Requests ({sessionRequests.length})
             </Tabs.Tab>
             <Tabs.Tab value="history" leftSection={<BookOpen size={16} />}>
-              Session History ({completedSessions.length})
+              Session History ({sessionHistory.length})
             </Tabs.Tab>
             <Tabs.Tab value="achievements" leftSection={<GraduationCap size={16} />}>
               Achievements
@@ -324,7 +355,7 @@ function StudentDashboardContent() {
           <Tabs.Panel value="history">
             <Box pt="md">
               <SessionHistoryTab 
-                sessions={sessions} 
+                sessionHistory={sessionHistory} 
                 onReviewClick={handleOpenReviewModal}
               />
             </Box>

@@ -11,7 +11,11 @@ export const getAllSessionHistory = expressAsyncHandler(
       where.userId = userId as string;
     }
 
-    const sessions = await prisma.sessionHistoryItem.findMany();
+    const sessions = await prisma.sessionHistoryItem.findMany({
+      include: {
+        relatedReview: true,
+      },
+    });
 
     res.json({ sessions });
   }
@@ -22,6 +26,9 @@ export const getSessionHistoryById = expressAsyncHandler(
     const { id } = req.params;
     const sessionHistoryItem = await prisma.sessionHistoryItem.findUnique({
       where: { id },
+      include: {
+        relatedReview: true,
+      },
     });
 
     if (!sessionHistoryItem) {

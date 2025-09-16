@@ -104,3 +104,28 @@ export interface SessionRequest {
   sessionId: string;
   session?: Session;
 }
+
+export interface SessionHistoryItem {
+  id: string;
+  createdAt?: string;
+  updatedAt?: string;
+  
+  name: string;
+  description?: string;
+  startTime?: string;
+  endTime?: string;
+  zoomLink?: string;
+  maxAttendees?: number;
+
+  // Session Details
+  status?: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  materials?: string[];
+  objectives?: string[];
+  subjects?: string[];
+  instructorName?: string;
+  instructorId?: string;
+  studentNames?: string[];
+
+  userId: string;
+  relatedReview?: Review;
+}

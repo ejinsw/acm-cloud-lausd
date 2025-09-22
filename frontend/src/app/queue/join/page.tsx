@@ -15,9 +15,19 @@ import {
   Stack,
   Alert,
   Loader,
+  Notification,
+  ActionIcon,
+  Tooltip,
 } from "@mantine/core";
-import { IconInfoCircle, IconArrowLeft } from "@tabler/icons-react";
+import {
+  IconInfoCircle,
+  IconArrowLeft,
+  IconWifi,
+  IconWifiOff,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
+import { useQueueSSE } from "../../../hooks/useQueueSSE";
 
 interface Subject {
   id: string;
@@ -29,19 +39,26 @@ export default function JoinQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isInQueue, setIsInQueue] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [queueData, setQueueData] = useState<{
-    subject: string;
-    description: string;
-    position: number;
-    estimatedWait: string;
-  } | null>(null);
-
   const [formData, setFormData] = useState({
     subjectId: "",
     description: "",
   });
+
+  // Use SSE hook for real-time updates
+  const { isConnected, connectionError, myQueueStatus, reconnect } =
+    useQueueSSE("STUDENT");
+
+  // Derived state from SSE
+  const isInQueue = myQueueStatus?.inQueue || false;
+  const queueData = myQueueStatus?.queue
+    ? {
+        subject: myQueueStatus.queue.subject.name,
+        description: myQueueStatus.queue.description,
+        position: myQueueStatus.position || 0,
+        estimatedWait: "15-20 minutes", // Could be calculated based on position
+      }
+    : null;
 
   // Load subjects on component mount
   useEffect(() => {

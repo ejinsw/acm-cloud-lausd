@@ -18,27 +18,34 @@ import {
   ScrollArea,
   ActionIcon,
   Tooltip,
+  Notification,
 } from "@mantine/core";
 import {
   IconArrowLeft,
   IconUser,
   IconAlertTriangle,
   IconCheck,
+  IconWifi,
+  IconWifiOff,
+  IconRefresh,
 } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
+import { useQueueSSE } from "../../../hooks/useQueueSSE";
 
 export default function InstructorQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [queueItems, setQueueItems] = useState<any[]>([]);
-  const [loadingQueue, setLoadingQueue] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // Load queue items on component mount
+  // Use SSE hook for real-time updates
+  const { isConnected, connectionError, queueItems, reconnect } =
+    useQueueSSE("INSTRUCTOR");
+
+  // Load initial queue items on component mount
   useEffect(() => {
-    const loadQueueItems = async () => {
+    const loadInitialQueueItems = async () => {
       try {
-        setLoadingQueue(true);
         const token = await getToken();
         const response = await fetch(
           `${
@@ -58,15 +65,20 @@ export default function InstructorQueuePage() {
         }
 
         const data = await response.json();
-        setQueueItems(data.queueItems || []);
+        // Note: SSE will handle updates after initial load
+        console.log(
+          "Initial queue loaded:",
+          data.queueItems?.length || 0,
+          "items"
+        );
       } catch (error) {
-        console.error("Failed to load queue items:", error);
-        setQueueItems([]);
+        console.error("Failed to load initial queue items:", error);
       } finally {
-        setLoadingQueue(false);
+        setInitialLoadComplete(true);
       }
     };
-    loadQueueItems();
+
+    loadInitialQueueItems();
   }, []);
 
   const handleAcceptStudent = async (queueItemId: number) => {
@@ -91,11 +103,10 @@ export default function InstructorQueuePage() {
         throw new Error("Failed to accept student");
       }
 
-      // Remove the accepted item from the list
-      setQueueItems((prev) => prev.filter((item) => item.id !== queueItemId));
-      // Note: Live session handling is done elsewhere
+      // Note: SSE will automatically update the queue list
+      // No need to manually update state - SSE handles it
       console.log(
-        `Accepted queue item ${queueItemId} - session handling by other system`
+        `Accepted queue item ${queueItemId} - SSE will update the list`
       );
     } catch (error) {
       console.error("Failed to accept student:", error);
@@ -131,12 +142,43 @@ export default function InstructorQueuePage() {
           </Text>
           <Text c="dimmed">Help students by accepting their requests</Text>
         </Box>
-        <Badge size="lg" color="blue" variant="light">
-          {queueItems.length} students waiting
-        </Badge>
+        <Group gap="md">
+          <Badge size="lg" color="blue" variant="light">
+            {queueItems.length} students waiting
+          </Badge>
+          <Group gap="xs">
+            {isConnected ? (
+              <Tooltip label="Connected to live updates">
+                <IconWifi size={20} color="green" />
+              </Tooltip>
+            ) : (
+              <Tooltip label="Connection lost - click to reconnect">
+                <ActionIcon variant="subtle" color="red" onClick={reconnect}>
+                  <IconWifiOff size={20} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+        </Group>
       </Group>
 
-      {loadingQueue ? (
+      {connectionError && (
+        <Alert
+          icon={<IconWifiOff size={16} />}
+          color="red"
+          title="Connection Error"
+          mb="md"
+          action={
+            <Button size="xs" variant="light" onClick={reconnect}>
+              <IconRefresh size={14} />
+            </Button>
+          }
+        >
+          {connectionError}
+        </Alert>
+      )}
+
+      {!initialLoadComplete ? (
         <Card shadow="sm" padding="xl" radius="md" withBorder>
           <Center>
             <Stack align="center" gap="md">

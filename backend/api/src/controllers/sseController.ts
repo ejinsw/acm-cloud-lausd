@@ -131,19 +131,27 @@ export const broadcastStudentQueueStatus = async (studentId: string) => {
 
 // Helper function to get queue position
 async function getQueuePosition(studentId: string): Promise<number> {
+  // Step 1: get the student's own queue record
+  const studentQueue = await prisma.studentQueue.findFirst({
+    where: { studentId },
+    select: { createdAt: true },
+  });
+
+  if (!studentQueue) {
+    // student has no queue, so position is 0
+    return 0;
+  }
+
+  // Step 2: count all pending queues created before or at the same time
   const position = await prisma.studentQueue.count({
     where: {
       status: 'PENDING',
       createdAt: {
-        lte: await prisma.studentQueue
-          .findUnique({
-            where: { studentId },
-            select: { createdAt: true },
-          })
-          .then(q => q?.createdAt),
+        lte: studentQueue.createdAt,
       },
     },
   });
+
   return position;
 }
 

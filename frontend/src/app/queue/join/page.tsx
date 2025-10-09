@@ -6,26 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   Box,
   Text,
-  TextInput,
   Textarea,
   Select,
   Button,
   Card,
-  Group,
   Stack,
   Alert,
-  Loader,
-  Notification,
-  ActionIcon,
-  Tooltip,
 } from "@mantine/core";
-import {
-  IconInfoCircle,
-  IconArrowLeft,
-  IconWifi,
-  IconWifiOff,
-  IconRefresh,
-} from "@tabler/icons-react";
+import { IconInfoCircle, IconArrowLeft } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
 import { useQueueSSE } from "../../../hooks/useQueueSSE";
 
@@ -46,8 +34,7 @@ export default function JoinQueuePage() {
   });
 
   // Use SSE hook for real-time updates
-  const { isConnected, connectionError, myQueueStatus, reconnect } =
-    useQueueSSE("STUDENT");
+  const { myQueueStatus } = useQueueSSE("STUDENT");
 
   // Derived state from SSE
   const isInQueue = myQueueStatus?.inQueue || false;
@@ -99,24 +86,6 @@ export default function JoinQueuePage() {
     setIsLoading(true);
 
     try {
-      // Use mock data instead of API call for now
-      const selectedSubject = subjects.find((s) => s.id === formData.subjectId);
-      setQueueData({
-        subject: selectedSubject?.name || "Unknown Subject",
-        description: formData.description,
-        position: 1,
-        estimatedWait: "15-20 minutes",
-      });
-      setIsInQueue(true);
-    } catch (error) {
-      console.error("Failed to join queue:", error);
-    } finally {
-      setIsLoading(false);
-    }
-
-    setIsLoading(true);
-
-    try {
       const token = await getToken();
       const response = await fetch(
         `${
@@ -139,15 +108,8 @@ export default function JoinQueuePage() {
         throw new Error("Failed to join queue");
       }
 
-      const data = await response.json();
-      const selectedSubject = subjects.find((s) => s.id === formData.subjectId);
-      setQueueData({
-        subject: selectedSubject?.name || "Unknown Subject",
-        description: formData.description,
-        position: data.position || 1,
-        estimatedWait: data.estimatedWait || "15-20 minutes",
-      });
-      setIsInQueue(true);
+      // The SSE hook will automatically update the state when the queue status changes
+      // No need to manually set local state here
     } catch (error) {
       console.error("Failed to join queue:", error);
       // Show error notification or alert
@@ -172,9 +134,8 @@ export default function JoinQueuePage() {
       //     },
       //   }
       // );
-      // For now, just reset local state
-      setIsInQueue(false);
-      setQueueData(null);
+      // The SSE hook will automatically update the state when the queue status changes
+      // No need to manually set local state here
     } catch (error) {
       console.error("Failed to leave queue:", error);
     } finally {
@@ -205,7 +166,7 @@ export default function JoinQueuePage() {
         <Card shadow="sm" padding="lg" radius="md" withBorder>
           <Stack gap="md">
             <Text size="xl" fw={700} c="blue">
-              You're in the queue!
+              You&apos;re in the queue!
             </Text>
 
             <Alert
@@ -279,8 +240,8 @@ export default function JoinQueuePage() {
           </Text>
 
           <Text c="dimmed">
-            Get help from an instructor by joining the queue. You'll be matched
-            with an available instructor.
+            Get help from an instructor by joining the queue. You&apos;ll be
+            matched with an available instructor.
           </Text>
 
           <Select

@@ -4,6 +4,10 @@ resource "aws_ecs_service" "api" {
   task_definition = aws_ecs_task_definition.api.arn
   desired_count   = var.api_desired_count
   launch_type     = "FARGATE"
+  force_new_deployment = true
+
+    deployment_minimum_healthy_percent = 0
+    deployment_maximum_percent         = 100
   network_configuration {
     subnets          = var.public_subnet_ids
     assign_public_ip = true
@@ -22,6 +26,10 @@ resource "aws_ecs_service" "websocket" {
   task_definition = aws_ecs_task_definition.websocket.arn
   desired_count   = var.websocket_desired_count
   launch_type     = "FARGATE"
+  force_new_deployment = true
+
+  deployment_minimum_healthy_percent = 0
+  deployment_maximum_percent         = 100
   network_configuration {
     subnets          = var.public_subnet_ids
     assign_public_ip = true

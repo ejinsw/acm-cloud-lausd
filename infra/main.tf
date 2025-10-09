@@ -6,7 +6,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket       = "acm-cloud-lausd-free-tier"
+    bucket       = "acm-cloud-lausd-terraform-state"
     key          = "terraform.tfstate"
     region       = "us-west-1"
     use_lockfile = true
@@ -113,7 +113,7 @@ module "ecs" {
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
-    { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUER", value = module.cognito.user_pool_client_issuer },
+    { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ID", value = module.cognito.user_pool_client_id },
     { name = "COGNITO_USER_POOL_ID", value = module.cognito.user_pool_id },
     { name = "AWS_REGION", value = "us-west-1" },

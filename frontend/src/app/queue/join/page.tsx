@@ -6,18 +6,16 @@ import { useRouter } from "next/navigation";
 import {
   Box,
   Text,
-  TextInput,
   Textarea,
   Select,
   Button,
   Card,
-  Group,
   Stack,
   Alert,
-  Loader,
 } from "@mantine/core";
 import { IconInfoCircle, IconArrowLeft } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
+import { useQueueSSE } from "../../../hooks/useQueueSSE";
 
 interface Subject {
   id: string;
@@ -29,19 +27,25 @@ export default function JoinQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isInQueue, setIsInQueue] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [queueData, setQueueData] = useState<{
-    subject: string;
-    description: string;
-    position: number;
-    estimatedWait: string;
-  } | null>(null);
-
   const [formData, setFormData] = useState({
     subjectId: "",
     description: "",
   });
+
+  // Use SSE hook for real-time updates
+  const { myQueueStatus } = useQueueSSE("STUDENT");
+
+  // Derived state from SSE
+  const isInQueue = myQueueStatus?.inQueue || false;
+  const queueData = myQueueStatus?.queue
+    ? {
+        subject: myQueueStatus.queue.subject.name,
+        description: myQueueStatus.queue.description,
+        position: myQueueStatus.position || 0,
+        estimatedWait: "15-20 minutes", // Could be calculated based on position
+      }
+    : null;
 
   // Load subjects on component mount
   useEffect(() => {
@@ -82,25 +86,16 @@ export default function JoinQueuePage() {
     setIsLoading(true);
 
     try {
-      // Use mock data instead of API call for now
-      const selectedSubject = subjects.find((s) => s.id === formData.subjectId);
-      setQueueData({
-        subject: selectedSubject?.name || "Unknown Subject",
-        description: formData.description,
-        position: 1,
-        estimatedWait: "15-20 minutes",
-      });
-      setIsInQueue(true);
-    } catch (error) {
-      console.error("Failed to join queue:", error);
-    } finally {
-      setIsLoading(false);
-    }
-
-    setIsLoading(true);
-
-    try {
       const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      console.log("Sending queue request:", {
+        subjectId: formData.subjectId,
+        description: formData.description,
+      });
+
       const response = await fetch(
         `${
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -118,48 +113,87 @@ export default function JoinQueuePage() {
         }
       );
 
+      console.log("Queue response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to join queue");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Queue request failed:", errorData);
+        throw new Error(
+          errorData.message || `Failed to join queue (${response.status})`
+        );
       }
 
-      const data = await response.json();
-      const selectedSubject = subjects.find((s) => s.id === formData.subjectId);
-      setQueueData({
-        subject: selectedSubject?.name || "Unknown Subject",
-        description: formData.description,
-        position: data.position || 1,
-        estimatedWait: data.estimatedWait || "15-20 minutes",
-      });
-      setIsInQueue(true);
+      const result = await response.json();
+      console.log("Queue request successful:", result);
+
+      // The SSE hook will automatically update the state when the queue status changes
+      // No need to manually set local state here
     } catch (error) {
       console.error("Failed to join queue:", error);
-      // Show error notification or alert
+      // TODO: Show error notification or alert to user
+      alert(
+        `Failed to join queue: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLeaveQueue = async () => {
+    if (!myQueueStatus?.queue?.id) {
+      console.error("No queue ID available to leave");
+      alert("No queue found to leave");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // TODO: Implement leave queue API call
-      // const token = await getToken();
-      // const response = await fetch(
-      //   `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/queue/${queueId}`,
-      //   {
-      //     method: "DELETE",
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //       "Content-Type": "application/json",
-      //     },
-      //   }
-      // );
-      // For now, just reset local state
-      setIsInQueue(false);
-      setQueueData(null);
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      const queueId = myQueueStatus.queue.id;
+      console.log("Leaving queue with ID:", queueId);
+
+      const response = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+        }/api/queue/${queueId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Leave queue response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Leave queue request failed:", errorData);
+        throw new Error(
+          errorData.message || `Failed to leave queue (${response.status})`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Leave queue request successful:", result);
+
+      // The SSE hook will automatically update the state when the queue status changes
+      // No need to manually set local state here
     } catch (error) {
       console.error("Failed to leave queue:", error);
+      alert(
+        `Failed to leave queue: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -188,7 +222,7 @@ export default function JoinQueuePage() {
         <Card shadow="sm" padding="lg" radius="md" withBorder>
           <Stack gap="md">
             <Text size="xl" fw={700} c="blue">
-              You're in the queue!
+              You&apos;re in the queue!
             </Text>
 
             <Alert
@@ -262,8 +296,8 @@ export default function JoinQueuePage() {
           </Text>
 
           <Text c="dimmed">
-            Get help from an instructor by joining the queue. You'll be matched
-            with an available instructor.
+            Get help from an instructor by joining the queue. You&apos;ll be
+            matched with an available instructor.
           </Text>
 
           <Select

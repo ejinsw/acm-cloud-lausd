@@ -1,6 +1,11 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
+import {
+  notifyStudentJoinedQueue,
+  notifyQueueAccepted,
+  notifyStudentLeftQueue,
+} from './sseController';
 
 export const getQueueList = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -49,11 +54,12 @@ export const getQueueList = expressAsyncHandler(
     });
 
     // Add canTeach information to each item
-    queueItems.forEach(item => {
-      item.canTeach = user.subjects.some(subject => subject.id === item.subjectId);
-    });
+    const queueItemsWithCanTeach = queueItems.map(item => ({
+      ...item,
+      canTeach: user.subjects.some(subject => subject.id === item.subjectId),
+    }));
 
-    res.status(200).json({ queueItems });
+    res.status(200).json({ queueItems: queueItemsWithCanTeach });
   }
 );
 
@@ -99,6 +105,12 @@ export const createStudentQueue = expressAsyncHandler(
     const newQueue = await prisma.studentQueue.create({
       data: { description, subjectId, studentId: userId },
     });
+
+    // Trigger SSE notification for queue update
+    notifyStudentJoinedQueue(userId).catch(err => {
+      console.error('SSE notification failed:', err);
+    });
+
     res.status(201).json({ queue: newQueue });
   }
 );
@@ -148,6 +160,12 @@ export const acceptQueue = expressAsyncHandler(
       where: { id: Number(id) },
       data: { acceptedInstructorId: userId, status: 'ACCEPTED' },
     });
+
+    // Trigger SSE notification for queue update
+    notifyQueueAccepted(queue.studentId).catch(err => {
+      console.error('SSE notification failed:', err);
+    });
+
     res.status(200).json({ queue: updatedQueue });
   }
 );
@@ -206,6 +224,8 @@ export const deleteQueue = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const userId = (req.user as { sub: string })?.sub;
     const { id } = req.params;
+    console.log(`Delete queue request: userId=${userId}, queueId=${id}`);
+
     if (!userId) {
       res.status(401).json({ message: 'Not authorized' });
       return;
@@ -223,7 +243,18 @@ export const deleteQueue = expressAsyncHandler(
       return;
     }
 
+    // Get student ID before deleting for SSE notification
+    const studentId = queue.studentId;
+    console.log(`Deleting queue for student: ${studentId}`);
+
     await prisma.studentQueue.delete({ where: { id: Number(id) } });
+    console.log(`Queue ${id} deleted successfully`);
+
+    // Trigger SSE notification for queue update
+    notifyStudentLeftQueue(studentId).catch(err => {
+      console.error('SSE notification failed:', err);
+    });
+
     res.status(200).json({ message: 'Queue deleted successfully' });
   }
 );

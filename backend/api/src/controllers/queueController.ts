@@ -63,6 +63,20 @@ export const getQueueList = expressAsyncHandler(
   }
 );
 
+export const getStudentQueues = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.user as { sub: string })?.sub;
+    if (!userId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    const queues = await prisma.studentQueue.findMany({ where: { studentId: userId } });
+
+    res.status(200).json({ queues });
+  }
+);
+
 export const createStudentQueue = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { description, subjectId } = req.body;
@@ -139,7 +153,7 @@ export const acceptQueue = expressAsyncHandler(
     const { id } = req.params;
     const queue = await prisma.studentQueue.findUnique({
       where: { id: Number(id) },
-      select: { id: true, status: true, subjectId: true },
+      select: { id: true, status: true, subjectId: true, studentId: true },
     });
     if (!queue) {
       res.status(404).json({ message: 'Queue not found' });

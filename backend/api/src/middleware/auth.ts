@@ -39,15 +39,12 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
             select: { id: true, email: true, role: true }
           });
 
-          console.log('Auth middleware - Database user:', dbUser);
-
           if (dbUser) {
             const user: CognitoUser = {
               sub: dbUser.id,
               email: dbUser.email,
               role: dbUser.role,
             };
-            console.log('Auth middleware - Created user object from database:', user);
             (req as any).user = user;
             next();
             return;
@@ -74,7 +71,6 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         role: response.UserAttributes?.find(attr => attr.Name === 'custom:role')?.Value || 'STUDENT',
       };
 
-      console.log('Auth middleware - Cognito user:', user);
       // Attach user to request object
       (req as any).user = user;
       next();
@@ -94,11 +90,6 @@ export const checkRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user as CognitoUser;
     const userRole = user?.role?.toUpperCase();
-
-    // Debug logging
-    console.log('Role check - User:', user);
-    console.log('Role check - User role:', userRole);
-    console.log('Role check - Required roles:', roles);
 
     if (!userRole) {
       console.log('Role check - No user role found');

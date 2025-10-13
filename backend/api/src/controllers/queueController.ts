@@ -151,11 +151,6 @@ export const acceptQueue = expressAsyncHandler(
       return;
     }
 
-    if (!user.subjects.some(subject => subject.id === queue.subjectId)) {
-      res.status(403).json({ message: 'You do not teach this subject' });
-      return;
-    }
-
     const updatedQueue = await prisma.studentQueue.update({
       where: { id: Number(id) },
       data: { acceptedInstructorId: userId, status: 'ACCEPTED' },

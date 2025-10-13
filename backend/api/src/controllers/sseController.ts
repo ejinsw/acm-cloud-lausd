@@ -8,7 +8,7 @@ const studentConnections = new Map<string, Response>();
 // ===== MAIN SSE HANDLER =====
 export const handleQueueSSE = (req: Request, res: Response) => {
   const userId = (req.user as { sub: string })?.sub;
-  const userRole = (req.user as { role: string })?.role;
+  const userRole = (req.user as unknown as { role: string })?.role;
 
   console.log(`SSE connection attempt: userId=${userId}, role=${userRole}`);
 

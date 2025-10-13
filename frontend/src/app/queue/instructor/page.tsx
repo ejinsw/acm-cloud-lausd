@@ -42,6 +42,14 @@ export default function InstructorQueuePage() {
   const { isConnected, connectionError, queueItems, reconnect } =
     useQueueSSE("INSTRUCTOR");
 
+  // Log SSE queue updates
+  useEffect(() => {
+    console.log("Queue items updated via SSE:", queueItems.length, "items");
+    if (queueItems.length > 0) {
+      console.log("Current queue items:", queueItems);
+    }
+  }, [queueItems]);
+
   // Load initial queue items on component mount
   useEffect(() => {
     const loadInitialQueueItems = async () => {
@@ -65,12 +73,13 @@ export default function InstructorQueuePage() {
         }
 
         const data = await response.json();
-        // Note: SSE will handle updates after initial load
+        console.log("Initial queue API response:", data);
         console.log(
           "Initial queue loaded:",
           data.queueItems?.length || 0,
           "items"
         );
+        // Note: SSE will handle updates after initial load
       } catch (error) {
         console.error("Failed to load initial queue items:", error);
       } finally {
@@ -86,6 +95,12 @@ export default function InstructorQueuePage() {
 
     try {
       const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      console.log(`Accepting queue item: ${queueItemId}`);
+
       const response = await fetch(
         `${
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -99,9 +114,18 @@ export default function InstructorQueuePage() {
         }
       );
 
+      console.log("Accept response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to accept student");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Accept request failed:", errorData);
+        throw new Error(
+          errorData.message || `Failed to accept student (${response.status})`
+        );
       }
+
+      const result = await response.json();
+      console.log("Accept request successful:", result);
 
       // Note: SSE will automatically update the queue list
       // No need to manually update state - SSE handles it
@@ -110,7 +134,11 @@ export default function InstructorQueuePage() {
       );
     } catch (error) {
       console.error("Failed to accept student:", error);
-      // Handle error - show notification or alert
+      alert(
+        `Failed to accept student: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }

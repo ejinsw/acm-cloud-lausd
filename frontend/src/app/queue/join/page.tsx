@@ -23,11 +23,25 @@ interface Subject {
   level?: string;
 }
 
+interface ExistingQueue {
+  id: number;
+  subjectId: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  subject?: {
+    id: string;
+    name: string;
+    level?: string;
+  };
+}
+
 export default function JoinQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [existingQueue, setExistingQueue] = useState<ExistingQueue | null>(null);
   const [formData, setFormData] = useState({
     subjectId: "",
     description: "",
@@ -47,7 +61,47 @@ export default function JoinQueuePage() {
       }
     : null;
 
-  // Load subjects on component mount
+  // Check for existing queued items that aren't accepted
+  const checkExistingQueue = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+        }/api/queue/student`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch existing queues");
+      }
+
+      const data = await response.json();
+      const queues = data.queues || [];
+      
+      // Find the first queue that is not accepted (PENDING status)
+      const pendingQueue = queues.find((queue: ExistingQueue) => queue.status === 'PENDING');
+      
+      if (pendingQueue) {
+        setExistingQueue(pendingQueue);
+        // Pre-fill the form with existing queue data
+        setFormData({
+          subjectId: pendingQueue.subjectId,
+          description: pendingQueue.description,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to check existing queues:", error);
+    }
+  };
+
+  // Load subjects and check for existing queues on component mount
   useEffect(() => {
     const loadSubjects = async () => {
       try {
@@ -76,7 +130,9 @@ export default function JoinQueuePage() {
         setSubjects([]);
       }
     };
+    
     loadSubjects();
+    checkExistingQueue();
   }, []);
 
   const handleJoinQueue = async () => {
@@ -142,7 +198,10 @@ export default function JoinQueuePage() {
   };
 
   const handleLeaveQueue = async () => {
-    if (!myQueueStatus?.queue?.id) {
+    // Get queue ID from either SSE data or existing queue data
+    const queueId = myQueueStatus?.queue?.id || existingQueue?.id;
+    
+    if (!queueId) {
       console.error("No queue ID available to leave");
       alert("No queue found to leave");
       return;
@@ -156,7 +215,6 @@ export default function JoinQueuePage() {
         throw new Error("No authentication token available");
       }
 
-      const queueId = myQueueStatus.queue.id;
       console.log("Leaving queue with ID:", queueId);
 
       const response = await fetch(
@@ -185,6 +243,13 @@ export default function JoinQueuePage() {
       const result = await response.json();
       console.log("Leave queue request successful:", result);
 
+      // Clear existing queue state and reset form
+      setExistingQueue(null);
+      setFormData({
+        subjectId: "",
+        description: "",
+      });
+
       // The SSE hook will automatically update the state when the queue status changes
       // No need to manually set local state here
     } catch (error) {
@@ -207,7 +272,15 @@ export default function JoinQueuePage() {
     );
   }
 
-  if (isInQueue && queueData) {
+  // Show existing queue status if student is already in queue (from SSE) or has existing pending queue
+  if ((isInQueue && queueData) || existingQueue) {
+    const displayData = isInQueue && queueData ? queueData : {
+      subject: existingQueue ? subjects.find(s => s.id === existingQueue.subjectId)?.name || 'Unknown Subject' : '',
+      description: existingQueue?.description || '',
+      position: queueData?.position || 0,
+      estimatedWait: queueData?.estimatedWait || "15-20 minutes",
+    };
+
     return (
       <Box p="xl" maw={600} mx="auto">
         <Button
@@ -237,30 +310,32 @@ export default function JoinQueuePage() {
               <Text size="sm" c="dimmed" mb={4}>
                 Subject
               </Text>
-              <Text fw={500}>{queueData.subject}</Text>
+              <Text fw={500}>{displayData.subject}</Text>
             </Box>
 
             <Box>
               <Text size="sm" c="dimmed" mb={4}>
                 Description
               </Text>
-              <Text>{queueData.description}</Text>
+              <Text>{displayData.description}</Text>
             </Box>
 
-            <Box>
-              <Text size="sm" c="dimmed" mb={4}>
-                Position in Queue
-              </Text>
-              <Text fw={500} size="lg" c="blue">
-                #{queueData.position}
-              </Text>
-            </Box>
+            {displayData.position > 0 && (
+              <Box>
+                <Text size="sm" c="dimmed" mb={4}>
+                  Position in Queue
+                </Text>
+                <Text fw={500} size="lg" c="blue">
+                  #{displayData.position}
+                </Text>
+              </Box>
+            )}
 
             <Box>
               <Text size="sm" c="dimmed" mb={4}>
                 Estimated Wait Time
               </Text>
-              <Text fw={500}>{queueData.estimatedWait}</Text>
+              <Text fw={500}>{displayData.estimatedWait}</Text>
             </Box>
 
             <Button

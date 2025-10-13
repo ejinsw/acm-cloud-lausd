@@ -142,25 +142,58 @@ export default function JoinQueuePage() {
   };
 
   const handleLeaveQueue = async () => {
+    if (!myQueueStatus?.queue?.id) {
+      console.error("No queue ID available to leave");
+      alert("No queue found to leave");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // TODO: Implement leave queue API call
-      // const token = await getToken();
-      // const response = await fetch(
-      //   `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/queue/${queueId}`,
-      //   {
-      //     method: "DELETE",
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //       "Content-Type": "application/json",
-      //     },
-      //   }
-      // );
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      const queueId = myQueueStatus.queue.id;
+      console.log("Leaving queue with ID:", queueId);
+
+      const response = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+        }/api/queue/${queueId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Leave queue response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Leave queue request failed:", errorData);
+        throw new Error(
+          errorData.message || `Failed to leave queue (${response.status})`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Leave queue request successful:", result);
+
       // The SSE hook will automatically update the state when the queue status changes
       // No need to manually set local state here
     } catch (error) {
       console.error("Failed to leave queue:", error);
+      alert(
+        `Failed to leave queue: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }

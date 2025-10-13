@@ -87,6 +87,15 @@ export default function JoinQueuePage() {
 
     try {
       const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      console.log("Sending queue request:", {
+        subjectId: formData.subjectId,
+        description: formData.description,
+      });
+
       const response = await fetch(
         `${
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -104,15 +113,29 @@ export default function JoinQueuePage() {
         }
       );
 
+      console.log("Queue response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to join queue");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Queue request failed:", errorData);
+        throw new Error(
+          errorData.message || `Failed to join queue (${response.status})`
+        );
       }
+
+      const result = await response.json();
+      console.log("Queue request successful:", result);
 
       // The SSE hook will automatically update the state when the queue status changes
       // No need to manually set local state here
     } catch (error) {
       console.error("Failed to join queue:", error);
-      // Show error notification or alert
+      // TODO: Show error notification or alert to user
+      alert(
+        `Failed to join queue: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoading(false);
     }

@@ -208,7 +208,7 @@ export function useQueueSSE(
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [userRole, connect]);
+  }, [userRole]); // ✅ FIXED: Removed 'connect' from dependencies
 
   return {
     isConnected,

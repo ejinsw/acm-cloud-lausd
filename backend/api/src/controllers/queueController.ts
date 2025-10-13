@@ -107,7 +107,9 @@ export const createStudentQueue = expressAsyncHandler(
     });
 
     // Trigger SSE notification for queue update
-    await notifyStudentJoinedQueue(userId);
+    notifyStudentJoinedQueue(userId).catch(err => {
+      console.error('SSE notification failed:', err);
+    });
 
     res.status(201).json({ queue: newQueue });
   }
@@ -160,7 +162,9 @@ export const acceptQueue = expressAsyncHandler(
     });
 
     // Trigger SSE notification for queue update
-    await notifyQueueAccepted(updatedQueue.studentId);
+    notifyQueueAccepted(queue.studentId).catch(err => {
+      console.error('SSE notification failed:', err);
+    });
 
     res.status(200).json({ queue: updatedQueue });
   }

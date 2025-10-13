@@ -10,7 +10,10 @@ export const handleQueueSSE = (req: Request, res: Response) => {
   const userId = (req.user as { sub: string })?.sub;
   const userRole = (req.user as { role: string })?.role;
 
+  console.log(`SSE connection attempt: userId=${userId}, role=${userRole}`);
+
   if (!userId || !userRole) {
+    console.log('SSE connection failed: Missing user info');
     res.status(401).json({ message: 'Not authorized' });
     return;
   }
@@ -26,15 +29,21 @@ export const handleQueueSSE = (req: Request, res: Response) => {
   // Store connection
   if (userRole === 'INSTRUCTOR') {
     instructorConnections.set(userId, res);
+    console.log(
+      `SSE connected: Instructor ${userId} (total instructors: ${instructorConnections.size})`
+    );
   } else if (userRole === 'STUDENT') {
     studentConnections.set(userId, res);
+    console.log(`SSE connected: Student ${userId} (total students: ${studentConnections.size})`);
   }
 
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+  console.log(`SSE initial message sent to ${userRole} ${userId}`);
 
   // Handle disconnect
   req.on('close', () => {
+    console.log(`SSE disconnected: ${userRole} ${userId}`);
     instructorConnections.delete(userId);
     studentConnections.delete(userId);
   });
@@ -159,6 +168,7 @@ async function getQueuePosition(studentId: string): Promise<number> {
 
 // When student joins queue
 export const notifyStudentJoinedQueue = async (studentId: string) => {
+  console.log(`notifyStudentJoinedQueue called for student: ${studentId}`);
   // Update instructor list
   await broadcastQueueListToInstructors();
 
@@ -168,6 +178,7 @@ export const notifyStudentJoinedQueue = async (studentId: string) => {
 
 // When instructor accepts queue
 export const notifyQueueAccepted = async (studentId: string) => {
+  console.log(`notifyQueueAccepted called for student: ${studentId}`);
   // Update instructor list (remove accepted queue)
   await broadcastQueueListToInstructors();
 
@@ -177,6 +188,7 @@ export const notifyQueueAccepted = async (studentId: string) => {
 
 // When student leaves queue
 export const notifyStudentLeftQueue = async (studentId: string) => {
+  console.log(`notifyStudentLeftQueue called for student: ${studentId}`);
   // Update instructor list
   await broadcastQueueListToInstructors();
 

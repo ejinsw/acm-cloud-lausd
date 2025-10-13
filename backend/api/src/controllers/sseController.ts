@@ -41,12 +41,119 @@ export const handleQueueSSE = (req: Request, res: Response) => {
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
   console.log(`SSE initial message sent to ${userRole} ${userId}`);
 
+  // Send initial data based on user role
+  if (userRole === 'INSTRUCTOR') {
+    // Send initial queue list to instructor
+    sendInitialQueueListToInstructor(res);
+  } else if (userRole === 'STUDENT') {
+    // Send initial queue status to student
+    sendInitialQueueStatusToStudent(userId, res);
+  }
+
   // Handle disconnect
   req.on('close', () => {
     console.log(`SSE disconnected: ${userRole} ${userId}`);
     instructorConnections.delete(userId);
     studentConnections.delete(userId);
   });
+};
+
+// ===== INITIAL DATA FUNCTIONS =====
+
+// Send initial queue list to a specific instructor
+const sendInitialQueueListToInstructor = async (res: Response) => {
+  try {
+    // Get current queue list
+    const queueItems = await prisma.studentQueue.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            level: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Get instructor's subjects to determine canTeach
+    const instructorId = Array.from(instructorConnections.entries())
+      .find(([_, connection]) => connection === res)?.[0];
+    
+    let queueItemsWithCanTeach = queueItems;
+    if (instructorId) {
+      const instructor = await prisma.user.findUnique({
+        where: { id: instructorId },
+        select: { subjects: true },
+      });
+      
+      if (instructor) {
+        queueItemsWithCanTeach = queueItems.map(item => ({
+          ...item,
+          canTeach: instructor.subjects.some(subject => subject.id === item.subjectId),
+        }));
+      }
+    }
+
+    const message = {
+      type: 'queue_list_updated',
+      data: { queueItems: queueItemsWithCanTeach },
+      timestamp: new Date().toISOString(),
+    };
+
+    const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
+    res.write(sseMessage);
+    console.log(`Initial queue list sent to instructor: ${queueItemsWithCanTeach.length} items`);
+  } catch (error) {
+    console.error('Error sending initial queue list to instructor:', error);
+  }
+};
+
+// Send initial queue status to a specific student
+const sendInitialQueueStatusToStudent = async (studentId: string, res: Response) => {
+  try {
+    // Get student's current queue status
+    const studentQueue = await prisma.studentQueue.findFirst({
+      where: {
+        studentId: studentId,
+        status: 'PENDING',
+      },
+      include: {
+        subject: {
+          select: {
+            name: true,
+            level: true,
+          },
+        },
+      },
+    });
+
+    const message = {
+      type: 'my_queue_status',
+      data: {
+        inQueue: !!studentQueue,
+        queue: studentQueue,
+        position: studentQueue ? await getQueuePosition(studentId) : null,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
+    res.write(sseMessage);
+    console.log(`Initial queue status sent to student ${studentId}: inQueue=${!!studentQueue}`);
+  } catch (error) {
+    console.error('Error sending initial queue status to student:', error);
+  }
 };
 
 // ===== SIMPLIFIED BROADCAST FUNCTIONS =====
@@ -76,18 +183,30 @@ export const broadcastQueueListToInstructors = async () => {
     orderBy: { createdAt: 'asc' },
   });
 
-  const message = {
-    type: 'queue_list_updated',
-    data: { queueItems },
-    timestamp: new Date().toISOString(),
-  };
-
-  const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
-
-  // Send to all connected instructors
-  instructorConnections.forEach((connection, instructorId) => {
+  // Send to all connected instructors with their specific canTeach information
+  instructorConnections.forEach(async (connection, instructorId) => {
     try {
       if (!connection.writableEnded) {
+        // Get instructor's subjects to determine canTeach for each item
+        const instructor = await prisma.user.findUnique({
+          where: { id: instructorId },
+          select: { subjects: true },
+        });
+        
+        const queueItemsWithCanTeach = instructor 
+          ? queueItems.map(item => ({
+              ...item,
+              canTeach: instructor.subjects.some(subject => subject.id === item.subjectId),
+            }))
+          : queueItems.map(item => ({ ...item, canTeach: false }));
+
+        const message = {
+          type: 'queue_list_updated',
+          data: { queueItems: queueItemsWithCanTeach },
+          timestamp: new Date().toISOString(),
+        };
+
+        const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
         connection.write(sseMessage);
       } else {
         instructorConnections.delete(instructorId);

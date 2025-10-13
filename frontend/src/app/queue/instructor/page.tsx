@@ -37,10 +37,14 @@ export default function InstructorQueuePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [fallbackQueueItems, setFallbackQueueItems] = useState<any[]>([]);
 
   // Use SSE hook for real-time updates
   const { isConnected, connectionError, queueItems, reconnect } =
     useQueueSSE("INSTRUCTOR");
+
+  // Use SSE queue items if available, otherwise fall back to API-loaded items
+  const displayQueueItems = queueItems.length > 0 ? queueItems : fallbackQueueItems;
 
   // Log SSE queue updates
   useEffect(() => {
@@ -79,7 +83,12 @@ export default function InstructorQueuePage() {
           data.queueItems?.length || 0,
           "items"
         );
-        // Note: SSE will handle updates after initial load
+        
+        // Set fallback queue items if SSE hasn't loaded them yet
+        if (data.queueItems && data.queueItems.length > 0) {
+          setFallbackQueueItems(data.queueItems);
+          console.log("Fallback queue items set:", data.queueItems.length, "items");
+        }
       } catch (error) {
         console.error("Failed to load initial queue items:", error);
       } finally {
@@ -172,7 +181,7 @@ export default function InstructorQueuePage() {
         </Box>
         <Group gap="md">
           <Badge size="lg" color="blue" variant="light">
-            {queueItems.length} students waiting
+            {displayQueueItems.length} students waiting
           </Badge>
           <Group gap="xs">
             {isConnected ? (
@@ -217,7 +226,7 @@ export default function InstructorQueuePage() {
             </Stack>
           </Center>
         </Card>
-      ) : queueItems.length === 0 ? (
+      ) : displayQueueItems.length === 0 ? (
         <Card shadow="sm" padding="xl" radius="md" withBorder>
           <Center>
             <Stack align="center" gap="md">
@@ -234,7 +243,7 @@ export default function InstructorQueuePage() {
       ) : (
         <ScrollArea h={600}>
           <Stack gap="md">
-            {queueItems.map((item) => {
+            {displayQueueItems.map((item) => {
               const canTeach = item.canTeach;
 
               return (

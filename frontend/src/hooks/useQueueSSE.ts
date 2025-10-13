@@ -21,12 +21,14 @@ interface QueueItem {
 }
 
 interface QueueSSEMessage {
-  type: "connected" | "queue_list_updated" | "my_queue_status";
+  type: "connected" | "queue_list_updated" | "my_queue_status" | "session_created";
   data?: {
     queueItems?: QueueItem[];
     inQueue?: boolean;
     queue?: QueueItem | null;
     position?: number | null;
+    sessionId?: string;
+    redirectUrl?: string;
   };
   timestamp: string;
 }
@@ -39,6 +41,10 @@ interface UseQueueSSEReturn {
     inQueue: boolean;
     queue: QueueItem | null;
     position: number | null;
+  } | null;
+  sessionCreated: {
+    sessionId: string | null;
+    redirectUrl: string | null;
   } | null;
   reconnect: () => void;
 }
@@ -53,6 +59,10 @@ export function useQueueSSE(
     inQueue: boolean;
     queue: QueueItem | null;
     position: number | null;
+  } | null>(null);
+  const [sessionCreated, setSessionCreated] = useState<{
+    sessionId: string | null;
+    redirectUrl: string | null;
   } | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -145,6 +155,16 @@ export function useQueueSSE(
                         }
                         break;
 
+                      case "session_created":
+                        if (message.data) {
+                          setSessionCreated({
+                            sessionId: message.data.sessionId || null,
+                            redirectUrl: message.data.redirectUrl || null,
+                          });
+                          console.log("Session created notification:", message.data);
+                        }
+                        break;
+
                       default:
                         console.log("Unknown SSE message type:", message.type);
                     }
@@ -215,6 +235,7 @@ export function useQueueSSE(
     connectionError,
     queueItems,
     myQueueStatus,
+    sessionCreated,
     reconnect,
   };
 }

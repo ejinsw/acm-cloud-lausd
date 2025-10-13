@@ -296,13 +296,18 @@ export const notifyStudentJoinedQueue = async (studentId: string) => {
 };
 
 // When instructor accepts queue
-export const notifyQueueAccepted = async (studentId: string) => {
-  console.log(`notifyQueueAccepted called for student: ${studentId}`);
+export const notifyQueueAccepted = async (studentId: string, sessionId?: string) => {
+  console.log(`notifyQueueAccepted called for student: ${studentId}, sessionId: ${sessionId}`);
   // Update instructor list (remove accepted queue)
   await broadcastQueueListToInstructors();
 
-  // Update student status (no longer in queue)
+  // Update student status (no longer in queue) and notify about new session
   await broadcastStudentQueueStatus(studentId);
+  
+  // If session was created, notify both instructor and student about the new session
+  if (sessionId) {
+    await broadcastSessionCreated(studentId, sessionId);
+  }
 };
 
 // When student leaves queue
@@ -313,4 +318,39 @@ export const notifyStudentLeftQueue = async (studentId: string) => {
 
   // Update student status
   await broadcastStudentQueueStatus(studentId);
+};
+
+// Broadcast session created notification
+export const broadcastSessionCreated = async (studentId: string, sessionId: string) => {
+  const message = {
+    type: 'session_created',
+    data: { sessionId, redirectUrl: `/sessions/${sessionId}` },
+    timestamp: new Date().toISOString(),
+  };
+
+  const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
+
+  // Send to student
+  const studentConnection = studentConnections.get(studentId);
+  if (studentConnection && !studentConnection.writableEnded) {
+    try {
+      studentConnection.write(sseMessage);
+      console.log(`Session created notification sent to student ${studentId}: sessionId=${sessionId}`);
+    } catch (error) {
+      studentConnections.delete(studentId);
+    }
+  }
+
+  // Send to all instructors (they might want to know about the new session)
+  instructorConnections.forEach((connection, instructorId) => {
+    try {
+      if (!connection.writableEnded) {
+        connection.write(sseMessage);
+      } else {
+        instructorConnections.delete(instructorId);
+      }
+    } catch (error) {
+      instructorConnections.delete(instructorId);
+    }
+  });
 };

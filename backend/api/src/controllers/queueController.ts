@@ -139,7 +139,7 @@ export const acceptQueue = expressAsyncHandler(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, subjects: true },
+      select: { role: true, subjects: true, firstName: true, lastName: true },
     });
     if (!user) {
       res.status(404).json({ message: 'User not found' });
@@ -153,7 +153,14 @@ export const acceptQueue = expressAsyncHandler(
     const { id } = req.params;
     const queue = await prisma.studentQueue.findUnique({
       where: { id: Number(id) },
-      select: { id: true, status: true, subjectId: true, studentId: true },
+      include: {
+        student: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        subject: {
+          select: { id: true, name: true, level: true },
+        },
+      },
     });
     if (!queue) {
       res.status(404).json({ message: 'Queue not found' });
@@ -165,17 +172,52 @@ export const acceptQueue = expressAsyncHandler(
       return;
     }
 
+    // Update queue status to accepted
     const updatedQueue = await prisma.studentQueue.update({
       where: { id: Number(id) },
       data: { acceptedInstructorId: userId, status: 'ACCEPTED' },
     });
 
+    // Create a new session for the instructor and student
+    const now = new Date();
+    const sessionEndTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+
+    const session = await prisma.session.create({
+      data: {
+        name: `Tutoring Session - ${queue.subject.name}`,
+        description: queue.description,
+        startTime: now,
+        endTime: sessionEndTime,
+        zoomLink: `https://zoom.us/j/${Math.random().toString(36).substr(2, 9)}`, // Generate a mock Zoom link
+        maxAttendees: 2, // Instructor + 1 student
+        materials: [],
+        objectives: [`Help student with ${queue.subject.name}`],
+        instructorId: userId,
+        subjects: {
+          connect: [{ id: queue.subjectId }],
+        },
+        students: {
+          connect: [{ id: queue.studentId }],
+        },
+        status: 'IN_PROGRESS', // Start the session immediately
+      },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true } },
+        students: { select: { id: true, firstName: true, lastName: true, email: true } },
+        subjects: true,
+      },
+    });
+
     // Trigger SSE notification for queue update
-    notifyQueueAccepted(queue.studentId).catch(err => {
+    notifyQueueAccepted(queue.studentId, session.id).catch(err => {
       console.error('SSE notification failed:', err);
     });
 
-    res.status(200).json({ queue: updatedQueue });
+    res.status(200).json({ 
+      queue: updatedQueue,
+      session: session,
+      redirectUrl: `/sessions/${session.id}`
+    });
   }
 );
 

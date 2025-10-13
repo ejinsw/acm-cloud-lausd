@@ -40,7 +40,7 @@ export default function InstructorQueuePage() {
   const [fallbackQueueItems, setFallbackQueueItems] = useState<any[]>([]);
 
   // Use SSE hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect } =
+  const { isConnected, connectionError, queueItems, sessionCreated, reconnect } =
     useQueueSSE("INSTRUCTOR");
 
   // Use SSE queue items if available, otherwise fall back to API-loaded items
@@ -53,6 +53,14 @@ export default function InstructorQueuePage() {
       console.log("Current queue items:", queueItems);
     }
   }, [queueItems]);
+
+  // Handle session creation redirect
+  useEffect(() => {
+    if (sessionCreated?.redirectUrl) {
+      console.log("Session created, redirecting to:", sessionCreated.redirectUrl);
+      router.push(sessionCreated.redirectUrl);
+    }
+  }, [sessionCreated, router]);
 
   // Load initial queue items on component mount
   useEffect(() => {
@@ -136,11 +144,17 @@ export default function InstructorQueuePage() {
       const result = await response.json();
       console.log("Accept request successful:", result);
 
-      // Note: SSE will automatically update the queue list
-      // No need to manually update state - SSE handles it
-      console.log(
-        `Accepted queue item ${queueItemId} - SSE will update the list`
-      );
+      // Check if session was created and redirect immediately
+      if (result.session && result.redirectUrl) {
+        console.log("Session created, redirecting to:", result.redirectUrl);
+        router.push(result.redirectUrl);
+      } else {
+        // Note: SSE will automatically update the queue list
+        // No need to manually update state - SSE handles it
+        console.log(
+          `Accepted queue item ${queueItemId} - SSE will update the list`
+        );
+      }
     } catch (error) {
       console.error("Failed to accept student:", error);
       alert(

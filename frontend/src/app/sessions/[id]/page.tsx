@@ -216,6 +216,14 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const canJoinSession = () => {
     if (currentUser.role === 'INSTRUCTOR') return true;
 
+    // Check if student is already enrolled in the session (for auto-created sessions from queue)
+    const isEnrolled = session.students?.some(
+      (student: any) => student.id === currentUser.id
+    );
+
+    if (isEnrolled) return true;
+
+    // Check if student has an accepted session request (for regular session requests)
     const request = currentUser.sessionRequests?.find(
       (req: SessionRequest) => req.sessionId === session.id
     );

@@ -48,7 +48,7 @@ export default function JoinQueuePage() {
   });
 
   // Use SSE hook for real-time updates
-  const { myQueueStatus } = useQueueSSE("STUDENT");
+  const { myQueueStatus, sessionCreated } = useQueueSSE("STUDENT");
 
   // Derived state from SSE
   const isInQueue = myQueueStatus?.inQueue || false;
@@ -134,6 +134,14 @@ export default function JoinQueuePage() {
     loadSubjects();
     checkExistingQueue();
   }, []);
+
+  // Handle session creation redirect
+  useEffect(() => {
+    if (sessionCreated?.redirectUrl) {
+      console.log("Session created, redirecting to:", sessionCreated.redirectUrl);
+      router.push(sessionCreated.redirectUrl);
+    }
+  }, [sessionCreated, router]);
 
   const handleJoinQueue = async () => {
     if (!formData.subjectId || !formData.description.trim()) {

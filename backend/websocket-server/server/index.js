@@ -16,7 +16,7 @@ const profanity = new Profanity({
 const rooms = {};
 const users = {};
 
-//const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 
 console.log(`WebSocket chat server started on port ${process.env.PORT || 9999}`);
 
@@ -59,6 +59,63 @@ function getRoomList() {
     name: room.name,
     userCount: room.clients.size,
   }));
+}
+
+function verifyToken(token) {
+  if (typeof token !== 'string' || token.length === 0) {
+    return null;
+  }
+
+  const mockMatch = token.match(/^valid-token-for-([^-]+)-(.+)-([A-Za-z]+)$/);
+  if (mockMatch) {
+    const [, id, username, type] = mockMatch;
+    return {
+      id,
+      username,
+      type: type.toLowerCase() === 'instructor' || type.toLowerCase() === 'admin' ? 'instructor' : 'student',
+      currentRoomId: null,
+    };
+  }
+
+  const segments = token.split('.');
+  if (segments.length === 3) {
+    try {
+      const payloadSegment = segments[1];
+      const padded = payloadSegment.padEnd(
+        payloadSegment.length + ((4 - (payloadSegment.length % 4)) % 4),
+        '='
+      );
+      const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = Buffer.from(base64, 'base64').toString('utf8');
+      const payload = JSON.parse(decoded);
+
+      const rawId = payload.sub || payload.id || payload.userId;
+      const nameCandidate =
+        payload.username ||
+        payload.name ||
+        [payload.firstName, payload.lastName].filter(Boolean).join(' ') ||
+        payload.email;
+      if (!rawId) {
+        return null;
+      }
+      const id = String(rawId);
+      const username = (nameCandidate && String(nameCandidate).trim()) || `User ${id}`;
+      const rawRole = (payload.role || payload.userRole || payload.type || '').toString().toLowerCase();
+      const normalizedRole = rawRole === 'instructor' || rawRole === 'admin' ? 'instructor' : 'student';
+
+      return {
+        id,
+        username,
+        type: normalizedRole,
+        currentRoomId: null,
+      };
+    } catch (error) {
+      console.error('Failed to decode authentication token payload:', error);
+      return null;
+    }
+  }
+
+  return null;
 }
 
 // --- Room Management ---

@@ -128,6 +128,46 @@ export const zoomCallback = expressAsyncHandler(
 );
 
 /**
+ * Get Zoom connection status
+ * @route GET /zoom/status
+ * @access Private/Instructor
+ */
+export const getZoomStatus = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.user as { sub: string })?.sub;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    // Check if user is an instructor
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        role: true,
+        zoomAccessToken: true,
+        zoomTokenExpiresAt: true,
+      },
+    });
+
+    if (!user || user.role !== 'INSTRUCTOR') {
+      res.status(403).json({ message: 'Only instructors can check Zoom status' });
+      return;
+    }
+
+    const hasToken = !!user.zoomAccessToken;
+    const isExpired = user.zoomTokenExpiresAt ? new Date() >= user.zoomTokenExpiresAt : true;
+
+    res.json({
+      connected: hasToken && !isExpired,
+      expired: hasToken && isExpired,
+      needsReconnect: hasToken && isExpired,
+    });
+  }
+);
+
+/**
  * Disconnect Zoom account
  * @route DELETE /zoom/disconnect
  * @access Private/Instructor

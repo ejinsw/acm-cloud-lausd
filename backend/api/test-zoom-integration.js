@@ -15,14 +15,14 @@ async function testZoomIntegration() {
   try {
     // Test 1: Check if Zoom config is loaded
     console.log('1. Testing Zoom configuration...');
-    const config = require('./src/config/zoom.config');
+    const config = require('./dist/src/config/zoom.config');
     console.log('✅ Zoom config loaded successfully');
     console.log(`   - Client ID: ${config.ZOOM_CONFIG.clientId ? 'Set' : 'Not set'}`);
     console.log(`   - Base URL: ${config.ZOOM_CONFIG.baseUrl}\n`);
 
     // Test 2: Test Zoom service (without actual API calls)
     console.log('2. Testing Zoom service...');
-    const { ZoomService } = require('./src/services/zoomService');
+    const { ZoomService } = require('./dist/src/services/zoomService');
     const zoomService = new ZoomService();
     console.log('✅ Zoom service initialized successfully\n');
 

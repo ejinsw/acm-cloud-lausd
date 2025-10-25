@@ -149,7 +149,6 @@ export const createSession = expressAsyncHandler(
       description,
       startTime,
       endTime,
-      zoomLink,
       maxAttendees,
       materials,
       objectives,
@@ -162,11 +161,10 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
-    // Validate all required fields
-    if (!description || !startTime || !endTime || !zoomLink || !maxAttendees) {
+    // Validate all required fields (removed zoomLink requirement - we'll create it)
+    if (!description || !startTime || !endTime || !maxAttendees) {
       res.status(400).json({
-        message:
-          'Missing required fields: description, startTime, endTime, zoomLink, and maxAttendees',
+        message: 'Missing required fields: description, startTime, endTime, and maxAttendees',
       });
       return;
     }
@@ -249,13 +247,56 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
+    // Check if instructor has Zoom connected - REQUIRED for session creation
+    const instructor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        zoomAccessToken: true,
+        zoomTokenExpiresAt: true,
+      },
+    });
+
+    if (
+      !instructor?.zoomAccessToken ||
+      !instructor?.zoomTokenExpiresAt ||
+      new Date() >= instructor.zoomTokenExpiresAt
+    ) {
+      res.status(400).json({
+        message: 'Zoom account not connected. Please connect your Zoom account first.',
+        needsZoomConnection: true,
+      });
+      return;
+    }
+
+    // Create Zoom meeting - REQUIRED for embedded video
+    let zoomMeeting;
+    try {
+      zoomMeeting = await zoomService.createMeeting({
+        topic: name,
+        startTime: startTime ? new Date(startTime).toISOString() : new Date().toISOString(),
+        duration:
+          endTime && startTime
+            ? Math.ceil((new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60)) // duration in minutes
+            : 60, // default 60 minutes
+        instructorEmail: instructor.email,
+      });
+    } catch (error: any) {
+      console.error('Failed to create Zoom meeting:', error);
+      res.status(500).json({
+        message: 'Failed to create Zoom meeting. Please try again.',
+        error: error.message,
+      });
+      return;
+    }
+
     const session = await prisma.session.create({
       data: {
         name,
         description,
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
-        zoomLink,
+        zoomLink: zoomMeeting.join_url, // Always use our created Zoom meeting
         maxAttendees,
         materials: materials || [],
         objectives: objectives || [],
@@ -270,7 +311,15 @@ export const createSession = expressAsyncHandler(
       },
     });
 
-    res.status(201).json({ session });
+    res.status(201).json({
+      session,
+      zoomMeeting: {
+        id: zoomMeeting.id,
+        joinUrl: zoomMeeting.join_url,
+        startUrl: zoomMeeting.start_url,
+      },
+      message: 'Session created with embedded Zoom meeting',
+    });
   }
 );
 
@@ -421,6 +470,32 @@ export const updateSession = expressAsyncHandler(
       return;
     }
 
+    // Update Zoom meeting if session has one and time/name changed
+    try {
+      if (session.zoomLink && (data.startTime || data.name)) {
+        const meetingId = session.zoomLink.includes('zoom.us')
+          ? session.zoomLink.split('/').pop()
+          : session.zoomLink;
+
+        if (meetingId) {
+          await zoomService.updateMeeting(meetingId, {
+            topic: data.name,
+            startTime: data.startTime,
+            duration:
+              data.endTime && data.startTime
+                ? Math.ceil(
+                    (new Date(data.endTime).getTime() - new Date(data.startTime).getTime()) /
+                      (1000 * 60)
+                  )
+                : undefined,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update Zoom meeting:', error);
+      // Continue with session update even if Zoom fails
+    }
+
     const updatedSession = await prisma.session.update({
       where: { id },
       data,
@@ -457,6 +532,22 @@ export const deleteSession = expressAsyncHandler(
     if (session.instructorId !== userId) {
       res.status(403).json({ message: 'You do not have permission to delete this session' });
       return;
+    }
+
+    // Delete Zoom meeting if session has one
+    try {
+      if (session.zoomLink) {
+        const meetingId = session.zoomLink.includes('zoom.us')
+          ? session.zoomLink.split('/').pop()
+          : session.zoomLink;
+
+        if (meetingId) {
+          await zoomService.deleteMeeting(meetingId);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete Zoom meeting:', error);
+      // Continue with session deletion even if Zoom fails
     }
 
     await prisma.session.delete({ where: { id } });
@@ -1244,21 +1335,28 @@ export const getZoomToken = expressAsyncHandler(
     }
 
     try {
-      // Extract meeting ID from zoomLink
+      // Extract meeting ID from zoomLink (our created meeting)
       const meetingId = session.zoomLink.includes('zoom.us')
         ? session.zoomLink.split('/').pop()
         : session.zoomLink;
 
+      if (!meetingId) {
+        res.status(400).json({ message: 'Invalid Zoom meeting ID' });
+        return;
+      }
+
       // Determine user role for Zoom
       const role = isInstructor ? 'host' : 'participant';
 
-      // Generate SDK token
+      // Generate SDK token for embedded video
       const sdkData = await zoomService.generateSDKToken(meetingId, role);
 
       res.json({
         success: true,
         sdkData,
         meetingId,
+        role,
+        sessionName: session.name,
       });
     } catch (error: any) {
       console.error('Zoom SDK token error:', error);

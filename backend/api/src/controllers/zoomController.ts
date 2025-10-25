@@ -4,6 +4,17 @@ import { ZOOM_CONFIG, ZOOM_ENDPOINTS } from '../config/zoom.config';
 import { prisma } from '../config/prisma';
 import axios from 'axios';
 
+// Extend Express Request type for session
+declare global {
+  namespace Express {
+    interface Request {
+      session?: {
+        zoomOAuthState?: string;
+      };
+    }
+  }
+}
+
 /**
  * Start Zoom OAuth flow
  * @route GET /zoom/connect

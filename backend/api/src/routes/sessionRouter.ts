@@ -14,6 +14,7 @@ import {
   rejectSessionRequest,
   startSession,
   stopSession,
+  getZoomToken,
 } from '../controllers/sessionController';
 import { authenticateToken, checkRole } from '../middleware/auth';
 
@@ -34,11 +35,24 @@ router.post('/sessions/:id/leave', authenticateToken, checkRole(['STUDENT']), le
 router.post('/session-requests', authenticateToken, checkRole(['STUDENT']), createSessionRequest); //works
 router.delete('/session-requests/:id', authenticateToken, deleteSessionRequest); //works
 router.get('/session-requests', authenticateToken, getSessionRequests); //works - both students and instructors
-router.post('/session-requests/:id/accept', authenticateToken, checkRole(['INSTRUCTOR']), acceptSessionRequest); //works
-router.post('/session-requests/:id/reject', authenticateToken, checkRole(['INSTRUCTOR']), rejectSessionRequest); //works
+router.post(
+  '/session-requests/:id/accept',
+  authenticateToken,
+  checkRole(['INSTRUCTOR']),
+  acceptSessionRequest
+); //works
+router.post(
+  '/session-requests/:id/reject',
+  authenticateToken,
+  checkRole(['INSTRUCTOR']),
+  rejectSessionRequest
+); //works
 
 // Session management
 router.post('/sessions/:id/start', authenticateToken, checkRole(['INSTRUCTOR']), startSession);
 router.post('/sessions/:id/stop', authenticateToken, checkRole(['INSTRUCTOR']), stopSession);
+
+// Zoom integration
+router.get('/sessions/:id/zoom-token', authenticateToken, getZoomToken);
 
 export default router;

@@ -182,33 +182,6 @@ export class ZoomService {
       );
     }
   }
-
-  // Get meeting status (for checking if session is active)
-  async getMeetingStatus(meetingId: string): Promise<{
-    status: string;
-    isActive: boolean;
-    startTime?: string;
-    endTime?: string;
-  }> {
-    try {
-      const meeting = await this.getMeeting(meetingId);
-      const now = new Date();
-      const startTime = new Date(meeting.start_time);
-      const endTime = new Date(startTime.getTime() + meeting.duration * 60000); // duration in minutes
-
-      return {
-        status: meeting.status,
-        isActive: now >= startTime && now <= endTime,
-        startTime: meeting.start_time,
-        endTime: endTime.toISOString(),
-      };
-    } catch (error: any) {
-      throw new ZoomAPIError(
-        `Failed to get meeting status: ${error.message}`,
-        error.response?.status || 500
-      );
-    }
-  }
 }
 
 // Export singleton instance

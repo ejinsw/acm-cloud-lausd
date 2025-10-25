@@ -11,6 +11,13 @@ export const ZOOM_CONFIG = {
   sdkSecret: process.env.ZOOM_SDK_SECRET,
 };
 
+// Zoom API Endpoints
+export const ZOOM_ENDPOINTS = {
+  OAUTH_AUTHORIZE: 'https://zoom.us/oauth/authorize',
+  OAUTH_TOKEN: 'https://zoom.us/oauth/token',
+  OAUTH_REVOKE: 'https://zoom.us/oauth/revoke',
+} as const;
+
 // Basic types we actually need for tutoring
 export interface ZoomMeeting {
   id: number;
@@ -19,6 +26,7 @@ export interface ZoomMeeting {
   start_time: string;
   duration: number;
   join_url: string;
+  start_url: string;
   password: string;
 }
 

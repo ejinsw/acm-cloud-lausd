@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Container,
   Title,
@@ -22,21 +22,33 @@ import {
   ActionIcon,
   Modal,
   Alert,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconMessage, IconVideo, IconUsers, IconClock, IconMapPin, IconUser, IconSend, IconX } from '@tabler/icons-react';
-import PageWrapper from '@/components/PageWrapper';
-import { Session, User, SessionRequest } from '@/lib/types';
-import { getToken } from '@/actions/authentication';
-import { useAuth } from '@/components/AuthProvider';
-import { routes } from '@/app/routes';
+  Tabs,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import {
+  IconMessage,
+  IconVideo,
+  IconUsers,
+  IconClock,
+  IconMapPin,
+  IconUser,
+  IconSend,
+  IconX,
+  IconScreenShare,
+} from "@tabler/icons-react";
+import PageWrapper from "@/components/PageWrapper";
+import ZoomMeeting from "@/components/sessions/ZoomMeeting";
+import { Session, User, SessionRequest } from "@/lib/types";
+import { getToken } from "@/actions/authentication";
+import { useAuth } from "@/components/AuthProvider";
+import { routes } from "@/app/routes";
 
 interface Message {
   id: string;
   sender: User;
   text: string;
   timestamp: string;
-  type: 'message' | 'system';
+  type: "message" | "system";
 }
 
 interface LiveSessionProps {
@@ -46,10 +58,10 @@ interface LiveSessionProps {
 
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [messageInput, setMessageInput] = useState('');
+  const [messageInput, setMessageInput] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [participants, setParticipants] = useState<User[]>([]);
-  const [showZoomModal, setShowZoomModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("chat");
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
@@ -57,15 +69,20 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   // Initialize WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
-      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001';
-      const ws = new WebSocket(`${wsUrl}?sessionId=${session.id}&userId=${currentUser.id}&userType=${currentUser.role.toLowerCase()}`);
-      
+      const wsUrl =
+        process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
+      const ws = new WebSocket(
+        `${wsUrl}?sessionId=${session.id}&userId=${
+          currentUser.id
+        }&userType=${currentUser.role.toLowerCase()}`
+      );
+
       ws.onopen = () => {
         setIsConnected(true);
         notifications.show({
-          title: 'Connected',
-          message: 'Connected to live session',
-          color: 'green',
+          title: "Connected",
+          message: "Connected to live session",
+          color: "green",
         });
       };
 
@@ -73,37 +90,37 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         const data = JSON.parse(event.data);
 
         switch (data.type) {
-          case 'message':
-            setMessages(prev => [...prev, data.message]);
+          case "message":
+            setMessages((prev) => [...prev, data.message]);
             break;
-          case 'participant_joined':
-            setParticipants(prev => [...prev, data.user]);
+          case "participant_joined":
+            setParticipants((prev) => [...prev, data.user]);
             notifications.show({
-              title: 'Participant Joined',
+              title: "Participant Joined",
               message: `${data.user.firstName} ${data.user.lastName} joined the session`,
-              color: 'blue',
+              color: "blue",
             });
             break;
-          case 'participant_left':
-            setParticipants(prev => prev.filter(p => p.id !== data.userId));
+          case "participant_left":
+            setParticipants((prev) => prev.filter((p) => p.id !== data.userId));
             notifications.show({
-              title: 'Participant Left',
-              message: 'A participant left the session',
-              color: 'yellow',
+              title: "Participant Left",
+              message: "A participant left the session",
+              color: "yellow",
             });
             break;
-          case 'session_started':
+          case "session_started":
             notifications.show({
-              title: 'Session Started',
-              message: 'The instructor has started the session',
-              color: 'green',
+              title: "Session Started",
+              message: "The instructor has started the session",
+              color: "green",
             });
             break;
-          case 'session_ended':
+          case "session_ended":
             notifications.show({
-              title: 'Session Ended',
-              message: 'The session has ended',
-              color: 'red',
+              title: "Session Ended",
+              message: "The session has ended",
+              color: "red",
             });
             break;
         }
@@ -112,18 +129,18 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
       ws.onclose = () => {
         setIsConnected(false);
         notifications.show({
-          title: 'Disconnected',
-          message: 'Lost connection to live session',
-          color: 'red',
+          title: "Disconnected",
+          message: "Lost connection to live session",
+          color: "red",
         });
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error("WebSocket error:", error);
         notifications.show({
-          title: 'Connection Error',
-          message: 'Failed to connect to live session',
-          color: 'red',
+          title: "Connection Error",
+          message: "Failed to connect to live session",
+          color: "red",
         });
       };
 
@@ -143,63 +160,75 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Send message
   const sendMessage = () => {
-    if (!messageInput.trim() || !wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
+    if (
+      !messageInput.trim() ||
+      !wsConnection ||
+      wsConnection.readyState !== WebSocket.OPEN
+    )
+      return;
 
     const message: Message = {
       id: Date.now().toString(),
       sender: currentUser,
       text: messageInput.trim(),
       timestamp: new Date().toISOString(),
-      type: 'message',
+      type: "message",
     };
 
-    wsConnection.send(JSON.stringify({
-      type: 'send_message',
-      message: {
-        sessionId: session.id,
-        text: message.text,
-        senderId: currentUser.id,
-      },
-    }));
+    wsConnection.send(
+      JSON.stringify({
+        type: "send_message",
+        message: {
+          sessionId: session.id,
+          text: message.text,
+          senderId: currentUser.id,
+        },
+      })
+    );
 
-    setMessageInput('');
+    setMessageInput("");
   };
 
   // Handle Enter key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  // Join Zoom meeting
-  const joinZoomMeeting = () => {
-    if (session.zoomLink) {
-      window.open(session.zoomLink, '_blank');
-    } else {
-      notifications.show({
-        title: 'No Zoom Link',
-        message: 'Zoom link not available for this session',
-        color: 'yellow',
-      });
-    }
+  // Handle Zoom meeting end
+  const handleZoomMeetingEnd = () => {
+    notifications.show({
+      title: "Meeting Ended",
+      message: "The Zoom meeting has ended",
+      color: "blue",
+    });
+  };
+
+  // Handle Zoom error
+  const handleZoomError = (error: string) => {
+    notifications.show({
+      title: "Zoom Error",
+      message: error,
+      color: "red",
+    });
   };
 
   // Check if user can join session
   const canJoinSession = () => {
-    if (currentUser.role === 'INSTRUCTOR') return true;
-    
+    if (currentUser.role === "INSTRUCTOR") return true;
+
     const request = currentUser.sessionRequests?.find(
       (req: SessionRequest) => req.sessionId === session.id
     );
-    
-    return request?.status === 'ACCEPTED';
+
+    return request?.status === "ACCEPTED";
   };
 
   if (!canJoinSession()) {
@@ -212,13 +241,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 <IconX size={48} color="red" />
                 <Title order={2}>Access Denied</Title>
                 <Text color="dimmed" align="center">
-                  You don't have permission to join this session. 
-                  Please request to join the session first.
+                  You don't have permission to join this session. Please request
+                  to join the session first.
                 </Text>
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.history.back()}
-                >
+                <Button variant="outline" onClick={() => window.history.back()}>
                   Go Back
                 </Button>
               </Stack>
@@ -240,11 +266,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 <Title order={1}>{session.name}</Title>
                 <Text color="dimmed">{session.description}</Text>
                 <Group spacing="lg">
-                  <Badge 
-                    color={session.status === 'IN_PROGRESS' ? 'green' : 'blue'}
+                  <Badge
+                    color={session.status === "IN_PROGRESS" ? "green" : "blue"}
                     variant="light"
                   >
-                    {session.status || 'SCHEDULED'}
+                    {session.status || "SCHEDULED"}
                   </Badge>
                   {session.startTime && (
                     <Group spacing="xs">
@@ -258,7 +284,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     <Group spacing="xs">
                       <IconUsers size={16} />
                       <Text size="sm">
-                        {participants.length}/{session.maxAttendees} participants
+                        {participants.length}/{session.maxAttendees}{" "}
+                        participants
                       </Text>
                     </Group>
                   )}
@@ -267,22 +294,18 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Grid.Col>
             <Grid.Col span={4}>
               <Stack align="flex-end" spacing="md">
-                <Button
-                  leftIcon={<IconVideo size={16} />}
-                  onClick={() => setShowZoomModal(true)}
-                  color="blue"
-                  size="lg"
-                  fullWidth
-                >
-                  Join Zoom Meeting
-                </Button>
-                <Badge 
-                  color={isConnected ? 'green' : 'red'}
+                <Badge
+                  color={isConnected ? "green" : "red"}
                   variant="light"
                   size="lg"
                 >
-                  {isConnected ? 'Connected' : 'Disconnected'}
+                  {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
+                {session.zoomLink && (
+                  <Text size="sm" color="dimmed" align="right">
+                    Embedded video meeting available
+                  </Text>
+                )}
               </Stack>
             </Grid.Col>
           </Grid>
@@ -290,96 +313,140 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
         {/* Main Content */}
         <Grid>
-          {/* Chat Section */}
+          {/* Main Session Area */}
           <Grid.Col span={8}>
             <Paper p="xl" radius="md" h={600}>
-              <Stack spacing="md" h="100%">
-                <Group position="apart">
-                  <Title order={3} leftIcon={<IconMessage size={20} />}>
-                    Session Chat
-                  </Title>
-                  <Text size="sm" color="dimmed">
-                    {participants.length} participants online
-                  </Text>
-                </Group>
-                
-                <Divider />
-                
-                {/* Messages */}
-                <ScrollArea h={400} viewportRef={messageContainerRef}>
-                  <Stack spacing="xs">
-                    {messages.length === 0 ? (
-                      <Center h={200}>
-                        <Text color="dimmed">No messages yet. Start the conversation!</Text>
-                      </Center>
-                    ) : (
-                      messages.map((message) => (
-                        <Box
-                          key={message.id}
-                          sx={{
-                            display: 'flex',
-                            flexDirection: message.sender.id === currentUser.id ? 'row-reverse' : 'row',
-                            alignItems: 'flex-start',
-                            gap: 'xs',
-                          }}
-                        >
-                          <Avatar
-                            size="sm"
-                            src={message.sender.profilePicture}
-                            radius="xl"
-                          >
-                            {message.sender.firstName[0]}{message.sender.lastName[0]}
-                          </Avatar>
-                          <Box
-                            sx={{
-                              maxWidth: '70%',
-                              backgroundColor: message.sender.id === currentUser.id 
-                                ? 'var(--mantine-color-blue-6)' 
-                                : 'var(--mantine-color-gray-2)',
-                              color: message.sender.id === currentUser.id ? 'white' : 'inherit',
-                              padding: 'xs',
-                              borderRadius: 'md',
-                            }}
-                          >
-                            <Group spacing="xs" mb={4}>
-                              <Text size="sm" weight={500}>
-                                {message.sender.firstName} {message.sender.lastName}
-                              </Text>
-                              <Text size="xs" opacity={0.7}>
-                                {new Date(message.timestamp).toLocaleTimeString()}
-                              </Text>
-                            </Group>
-                            <Text size="sm">{message.text}</Text>
-                          </Box>
-                        </Box>
-                      ))
-                    )}
-                    <div ref={messagesEndRef} />
+              <Tabs value={activeTab} onTabChange={setActiveTab} h="100%">
+                <Tabs.List>
+                  <Tabs.Tab value="chat" leftIcon={<IconMessage size={16} />}>
+                    Chat
+                  </Tabs.Tab>
+                  <Tabs.Tab value="video" leftIcon={<IconVideo size={16} />}>
+                    Video Meeting
+                  </Tabs.Tab>
+                </Tabs.List>
+
+                <Tabs.Panel value="chat" pt="md" h="calc(100% - 40px)">
+                  <Stack spacing="md" h="100%">
+                    <Group position="apart">
+                      <Title order={3} leftIcon={<IconMessage size={20} />}>
+                        Session Chat
+                      </Title>
+                      <Text size="sm" color="dimmed">
+                        {participants.length} participants online
+                      </Text>
+                    </Group>
+
+                    <Divider />
+
+                    {/* Messages */}
+                    <ScrollArea h={400} viewportRef={messageContainerRef}>
+                      <Stack spacing="xs">
+                        {messages.length === 0 ? (
+                          <Center h={200}>
+                            <Text color="dimmed">
+                              No messages yet. Start the conversation!
+                            </Text>
+                          </Center>
+                        ) : (
+                          messages.map((message) => (
+                            <Box
+                              key={message.id}
+                              sx={{
+                                display: "flex",
+                                flexDirection:
+                                  message.sender.id === currentUser.id
+                                    ? "row-reverse"
+                                    : "row",
+                                alignItems: "flex-start",
+                                gap: "xs",
+                              }}
+                            >
+                              <Avatar
+                                size="sm"
+                                src={message.sender.profilePicture}
+                                radius="xl"
+                              >
+                                {message.sender.firstName[0]}
+                                {message.sender.lastName[0]}
+                              </Avatar>
+                              <Box
+                                sx={{
+                                  maxWidth: "70%",
+                                  backgroundColor:
+                                    message.sender.id === currentUser.id
+                                      ? "var(--mantine-color-blue-6)"
+                                      : "var(--mantine-color-gray-2)",
+                                  color:
+                                    message.sender.id === currentUser.id
+                                      ? "white"
+                                      : "inherit",
+                                  padding: "xs",
+                                  borderRadius: "md",
+                                }}
+                              >
+                                <Group spacing="xs" mb={4}>
+                                  <Text size="sm" weight={500}>
+                                    {message.sender.firstName}{" "}
+                                    {message.sender.lastName}
+                                  </Text>
+                                  <Text size="xs" opacity={0.7}>
+                                    {new Date(
+                                      message.timestamp
+                                    ).toLocaleTimeString()}
+                                  </Text>
+                                </Group>
+                                <Text size="sm">{message.text}</Text>
+                              </Box>
+                            </Box>
+                          ))
+                        )}
+                        <div ref={messagesEndRef} />
+                      </Stack>
+                    </ScrollArea>
+
+                    <Divider />
+
+                    {/* Message Input */}
+                    <Group spacing="xs">
+                      <TextInput
+                        placeholder="Type your message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        style={{ flex: 1 }}
+                        disabled={!isConnected}
+                      />
+                      <ActionIcon
+                        size="lg"
+                        color="blue"
+                        onClick={sendMessage}
+                        disabled={!isConnected || !messageInput.trim()}
+                      >
+                        <IconSend size={16} />
+                      </ActionIcon>
+                    </Group>
                   </Stack>
-                </ScrollArea>
-                
-                <Divider />
-                
-                {/* Message Input */}
-                <Group spacing="xs">
-                  <TextInput
-                  placeholder="Type your message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    style={{ flex: 1 }}
-                    disabled={!isConnected}
-                  />
-                  <ActionIcon
-                    size="lg"
-                    color="blue"
-                    onClick={sendMessage}
-                    disabled={!isConnected || !messageInput.trim()}
-                  >
-                    <IconSend size={16} />
-                  </ActionIcon>
-                </Group>
-              </Stack>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="video" pt="md" h="calc(100% - 40px)">
+                  {session.zoomLink ? (
+                    <ZoomMeeting
+                      sessionId={session.id}
+                      userName={`${currentUser.firstName} ${currentUser.lastName}`}
+                      userEmail={currentUser.email}
+                      onMeetingEnd={handleZoomMeetingEnd}
+                      onError={handleZoomError}
+                    />
+                  ) : (
+                    <Center h="100%">
+                      <Alert color="yellow" icon={<IconX size={16} />}>
+                        No Zoom meeting available for this session
+                      </Alert>
+                    </Center>
+                  )}
+                </Tabs.Panel>
+              </Tabs>
             </Paper>
           </Grid.Col>
 
@@ -406,7 +473,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                               src={participant.profilePicture}
                               radius="xl"
                             >
-                              {participant.firstName[0]}{participant.lastName[0]}
+                              {participant.firstName[0]}
+                              {participant.lastName[0]}
                             </Avatar>
                             <Box style={{ flex: 1 }}>
                               <Text size="sm" weight={500}>
@@ -417,7 +485,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                               </Text>
                             </Box>
                             {participant.id === session.instructorId && (
-                              <Badge size="xs" color="blue">Instructor</Badge>
+                              <Badge size="xs" color="blue">
+                                Instructor
+                              </Badge>
                             )}
                           </Group>
                         ))
@@ -461,40 +531,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Stack>
           </Grid.Col>
         </Grid>
-
-        {/* Zoom Modal */}
-        <Modal
-          opened={showZoomModal}
-          onClose={() => setShowZoomModal(false)}
-          title="Join Zoom Meeting"
-          size="md"
-        >
-          <Stack spacing="md">
-            {session.zoomLink ? (
-              <>
-                <Text>
-                  Click the button below to join the Zoom meeting for this session.
-                </Text>
-                <Button
-                  leftIcon={<IconVideo size={16} />}
-                  onClick={joinZoomMeeting}
-                  color="blue"
-                  size="lg"
-                  fullWidth
-                >
-                  Open Zoom Meeting
-                </Button>
-                <Text size="sm" color="dimmed">
-                  Meeting link: {session.zoomLink}
-                </Text>
-              </>
-            ) : (
-              <Alert color="yellow" icon={<IconX size={16} />}>
-                No Zoom link available for this session. Please contact the instructor.
-              </Alert>
-            )}
-          </Stack>
-        </Modal>
       </Container>
     </PageWrapper>
   );
@@ -514,7 +550,7 @@ const LiveSessionPage: React.FC = () => {
       try {
         setIsLoading(true);
         const token = await getToken();
-        
+
         if (!token) {
           router.push(routes.signIn);
           return;
@@ -530,13 +566,13 @@ const LiveSessionPage: React.FC = () => {
         );
 
         if (!response.ok) {
-          throw new Error('Session not found');
+          throw new Error("Session not found");
         }
 
         const data = await response.json();
         setSession(data.session);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load session');
+        setError(err instanceof Error ? err.message : "Failed to load session");
       } finally {
         setIsLoading(false);
       }
@@ -569,10 +605,10 @@ const LiveSessionPage: React.FC = () => {
                 <IconX size={48} color="red" />
                 <Title order={2}>Error</Title>
                 <Text color="dimmed" align="center">
-                  {error || 'Session not found'}
+                  {error || "Session not found"}
                 </Text>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => router.push(routes.exploreSessions)}
                 >
                   Back to Sessions

@@ -128,7 +128,15 @@ module "ecs" {
   task_role_arn              = aws_iam_role.ecs_task_role.arn
   public_subnet_ids          = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   fargate_sg_id              = module.vpc.fargate_sg_id
+  alb_sg_id                  = module.vpc.alb_sg_id
   api_desired_count          = var.api_desired_count
   websocket_desired_count    = var.websocket_desired_count
   vpc_id                 = module.vpc.vpc_id
 }
+
+# FOR DAEHOON AND SIDD
+module "dynamodb_dax" {
+  source = "./modules/dynamodb_dax"
+  environment = var.environment
+}
+# END

@@ -120,3 +120,72 @@ export const getMeetingInfo = expressAsyncHandler(async (req: Request, res: Resp
     password: queue.zoomMeetingPassword || '',
   });
 });
+
+/**
+ * @route GET /api/zoom/sdk-signature/session/:sessionId
+ * @desc Get SDK signature for embedded Zoom SDK using session ID
+ * @access Private
+ */
+export const getSDKSignatureBySession = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  const { sessionId } = req.params;
+  const { role = 'participant', userName, userEmail } = req.query;
+
+  // Find queue by sessionId
+  const queue = await prisma.studentQueue.findFirst({
+    where: { sessionId: sessionId as string },
+    select: {
+      id: true,
+      zoomMeetingId: true,
+      zoomMeetingPassword: true,
+      studentId: true,
+      acceptedInstructorId: true,
+    },
+  });
+
+  if (!queue) {
+    res.status(404).json({ message: 'Queue not found for this session' });
+    return;
+  }
+
+  // Check if user is the student or instructor for this queue
+  if (queue.studentId !== userId && queue.acceptedInstructorId !== userId) {
+    res.status(403).json({ message: 'You do not have access to this meeting' });
+    return;
+  }
+
+  if (!queue.zoomMeetingId) {
+    res.status(404).json({ message: 'Zoom meeting not found for this session' });
+    return;
+  }
+
+  // Determine role number: 1 for host, 0 for participant
+  const roleNumber = role === 'host' || queue.acceptedInstructorId === userId ? 1 : 0;
+
+  // Generate SDK signature
+  try {
+    const signature = zoomService.generateSDKSignature(queue.zoomMeetingId, roleNumber);
+
+    // Return SDK configuration for frontend
+    res.status(200).json({
+      meetingNumber: queue.zoomMeetingId,
+      sdkKey: ZOOM_CONFIG.sdkKey,
+      signature: signature,
+      password: queue.zoomMeetingPassword || '',
+      userName: userName || '',
+      userEmail: userEmail || '',
+      role: roleNumber,
+    });
+  } catch (error: any) {
+    console.error('Failed to generate SDK signature:', error);
+    res.status(500).json({
+      message: 'Failed to generate SDK signature',
+      error: error.message,
+    });
+  }
+});

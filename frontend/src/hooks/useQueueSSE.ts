@@ -20,13 +20,44 @@ interface QueueItem {
   canTeach?: boolean;
 }
 
+interface Session {
+  id: string;
+  name: string;
+  description?: string;
+  startTime?: string;
+  endTime?: string;
+  zoomLink?: string;
+  status: string;
+  instructor: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  students: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
+  subjects: Array<{
+    id: string;
+    name: string;
+  }>;
+}
+
 interface QueueSSEMessage {
-  type: "connected" | "queue_list_updated" | "my_queue_status";
+  type:
+    | "connected"
+    | "queue_list_updated"
+    | "my_queue_status"
+    | "session_created";
   data?: {
     queueItems?: QueueItem[];
     inQueue?: boolean;
     queue?: QueueItem | null;
     position?: number | null;
+    session?: Session;
   };
   timestamp: string;
 }
@@ -40,6 +71,7 @@ interface UseQueueSSEReturn {
     queue: QueueItem | null;
     position: number | null;
   } | null;
+  createdSession: Session | null; // Session created from queue acceptance
   reconnect: () => void;
 }
 
@@ -54,6 +86,7 @@ export function useQueueSSE(
     queue: QueueItem | null;
     position: number | null;
   } | null>(null);
+  const [createdSession, setCreatedSession] = useState<Session | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -145,6 +178,13 @@ export function useQueueSSE(
                         }
                         break;
 
+                      case "session_created":
+                        if (message.data?.session) {
+                          setCreatedSession(message.data.session);
+                          console.log("Session created:", message.data.session);
+                        }
+                        break;
+
                       default:
                         console.log("Unknown SSE message type:", message.type);
                     }
@@ -215,6 +255,7 @@ export function useQueueSSE(
     connectionError,
     queueItems,
     myQueueStatus,
+    createdSession,
     reconnect,
   };
 }

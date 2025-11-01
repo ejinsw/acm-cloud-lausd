@@ -30,6 +30,8 @@ import { Session, User, SessionRequest } from '@/lib/types';
 import { getToken } from '@/actions/authentication';
 import { useAuth } from '@/components/AuthProvider';
 import { routes } from '@/app/routes';
+import { ZoomEmbed } from '@/components/ZoomEmbed';
+import { useZoomSDK } from '@/hooks/useZoomSDK';
 
 interface Message {
   id: string;
@@ -53,6 +55,26 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
+
+  // Zoom SDK hook
+  const { config: zoomConfig, loading: zoomLoading, error: zoomError, fetchSDKSignature } = useZoomSDK();
+
+  // Fetch Zoom SDK signature when session loads
+  useEffect(() => {
+    if (session.id && session.zoomLink) {
+      const userName = `${currentUser.firstName} ${currentUser.lastName}`;
+      const role = currentUser.id === session.instructorId ? 'host' : 'participant';
+      fetchSDKSignature(
+        0, // queueId not needed
+        userName,
+        currentUser.email,
+        role,
+        session.id // Use sessionId
+      ).catch(err => {
+        console.error('Failed to fetch Zoom SDK signature:', err);
+      });
+    }
+  }, [session.id, session.zoomLink, currentUser.id, currentUser.firstName, currentUser.lastName, currentUser.email, fetchSDKSignature]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -290,8 +312,41 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
         {/* Main Content */}
         <Grid>
+          {/* Zoom Embed Section */}
+          {session.zoomLink && (
+            <Grid.Col span={12} mb="lg">
+              <Paper p="xl" radius="md">
+                <Stack spacing="md">
+                  <Title order={3}>Zoom Meeting</Title>
+                  {zoomConfig ? (
+                    <ZoomEmbed
+                      config={zoomConfig}
+                      onError={(error) => {
+                        console.error('Zoom embed error:', error);
+                        notifications.show({
+                          title: 'Zoom Error',
+                          message: error,
+                          color: 'red',
+                        });
+                      }}
+                    />
+                  ) : zoomLoading ? (
+                    <Center h={400}>
+                      <Loader size="lg" />
+                      <Text ml="md">Loading Zoom meeting...</Text>
+                    </Center>
+                  ) : zoomError ? (
+                    <Alert color="red" icon={<IconX size={16} />}>
+                      Failed to load Zoom meeting: {zoomError}
+                    </Alert>
+                  ) : null}
+                </Stack>
+              </Paper>
+            </Grid.Col>
+          )}
+
           {/* Chat Section */}
-          <Grid.Col span={8}>
+          <Grid.Col span={session.zoomLink ? 6 : 8}>
             <Paper p="xl" radius="md" h={600}>
               <Stack spacing="md" h="100%">
                 <Group position="apart">
@@ -384,7 +439,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           </Grid.Col>
 
           {/* Participants & Session Info */}
-          <Grid.Col span={4}>
+          <Grid.Col span={session.zoomLink ? 6 : 4}>
             <Stack spacing="md">
               {/* Participants */}
               <Paper p="xl" radius="md">

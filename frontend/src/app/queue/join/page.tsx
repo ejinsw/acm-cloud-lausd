@@ -34,7 +34,15 @@ export default function JoinQueuePage() {
   });
 
   // Use SSE hook for real-time updates
-  const { myQueueStatus } = useQueueSSE("STUDENT");
+  const { myQueueStatus, createdSession } = useQueueSSE("STUDENT");
+
+  // Navigate to session when created
+  useEffect(() => {
+    if (createdSession) {
+      console.log("Session created, navigating to session page:", createdSession.id);
+      router.push(`/sessions/${createdSession.id}`);
+    }
+  }, [createdSession, router]);
 
   // Derived state from SSE
   const isInQueue = myQueueStatus?.inQueue || false;

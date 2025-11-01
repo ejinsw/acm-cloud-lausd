@@ -104,7 +104,7 @@ export const signup = expressAsyncHandler(
 
     try {
       // Start database transaction
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async tx => {
         // Step 1: Create user in Cognito
         const hash = generateSecretHash(
           email,
@@ -158,7 +158,7 @@ export const signup = expressAsyncHandler(
           console.log('Successfully created student in database');
         } else if (role === 'instructor') {
           console.log('Creating instructor in database...');
-          
+
           // Validate subjects exist
           if (!subjects || subjects.length === 0) {
             throw new Error('Instructors must have at least one credentialed subject');
@@ -176,7 +176,9 @@ export const signup = expressAsyncHandler(
           if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
             const foundSubjectNames = subjectsToAdd.map(s => s.id);
             const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
-            const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
+            const missingSubjects = requestedSubjectNames.filter(
+              name => !foundSubjectNames.includes(name)
+            );
             throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
           }
 
@@ -209,12 +211,11 @@ export const signup = expressAsyncHandler(
       });
 
       // If we reach here, both Cognito and database operations succeeded
-      res.status(201).json({ 
-        message: 'Signup successful', 
+      res.status(201).json({
+        message: 'Signup successful',
         userSub: cognitoUserSub,
-        role: role 
+        role: role,
       });
-
     } catch (error: any) {
       console.error('Signup error:', error);
 
@@ -244,16 +245,16 @@ export const signup = expressAsyncHandler(
       }
 
       if (error.message?.includes('Subjects not found')) {
-        res.status(400).json({ 
+        res.status(400).json({
           error: error.message,
-          code: 'INVALID_SUBJECTS'
+          code: 'INVALID_SUBJECTS',
         });
         return;
       }
 
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Internal server error during signup',
-        details: error.message 
+        details: error.message,
       });
     }
   }
@@ -268,6 +269,7 @@ export const signup = expressAsyncHandler(
  *   password: string;
  * }
  */
+
 export const login = expressAsyncHandler(
   async (req: Request<{}, {}, LoginBody>, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
@@ -301,8 +303,70 @@ export const login = expressAsyncHandler(
         return;
       }
 
-      //get role
-      await prisma.user.findFirst();
+      // Decode ID token to get user sub (Cognito user ID)
+      let userSub: string | null = null;
+      try {
+        const idToken = response.AuthenticationResult.IdToken;
+        if (idToken) {
+          const tokenParts = idToken.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+            userSub = payload.sub;
+          }
+        }
+      } catch (decodeError) {
+        console.error('Error decoding ID token:', decodeError);
+      }
+
+      // Check if user exists in database, create if not
+      if (userSub) {
+        const user = await prisma.user.findUnique({
+          where: { id: userSub },
+        });
+
+        if (!user && response.AuthenticationResult.AccessToken) {
+          // User exists in Cognito but not in our database - try to get attributes from Cognito
+          try {
+            const getUserCommand = new GetUserCommand({
+              AccessToken: response.AuthenticationResult.AccessToken,
+            });
+            const cognitoUser = await cognito.send(getUserCommand);
+
+            // Extract attributes from Cognito response
+            const attributes = cognitoUser.UserAttributes || [];
+            const getAttribute = (name: string) =>
+              attributes.find(attr => attr.Name === name)?.Value || '';
+
+            const firstName = getAttribute('given_name') || getAttribute('name') || '';
+            const lastName = getAttribute('family_name') || '';
+            const customRole = getAttribute('custom:role') || 'STUDENT';
+
+            // Only create user if we have required fields
+            if (firstName && lastName) {
+              await prisma.user.create({
+                data: {
+                  id: userSub,
+                  email: email,
+                  firstName: firstName,
+                  lastName: lastName,
+                  role: (customRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT') as
+                    | 'STUDENT'
+                    | 'INSTRUCTOR',
+                },
+              });
+              console.log('Created user in database from Cognito attributes');
+            } else {
+              console.warn(
+                `User ${userSub} exists in Cognito but missing required fields (firstName/lastName). User should signup properly.`
+              );
+            }
+          } catch (getUserError) {
+            console.error('Error fetching user from Cognito:', getUserError);
+            // Login will still succeed, but user won't be in database
+          }
+        }
+      }
+
       res.json({
         email: email,
         idToken: response.AuthenticationResult.IdToken,

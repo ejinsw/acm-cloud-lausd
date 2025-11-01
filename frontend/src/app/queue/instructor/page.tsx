@@ -39,8 +39,24 @@ export default function InstructorQueuePage() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Use SSE hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect } =
-    useQueueSSE("INSTRUCTOR");
+  const {
+    isConnected,
+    connectionError,
+    queueItems,
+    createdSession,
+    reconnect,
+  } = useQueueSSE("INSTRUCTOR");
+
+  // Navigate to session when created
+  useEffect(() => {
+    if (createdSession) {
+      console.log(
+        "Session created, navigating to session page:",
+        createdSession.id
+      );
+      router.push(`/sessions/${createdSession.id}`);
+    }
+  }, [createdSession, router]);
 
   // Log SSE queue updates
   useEffect(() => {

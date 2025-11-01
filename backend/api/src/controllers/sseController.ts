@@ -177,13 +177,60 @@ export const notifyStudentJoinedQueue = async (studentId: string) => {
 };
 
 // When instructor accepts queue
-export const notifyQueueAccepted = async (studentId: string) => {
-  console.log(`notifyQueueAccepted called for student: ${studentId}`);
+export const notifyQueueAccepted = async (studentId: string, sessionId?: string, session?: any) => {
+  console.log(`notifyQueueAccepted called for student: ${studentId}, sessionId: ${sessionId}`);
+
   // Update instructor list (remove accepted queue)
   await broadcastQueueListToInstructors();
 
   // Update student status (no longer in queue)
   await broadcastStudentQueueStatus(studentId);
+
+  // If session was created, notify both instructor and student about the session
+  if (sessionId && session) {
+    await broadcastSessionCreated(studentId, session.instructorId, session);
+  }
+};
+
+// Broadcast session created notification to both instructor and student
+export const broadcastSessionCreated = async (
+  studentId: string,
+  instructorId: string,
+  session: any
+) => {
+  const message = {
+    type: 'session_created',
+    data: {
+      session: session,
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const sseMessage = `data: ${JSON.stringify(message)}\n\n`;
+
+  // Notify student
+  const studentConnection = studentConnections.get(studentId);
+  if (studentConnection && !studentConnection.writableEnded) {
+    try {
+      studentConnection.write(sseMessage);
+      console.log(`Session created notification sent to student: ${studentId}`);
+    } catch (error) {
+      console.error(`Failed to send session notification to student: ${error}`);
+      studentConnections.delete(studentId);
+    }
+  }
+
+  // Notify instructor
+  const instructorConnection = instructorConnections.get(instructorId);
+  if (instructorConnection && !instructorConnection.writableEnded) {
+    try {
+      instructorConnection.write(sseMessage);
+      console.log(`Session created notification sent to instructor: ${instructorId}`);
+    } catch (error) {
+      console.error(`Failed to send session notification to instructor: ${error}`);
+      instructorConnections.delete(instructorId);
+    }
+  }
 };
 
 // When student leaves queue

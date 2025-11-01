@@ -6,6 +6,7 @@ import {
   notifyQueueAccepted,
   notifyStudentLeftQueue,
 } from './sseController';
+import { zoomService } from '../services/zoomService';
 
 export const getQueueList = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -125,7 +126,7 @@ export const acceptQueue = expressAsyncHandler(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, subjects: true },
+      select: { role: true, subjects: true, email: true, firstName: true, lastName: true },
     });
     if (!user) {
       res.status(404).json({ message: 'User not found' });
@@ -139,7 +140,10 @@ export const acceptQueue = expressAsyncHandler(
     const { id } = req.params;
     const queue = await prisma.studentQueue.findUnique({
       where: { id: Number(id) },
-      select: { id: true, status: true, subjectId: true },
+      include: {
+        student: { select: { firstName: true, lastName: true } },
+        subject: { select: { name: true } },
+      },
     });
     if (!queue) {
       res.status(404).json({ message: 'Queue not found' });
@@ -156,17 +160,120 @@ export const acceptQueue = expressAsyncHandler(
       return;
     }
 
-    const updatedQueue = await prisma.studentQueue.update({
-      where: { id: Number(id) },
-      data: { acceptedInstructorId: userId, status: 'ACCEPTED' },
-    });
+    // Create Zoom meeting for the tutoring session
+    let zoomMeetingId: string | null = null;
+    let zoomMeetingPassword: string | null = null;
+    let zoomJoinUrl: string | null = null;
+    let sessionId: string | null = null;
 
-    // Trigger SSE notification for queue update
-    notifyQueueAccepted(queue.studentId).catch(err => {
-      console.error('SSE notification failed:', err);
-    });
+    try {
+      const meetingTopic = `Tutoring Session: ${queue.subject.name} - ${queue.student.firstName} ${queue.student.lastName}`;
+      const startTime = new Date();
+      startTime.setMinutes(startTime.getMinutes() + 5); // Start in 5 minutes
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour later
 
-    res.status(200).json({ queue: updatedQueue });
+      // Create Zoom meeting under the instructor's account
+      const zoomMeeting = await zoomService.createMeeting({
+        topic: meetingTopic,
+        startTime: startTime.toISOString(),
+        duration: 60, // 1 hour default
+        instructorId: userId,
+        instructorEmail: user.email,
+      });
+
+      zoomMeetingId = zoomMeeting.id.toString();
+      zoomMeetingPassword = zoomMeeting.password || '';
+      zoomJoinUrl = zoomMeeting.join_url || null;
+
+      // Create Session in DB with Zoom fields
+      const session = await prisma.session.create({
+        data: {
+          name: meetingTopic,
+          description: queue.description || `Tutoring session for ${queue.subject.name}`,
+          startTime: startTime,
+          endTime: endTime,
+          zoomLink: zoomJoinUrl,
+          status: 'SCHEDULED',
+          materials: [],
+          objectives: [],
+          instructorId: userId,
+          students: {
+            connect: { id: queue.studentId },
+          },
+          subjects: {
+            connect: { id: queue.subjectId },
+          },
+        },
+        include: {
+          instructor: { select: { id: true, firstName: true, lastName: true, email: true } },
+          students: { select: { id: true, firstName: true, lastName: true, email: true } },
+          subjects: true,
+        },
+      });
+
+      sessionId = session.id;
+
+      // Update queue with session and Zoom info
+      const updatedQueue = await prisma.studentQueue.update({
+        where: { id: Number(id) },
+        data: {
+          acceptedInstructorId: userId,
+          status: 'ACCEPTED',
+          zoomMeetingId: zoomMeetingId,
+          zoomMeetingPassword: zoomMeetingPassword,
+          sessionId: sessionId,
+        },
+        include: {
+          student: { select: { id: true, firstName: true, lastName: true, email: true } },
+          subject: true,
+          session: {
+            include: {
+              instructor: { select: { id: true, firstName: true, lastName: true } },
+              students: { select: { id: true, firstName: true, lastName: true } },
+              subjects: true,
+            },
+          },
+        },
+      });
+
+      // Trigger SSE notifications for both instructor and student about session creation
+      notifyQueueAccepted(queue.studentId, sessionId, session).catch(err => {
+        console.error('SSE notification failed:', err);
+      });
+
+      res.status(200).json({
+        queue: updatedQueue,
+        session: session,
+        zoomMeeting: zoomMeetingId
+          ? {
+              meetingId: zoomMeetingId,
+              password: zoomMeetingPassword,
+              joinUrl: zoomJoinUrl,
+            }
+          : null,
+      });
+    } catch (error: any) {
+      console.error('Failed to create Zoom meeting or session:', error);
+
+      // Update queue status even if Zoom/Session creation fails
+      const updatedQueue = await prisma.studentQueue.update({
+        where: { id: Number(id) },
+        data: {
+          acceptedInstructorId: userId,
+          status: 'ACCEPTED',
+        },
+      });
+
+      // Still notify about queue acceptance
+      notifyQueueAccepted(queue.studentId).catch(err => {
+        console.error('SSE notification failed:', err);
+      });
+
+      res.status(200).json({
+        queue: updatedQueue,
+        error: 'Failed to create Zoom meeting. Please try again or contact support.',
+      });
+    }
   }
 );
 

@@ -53,6 +53,11 @@ model User {
   certificationUrls String[] // For instructors
   averageRating     Float? // For instructors
 
+  // Zoom OAuth tokens (for General OAuth flow)
+  zoomAccessToken   String?
+  zoomRefreshToken String?
+  zoomTokenExpiry   DateTime?
+
   // Relations
   reviewsOwn     Review[]         @relation("owner")
   reviewsRecipient  Review[]         @relation("recipient")
@@ -88,6 +93,7 @@ model Session {
   students       User[]           @relation("StudentSessions")
   subjects       Subject[]
   sessionRequests SessionRequest[] @relation("SessionRequests")
+  studentQueues  StudentQueue[]   @relation
 
   @@index([instructorId])
 }
@@ -149,6 +155,14 @@ model StudentQueue {
 
   acceptedInstructorId String?
   acceptedInstructor   User?  @relation("AcceptedInstructorQueues", fields: [acceptedInstructorId], references: [id], onDelete: SetNull)
+
+  // Zoom meeting information for embedded SDK
+  zoomMeetingId    String?
+  zoomMeetingPassword String?
+
+  // Session created from this queue
+  sessionId       String?
+  session         Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 }
 
 model Review {

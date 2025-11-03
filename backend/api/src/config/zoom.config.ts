@@ -7,8 +7,6 @@ export const ZOOM_CONFIG = {
   clientSecret: process.env.ZOOM_CLIENT_SECRET,
   redirectUri: process.env.ZOOM_REDIRECT_URI,
   baseUrl: 'https://api.zoom.us/v2',
-  sdkKey: process.env.ZOOM_SDK_KEY,
-  sdkSecret: process.env.ZOOM_SDK_SECRET,
 };
 
 // Basic types we actually need for tutoring

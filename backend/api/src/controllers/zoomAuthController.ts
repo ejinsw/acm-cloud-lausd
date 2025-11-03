@@ -68,16 +68,20 @@ export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: R
   try {
     // Extract userId from state (basic validation - in production use proper session/state validation)
     let userId: string | null = null;
+    console.log('Zoom OAuth callback - Received state:', state);
     if (state) {
       try {
         const decoded = Buffer.from(state as string, 'base64').toString();
+        console.log('Zoom OAuth callback - Decoded state:', decoded);
         userId = decoded.split('-')[0];
+        console.log('Zoom OAuth callback - Extracted userId:', userId);
       } catch (e) {
         console.error('Failed to decode state:', e);
       }
     }
 
     if (!userId) {
+      console.error('Zoom OAuth callback - No userId extracted from state');
       // If state validation fails, we can't proceed - redirect to error page
       res.redirect(
         `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?error=invalid_state`
@@ -110,8 +114,12 @@ export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: R
     const expiresIn = tokenResponse.data.expires_in || 3600;
     const expiryDate = new Date(Date.now() + expiresIn * 1000);
 
+    console.log('Zoom OAuth callback - Storing tokens for userId:', userId);
+    console.log('Zoom OAuth callback - Access token length:', accessToken?.length || 0);
+    console.log('Zoom OAuth callback - Refresh token length:', refreshToken?.length || 0);
+
     // Store tokens in user's database record
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         zoomAccessToken: accessToken,
@@ -119,6 +127,9 @@ export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: R
         zoomTokenExpiry: expiryDate,
       },
     });
+
+    console.log('Zoom OAuth callback - Tokens stored successfully for user:', updatedUser.id);
+    console.log('Zoom OAuth callback - Has refresh token:', !!updatedUser.zoomRefreshToken);
 
     // Redirect to success page
     res.redirect(

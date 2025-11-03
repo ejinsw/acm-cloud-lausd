@@ -10,6 +10,7 @@ import {
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
   AdminDeleteUserCommand,
+  GetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { prisma } from '../config/prisma';
 import crypto from 'crypto';
@@ -320,12 +321,17 @@ export const login = expressAsyncHandler(
 
       // Check if user exists in database, create if not
       if (userSub) {
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
           where: { id: userSub },
         });
 
+        // If user not found, create them from Cognito attributes or token
         if (!user && response.AuthenticationResult.AccessToken) {
-          // User exists in Cognito but not in our database - try to get attributes from Cognito
+          let firstName = '';
+          let lastName = '';
+          let role = 'STUDENT'; // Default to STUDENT
+
+          // Try to get attributes from Cognito
           try {
             const getUserCommand = new GetUserCommand({
               AccessToken: response.AuthenticationResult.AccessToken,
@@ -335,34 +341,56 @@ export const login = expressAsyncHandler(
             // Extract attributes from Cognito response
             const attributes = cognitoUser.UserAttributes || [];
             const getAttribute = (name: string) =>
-              attributes.find(attr => attr.Name === name)?.Value || '';
+              attributes.find((attr: any) => attr.Name === name)?.Value || '';
 
-            const firstName = getAttribute('given_name') || getAttribute('name') || '';
-            const lastName = getAttribute('family_name') || '';
+            firstName = getAttribute('given_name') || getAttribute('name') || '';
+            lastName = getAttribute('family_name') || '';
             const customRole = getAttribute('custom:role') || 'STUDENT';
+            role = customRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+          } catch (getUserError) {
+            console.error('Error fetching user from Cognito, using token data:', getUserError);
 
-            // Only create user if we have required fields
-            if (firstName && lastName) {
-              await prisma.user.create({
+            // Fallback to token data
+            try {
+              const idToken = response.AuthenticationResult.IdToken;
+              if (idToken) {
+                const tokenParts = idToken.split('.');
+                if (tokenParts.length === 3) {
+                  const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+                  const name = payload.name || payload.given_name || '';
+                  firstName = name.split(' ')[0] || '';
+                  lastName = name.split(' ').slice(1).join(' ') || '';
+                  const tokenRole = payload['custom:role'] || payload.role || 'STUDENT';
+                  role = tokenRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+                }
+              }
+            } catch (tokenError) {
+              console.error('Error extracting data from token:', tokenError);
+            }
+          }
+
+          // Create user if we have minimum required info (at least firstName or email)
+          if (firstName || email) {
+            try {
+              user = await prisma.user.create({
                 data: {
                   id: userSub,
                   email: email,
-                  firstName: firstName,
-                  lastName: lastName,
-                  role: (customRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT') as
-                    | 'STUDENT'
-                    | 'INSTRUCTOR',
+                  firstName: firstName || 'User',
+                  lastName: lastName || '',
+                  role: role as 'STUDENT' | 'INSTRUCTOR',
+                  verified: false,
                 },
               });
-              console.log('Created user in database from Cognito attributes');
-            } else {
-              console.warn(
-                `User ${userSub} exists in Cognito but missing required fields (firstName/lastName). User should signup properly.`
-              );
+              console.log('Created new user in database from login:', userSub);
+            } catch (createError) {
+              console.error('Error creating user in database:', createError);
+              // Login will still succeed, but user won't be in database
             }
-          } catch (getUserError) {
-            console.error('Error fetching user from Cognito:', getUserError);
-            // Login will still succeed, but user won't be in database
+          } else {
+            console.warn(
+              `User ${userSub} exists in Cognito but missing required fields. User should signup properly.`
+            );
           }
         }
       }
@@ -495,8 +523,8 @@ export const getUserData = expressAsyncHandler(
         return;
       }
 
-      // Get user data from database
-      const user = await prisma.user.findUnique({
+      // Try to get user data from database
+      let user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
@@ -522,14 +550,98 @@ export const getUserData = expressAsyncHandler(
         },
       });
 
+      // If user not found, create them from token info
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
+        const email = (req as any).user?.email || '';
+        const name = (req as any).user?.name || '';
+        const tokenRole =
+          (req as any).user?.['custom:role'] || (req as any).user?.role || 'STUDENT';
+        const role = tokenRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+
+        // Parse name into first and last name
+        const nameParts = name.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        // Only create if we have minimum required info
+        if (email && firstName && lastName) {
+          try {
+            user = await prisma.user.create({
+              data: {
+                id: userId,
+                email: email,
+                firstName: firstName,
+                lastName: lastName,
+                role: role,
+                verified: false,
+              },
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                verified: true,
+                profilePicture: true,
+                bio: true,
+                averageRating: true,
+                education: true,
+                experience: true,
+                certificationUrls: true,
+                grade: true,
+                parentFirstName: true,
+                parentLastName: true,
+                parentEmail: true,
+                parentPhone: true,
+                interests: true,
+                learningGoals: true,
+                sessionRequests: true,
+              },
+            });
+            console.log('Created new user in database from token:', userId);
+          } catch (createError) {
+            console.error('Error creating user in database:', createError);
+            // If creation fails, still try to return user data from token
+          }
+        }
+      }
+
+      // If we still don't have a user, return data from token
+      if (!user) {
+        const email = (req as any).user?.email || null;
+        const name = (req as any).user?.name || null;
+        const tokenRole =
+          (req as any).user?.['custom:role'] || (req as any).user?.role || 'STUDENT';
+        const role = tokenRole.toUpperCase() === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+
+        res.json({
+          id: userId,
+          email: email,
+          firstName: name ? name.split(' ')[0] : null,
+          lastName: name ? name.split(' ').slice(1).join(' ') : null,
+          role: role,
+          verified: false,
+          profilePicture: null,
+          bio: null,
+          averageRating: null,
+          education: null,
+          experience: null,
+          certificationUrls: null,
+          grade: null,
+          parentFirstName: null,
+          parentLastName: null,
+          parentEmail: null,
+          parentPhone: null,
+          interests: null,
+          learningGoals: null,
+          sessionRequests: null,
+        });
         return;
       }
 
       res.json(user);
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Error in getUserData:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

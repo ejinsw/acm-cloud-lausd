@@ -254,6 +254,12 @@ export const acceptQueue = expressAsyncHandler(
       });
     } catch (error: any) {
       console.error('Failed to create Zoom meeting or session:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      if (error?.response) {
+        console.error('Zoom API error response:', error.response.data);
+        console.error('Zoom API error status:', error.response.status);
+      }
 
       // Update queue status even if Zoom/Session creation fails
       const updatedQueue = await prisma.studentQueue.update({
@@ -269,9 +275,22 @@ export const acceptQueue = expressAsyncHandler(
         console.error('SSE notification failed:', err);
       });
 
+      const errorMessage =
+        error?.message ||
+        error?.response?.data?.message ||
+        'Failed to create Zoom meeting. Please try again or contact support.';
+
       res.status(200).json({
         queue: updatedQueue,
-        error: 'Failed to create Zoom meeting. Please try again or contact support.',
+        error: errorMessage,
+        errorDetails:
+          process.env.NODE_ENV === 'development'
+            ? {
+                message: error?.message,
+                status: error?.response?.status,
+                data: error?.response?.data,
+              }
+            : undefined,
       });
     }
   }

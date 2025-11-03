@@ -14,6 +14,7 @@ export class ZoomService {
     }
 
     // Get user's stored tokens
+    console.log('getAccessTokenForUser - Looking up tokens for userId:', userId);
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -24,16 +25,23 @@ export class ZoomService {
     });
 
     if (!user) {
+      console.error('getAccessTokenForUser - User not found:', userId);
       throw new Error('User not found');
     }
 
+    console.log('getAccessTokenForUser - User found, has refresh token:', !!user.zoomRefreshToken);
+    console.log('getAccessTokenForUser - Has access token:', !!user.zoomAccessToken);
+    console.log('getAccessTokenForUser - Token expiry:', user.zoomTokenExpiry);
+
     // Check if we have a valid access token
     if (user.zoomAccessToken && user.zoomTokenExpiry && user.zoomTokenExpiry > new Date()) {
+      console.log('getAccessTokenForUser - Using existing valid access token');
       return user.zoomAccessToken;
     }
 
     // Need to refresh token
     if (!user.zoomRefreshToken) {
+      console.error('getAccessTokenForUser - No refresh token found for user:', userId);
       throw new Error('Zoom not authorized for this user. Please authorize Zoom first.');
     }
 

@@ -45,11 +45,6 @@ resource "aws_iam_role_policy" "dax_dynamodb_access" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "dax_service_managed" {
-  role       = aws_iam_role.dax_service.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonDAXServiceRolePolicy"
-}
-
 resource "aws_dax_cluster" "bar" {
   cluster_name       = "lausd-dax-cluster"
   iam_role_arn       = aws_iam_role.dax_service.arn

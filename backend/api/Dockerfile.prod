@@ -24,10 +24,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci --only=production --omit=dev && rm -rf node_modules/typescript node_modules/prisma
+# Install production dependencies but keep prisma for migrations
+RUN npm ci --only=production --omit=dev && rm -rf node_modules/typescript
 COPY --from=builder /app/dist ./dist
+# Copy Prisma client (needed for queries)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy prisma folder (schema and migrations) needed for migrate deploy
+COPY --from=builder /app/prisma ./prisma
+# Install Prisma CLI properly in production (ensures correct binaries for platform)
+RUN npm install prisma@^6.2.1 --no-save --no-package-lock
 
 EXPOSE 8080
 ENV NODE_ENV=production

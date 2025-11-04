@@ -28,10 +28,10 @@ resource "aws_cognito_user_pool" "main" {
   email_verification_message = "Your verification code is {####}.\n\nOr use this link: ${var.frontend_url}/auth/email-verification?code={####}"
   email_verification_subject = "Your verification code"
 
-  # User attribute update settings
-  user_attribute_update_settings {
-    attributes_require_verification_before_update = []
-  }
+  # # User attribute update settings
+  # user_attribute_update_settings {
+  #   attributes_require_verification_before_update = []
+  # }
 
   # MFA configuration
   mfa_configuration = "OFF"
@@ -85,6 +85,9 @@ resource "aws_cognito_user_pool" "main" {
 resource "aws_cognito_user_pool_client" "main" {
   name         = var.user_pool_client_name
   user_pool_id = aws_cognito_user_pool.main.id
+
+  # Generate client secret (required for secret hash in auth flows)
+  generate_secret = true
 
   # Explicit auth flows
   explicit_auth_flows = [

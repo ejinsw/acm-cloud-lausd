@@ -106,7 +106,7 @@ function ProfileContent() {
 
         const response = await fetch(
           `${
-            process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
           }/api/users/profile`,
           {
             method: "GET",
@@ -270,7 +270,7 @@ function ProfileContent() {
 
       const response = await fetch(
         `${
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
         }/api/users/profile`,
         {
           method: "PUT",
@@ -337,7 +337,7 @@ function ProfileContent() {
 
       const response = await fetch(
         `${
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
         }/api/users/profile`,
         {
           method: "DELETE",

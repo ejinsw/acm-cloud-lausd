@@ -86,7 +86,7 @@ export default function SignUpPage() {
         setSubjectsLoading(true);
         setSubjectsError(null);
         
-        const response = await fetch('http://localhost:8080/api/subjects');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/subjects`);
         if (!response.ok) {
           throw new Error('Failed to fetch subjects');
         }

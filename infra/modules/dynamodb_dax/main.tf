@@ -45,11 +45,6 @@ resource "aws_iam_role_policy" "dax_dynamodb_access" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "dax_service_managed" {
-  role       = aws_iam_role.dax_service.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonDAXServiceRolePolicy"
-}
-
 resource "aws_dynamodb_table" "chat_rooms" {
   name         = "lausd-chat-rooms-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -61,7 +56,7 @@ resource "aws_dynamodb_table" "chat_rooms" {
   }
 
   tags = { Environment = var.environment }
-}
+} 
 
 resource "aws_dynamodb_table" "chat_room_members" {
   name         = "lausd-chat-room-members-${var.environment}"

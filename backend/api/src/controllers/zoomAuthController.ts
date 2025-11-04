@@ -53,28 +53,59 @@ export const authorizeZoom = expressAsyncHandler(async (req: Request, res: Respo
  * @access Public (Zoom redirects here)
  */
 export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: Response) => {
+  console.log('========================================');
+  console.log('Zoom OAuth callback - Request received');
+  console.log('Zoom OAuth callback - Method:', req.method);
+  console.log('Zoom OAuth callback - URL:', req.url);
+  console.log('Zoom OAuth callback - Query params:', req.query);
+  console.log('Zoom OAuth callback - Headers:', {
+    'user-agent': req.headers['user-agent'],
+    referer: req.headers.referer,
+  });
+  console.log('========================================');
   const { code, state } = req.query;
 
   if (!code) {
-    res.status(400).json({ message: 'Authorization code not provided' });
+    console.error('Zoom OAuth callback - No code provided');
+    res.redirect(
+      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?error=${encodeURIComponent('Authorization code not provided')}`
+    );
     return;
   }
 
   if (!ZOOM_CONFIG.clientId || !ZOOM_CONFIG.clientSecret || !ZOOM_CONFIG.redirectUri) {
-    res.status(500).json({ message: 'Zoom OAuth not configured properly' });
+    console.error('Zoom OAuth callback - Missing config:', {
+      hasClientId: !!ZOOM_CONFIG.clientId,
+      hasClientSecret: !!ZOOM_CONFIG.clientSecret,
+      hasRedirectUri: !!ZOOM_CONFIG.redirectUri,
+    });
+    res.redirect(
+      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?error=${encodeURIComponent('Zoom OAuth not configured properly')}`
+    );
     return;
   }
 
   try {
     // Extract userId from state (basic validation - in production use proper session/state validation)
+    // State format: `${userId}-${timestamp}` (base64 encoded)
+    // For UUIDs with dashes, need to split on last dash (before timestamp)
     let userId: string | null = null;
     console.log('Zoom OAuth callback - Received state:', state);
     if (state) {
       try {
         const decoded = Buffer.from(state as string, 'base64').toString();
         console.log('Zoom OAuth callback - Decoded state:', decoded);
-        userId = decoded.split('-')[0];
-        console.log('Zoom OAuth callback - Extracted userId:', userId);
+        // Split on last dash to separate userId from timestamp
+        // For UUID format: "6939d92e-d071-700a-743d-0bfc6f7a8955-1762227584810"
+        const lastDashIndex = decoded.lastIndexOf('-');
+        if (lastDashIndex > 0) {
+          userId = decoded.substring(0, lastDashIndex);
+          const timestamp = decoded.substring(lastDashIndex + 1);
+          console.log('Zoom OAuth callback - Extracted userId:', userId);
+          console.log('Zoom OAuth callback - Extracted timestamp:', timestamp);
+        } else {
+          console.error('Zoom OAuth callback - Invalid state format (no dash found)');
+        }
       } catch (e) {
         console.error('Failed to decode state:', e);
       }
@@ -84,7 +115,17 @@ export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: R
       console.error('Zoom OAuth callback - No userId extracted from state');
       // If state validation fails, we can't proceed - redirect to error page
       res.redirect(
-        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?error=invalid_state`
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?error=invalid_state`
+      );
+      return;
+    }
+
+    // Check if user exists before proceeding
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) {
+      console.error(`Zoom OAuth callback - User ${userId} not found`);
+      res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?error=user_not_found`
       );
       return;
     }
@@ -109,36 +150,73 @@ export const zoomOAuthCallback = expressAsyncHandler(async (req: Request, res: R
       }
     );
 
+    // Log full token response for debugging
+    console.log(
+      'Zoom OAuth callback - Token response:',
+      JSON.stringify(tokenResponse.data, null, 2)
+    );
+
     const accessToken = tokenResponse.data.access_token;
     const refreshToken = tokenResponse.data.refresh_token;
     const expiresIn = tokenResponse.data.expires_in || 3600;
     const expiryDate = new Date(Date.now() + expiresIn * 1000);
+
+    // Validate access token exists
+    if (!accessToken) {
+      console.error('Zoom OAuth callback - Access token not received from Zoom');
+      throw new Error('Access token not received from Zoom');
+    }
 
     console.log('Zoom OAuth callback - Storing tokens for userId:', userId);
     console.log('Zoom OAuth callback - Access token length:', accessToken?.length || 0);
     console.log('Zoom OAuth callback - Refresh token length:', refreshToken?.length || 0);
 
     // Store tokens in user's database record
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        zoomAccessToken: accessToken,
-        zoomRefreshToken: refreshToken,
-        zoomTokenExpiry: expiryDate,
-      },
-    });
+    let updatedUser;
+    try {
+      updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          zoomAccessToken: accessToken,
+          zoomRefreshToken: refreshToken,
+          zoomTokenExpiry: expiryDate,
+        },
+      });
+      console.log('Zoom OAuth callback - Database update completed');
+    } catch (dbError: any) {
+      console.error('Zoom OAuth callback - Database update failed:', dbError);
+      console.error('Zoom OAuth callback - Error details:', {
+        message: dbError.message,
+        code: dbError.code,
+        meta: dbError.meta,
+      });
+      throw new Error(`Database update failed: ${dbError.message}`);
+    }
+
+    // Verify the database update succeeded
+    if (!updatedUser.zoomAccessToken) {
+      console.error('Zoom OAuth callback - Access token not found after update');
+      console.error('Zoom OAuth callback - Updated user:', {
+        id: updatedUser.id,
+        hasAccessToken: !!updatedUser.zoomAccessToken,
+        hasRefreshToken: !!updatedUser.zoomRefreshToken,
+        hasExpiry: !!updatedUser.zoomTokenExpiry,
+      });
+      throw new Error('Failed to store access token in database');
+    }
 
     console.log('Zoom OAuth callback - Tokens stored successfully for user:', updatedUser.id);
     console.log('Zoom OAuth callback - Has refresh token:', !!updatedUser.zoomRefreshToken);
+    console.log('Zoom OAuth callback - Token expiry:', updatedUser.zoomTokenExpiry);
 
     // Redirect to success page
     res.redirect(
-      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?zoom_auth=success`
+      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?zoom_auth=success`
     );
   } catch (error: any) {
     console.error('Zoom OAuth callback error:', error);
     res.redirect(
-      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?error=${encodeURIComponent(error.message || 'oauth_failed')}`
+      `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile?error=${encodeURIComponent(error.message || 'oauth_failed')}`
     );
   }
 });

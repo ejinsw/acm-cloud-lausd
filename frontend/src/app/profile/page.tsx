@@ -81,6 +81,127 @@ function ProfileContent() {
     }
   }, [user, originalUser]);
 
+  // Handle Zoom OAuth callback - store tokens permanently
+  useEffect(() => {
+    const handleZoomAuth = async () => {
+      const zoomAuth = searchParams.get("zoom_auth");
+      const state = searchParams.get("state");
+      const error = searchParams.get("error");
+
+      if (error) {
+        notifications.show({
+          title: "Zoom Authorization Error",
+          message: decodeURIComponent(error),
+          color: "red",
+          icon: <XCircle size={16} />,
+        });
+        // Clean up URL
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("error");
+        params.delete("zoom_auth");
+        params.delete("state");
+        router.replace(`?${params.toString()}`);
+        return;
+      }
+
+      if (zoomAuth === "processing" && state) {
+        try {
+          setLoading(true);
+          const accessToken = await getToken();
+          if (!accessToken) {
+            notifications.show({
+              title: "Authentication Required",
+              message: "Please log in to complete Zoom authorization",
+              color: "red",
+              icon: <XCircle size={16} />,
+            });
+            return;
+          }
+
+          // Store tokens permanently using state
+          const backendUrl =
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+          const response = await fetch(`${backendUrl}/api/zoom/tokens/store`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ state }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+              errorData.message || `Failed to store tokens (${response.status})`
+            );
+          }
+
+          const result = await response.json();
+          console.log("Zoom tokens stored:", result);
+
+          notifications.show({
+            title: "Success!",
+            message: "Zoom authorization completed successfully",
+            color: "green",
+            icon: <CheckCircle2 size={16} />,
+          });
+
+          // Refresh user profile to get updated Zoom status
+          const profileResponse = await fetch(
+            `${backendUrl}/api/users/profile`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            setUser(profileData.user);
+            setOriginalUser(profileData.user);
+          }
+
+          // Clean up URL
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("zoom_auth");
+          params.delete("state");
+          router.replace(`?${params.toString()}`);
+        } catch (error: unknown) {
+          console.error("Failed to store Zoom tokens:", error);
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : "Failed to complete Zoom authorization";
+          notifications.show({
+            title: "Error",
+            message: errorMessage,
+            color: "red",
+            icon: <XCircle size={16} />,
+          });
+        } finally {
+          setLoading(false);
+        }
+      } else if (zoomAuth === "success") {
+        notifications.show({
+          title: "Success!",
+          message: "Zoom authorization completed successfully",
+          color: "green",
+          icon: <CheckCircle2 size={16} />,
+        });
+        // Clean up URL
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("zoom_auth");
+        router.replace(`?${params.toString()}`);
+      }
+    };
+
+    handleZoomAuth();
+  }, [searchParams, router]);
+
   // Fetch user profile on component mount
   useEffect(() => {
     const fetchUserProfile = async () => {

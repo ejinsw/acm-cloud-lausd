@@ -49,5 +49,5 @@ variable "api_desired_count" {
 variable "websocket_desired_count" {
   description = "Number of WebSocket ECS tasks to run (set to 0 to scale to zero)"
   type        = number
-  default     = 1
+  default     = 0
 } 

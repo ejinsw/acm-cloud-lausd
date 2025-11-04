@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Container,
@@ -31,12 +31,19 @@ import { getToken } from '@/actions/authentication';
 import { useAuth } from '@/components/AuthProvider';
 import { routes } from '@/app/routes';
 
-interface Message {
+type ChatRole = 'student' | 'instructor';
+
+interface ChatUser {
   id: string;
-  sender: User;
+  username: string;
+  type: ChatRole;
+}
+
+interface ChatMessage {
+  id: string;
+  sender: ChatUser;
   text: string;
-  timestamp: string;
-  type: 'message' | 'system';
+  timestamp: number;
 }
 
 interface LiveSessionProps {
@@ -45,28 +52,152 @@ interface LiveSessionProps {
 }
 
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [participants, setParticipants] = useState<User[]>([]);
+  const [participants, setParticipants] = useState<ChatUser[]>([]);
   const [showZoomModal, setShowZoomModal] = useState(false);
 
   // Keep socket in a ref to avoid re-renders and stale cleanup
   const wsRef = useRef<WebSocket | null>(null);
+  const hasAttemptedRoomCreationRef = useRef(false);
+  const hasJoinedRoomRef = useRef(false);
+  const roomMissingNotifiedRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
 
+  const chatUser = useMemo<ChatUser>(() => {
+    const displayName = [currentUser.firstName, currentUser.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const fallbackName = displayName || currentUser.email || currentUser.id;
+    const normalizedRole =
+      currentUser.role === 'INSTRUCTOR' || currentUser.role === 'ADMIN'
+        ? 'instructor'
+        : 'student';
+
+    return {
+      id: currentUser.id,
+      username: fallbackName,
+      type: normalizedRole,
+    };
+  }, [
+    currentUser.id,
+    currentUser.firstName,
+    currentUser.lastName,
+    currentUser.email,
+    currentUser.role,
+  ]);
+
+  const getInitials = (value: string) =>
+    value
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?';
+
+  const normalizeServerUser = useCallback((raw: unknown): ChatUser | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const candidate = raw as { id?: string | number; username?: string; type?: string };
+    if (candidate.id === undefined || candidate.id === null) return null;
+
+    const id = String(candidate.id);
+    const username =
+      (candidate.username && String(candidate.username).trim()) || `User ${id}`;
+    const rawType = candidate.type ? String(candidate.type).toLowerCase() : 'student';
+    const type: ChatRole = rawType === 'instructor' || rawType === 'admin' ? 'instructor' : 'student';
+
+    return { id, username, type };
+  }, []);
+
+  const normalizeServerMessage = useCallback((raw: unknown): ChatMessage | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const candidate = raw as {
+      id?: string | number;
+      text?: string;
+      timestamp?: number | string;
+      sender?: unknown;
+    };
+    if (candidate.id === undefined || typeof candidate.text !== 'string') {
+      return null;
+    }
+
+    const sender = normalizeServerUser(candidate.sender);
+    if (!sender) return null;
+
+    const timestampValue =
+      typeof candidate.timestamp === 'number'
+        ? candidate.timestamp
+        : Number.isFinite(Date.parse(String(candidate.timestamp)))
+          ? Date.parse(String(candidate.timestamp))
+          : Date.now();
+
+    return {
+      id: String(candidate.id),
+      sender,
+      text: candidate.text,
+      timestamp: timestampValue,
+    };
+  }, [normalizeServerUser]);
+
+  const dedupeUsers = useCallback((users: ChatUser[]) => {
+    const seen = new Map<string, ChatUser>();
+    users.forEach(user => {
+      seen.set(user.id, user);
+    });
+    return Array.from(seen.values());
+  }, []);
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
   // Initialize WebSocket connection
   useEffect(() => {
-    if (!session.id || !currentUser.id) return;
+    if (!session.id || !chatUser.id) return;
 
     const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL ?? 'ws://localhost:3001';
-    const ws = new WebSocket(
-      `${wsUrl}?sessionId=${session.id}&userId=${currentUser.id}&userType=${currentUser.role.toLowerCase()}`
-    );
+    const connectionUrl = `${wsUrl}?sessionId=${encodeURIComponent(session.id)}&userId=${encodeURIComponent(chatUser.id)}&userType=${encodeURIComponent(chatUser.type)}`;
+    const ws = new WebSocket(connectionUrl);
 
     wsRef.current = ws;
+    hasAttemptedRoomCreationRef.current = false;
+    hasJoinedRoomRef.current = false;
+    roomMissingNotifiedRef.current = false;
+
+    const userPayload: ChatUser = {
+      id: chatUser.id,
+      username: chatUser.username,
+      type: chatUser.type,
+    };
+
+    const sendMessageToServer = (type: string, payload?: Record<string, unknown>) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(
+        JSON.stringify(
+          payload !== undefined
+            ? { type, payload }
+            : { type }
+        )
+      );
+    };
+
+    const requestJoinRoom = () => {
+      sendMessageToServer('JOIN_ROOM', {
+        roomId: session.id,
+        user: userPayload,
+      });
+    };
+
+    const requestCreateRoom = () => {
+      sendMessageToServer('CREATE_ROOM', {
+        roomName: session.name || `Session ${session.id}`,
+        user: userPayload,
+      });
+    };
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -75,63 +206,211 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         message: 'Connected to live session',
         color: 'green',
       });
+      requestJoinRoom();
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = event => {
+      let data: { type?: string; payload?: unknown };
       try {
-        const data = JSON.parse(event.data);
+        data = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Failed to parse WS message', error);
+        return;
+      }
 
-        switch (data.type) {
-          case 'message':
-            // Expecting data.message to already be in Message shape
-            setMessages((prev) => [...prev, data.message as Message]);
-            break;
+      const { type, payload } = data;
 
-          case 'participant_joined':
-            setParticipants((prev) => [...prev, data.user as User]);
+      switch (type) {
+        case 'REQUEST_USER_INFO':
+          requestJoinRoom();
+          break;
+        case 'USER_IDENTIFIED':
+          break;
+        case 'ROOM_LIST_UPDATED':
+          if (!hasJoinedRoomRef.current && Array.isArray(payload)) {
+            const hasRoom = payload.some(
+              (room: { id?: string | number }) => String(room.id) === session.id
+            );
+            if (hasRoom) {
+              requestJoinRoom();
+            }
+          }
+          break;
+        case 'ROOM_JOINED': {
+          if (!isRecord(payload) || String(payload.id) !== session.id) break;
+          hasJoinedRoomRef.current = true;
+          roomMissingNotifiedRef.current = false;
+
+          const mappedUsers = Array.isArray(payload.users)
+            ? payload.users
+                .map(normalizeServerUser)
+                .filter((user): user is ChatUser => Boolean(user))
+            : [];
+          setParticipants(dedupeUsers([...mappedUsers, userPayload]));
+
+          const mappedMessages = Array.isArray(payload.messages)
+            ? payload.messages
+                .map(normalizeServerMessage)
+                .filter((message): message is ChatMessage => Boolean(message))
+            : [];
+          mappedMessages.sort((a, b) => a.timestamp - b.timestamp);
+          setMessages(mappedMessages);
+          break;
+        }
+        case 'USER_JOINED': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          const user = normalizeServerUser(payload.user);
+          if (!user) break;
+          setParticipants(prev => dedupeUsers([...prev, user]));
+          if (user.id !== chatUser.id) {
             notifications.show({
               title: 'Participant Joined',
-              message: `${data.user.firstName} ${data.user.lastName} joined the session`,
+              message: `${user.username} joined the session`,
               color: 'blue',
             });
-            break;
-
-          case 'participant_left':
-            setParticipants((prev) => prev.filter((p) => p.id !== data.userId));
+          }
+          break;
+        }
+        case 'USER_LEFT': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          const leavingId =
+            'userId' in payload &&
+            (typeof payload.userId === 'string' || typeof payload.userId === 'number')
+              ? String(payload.userId)
+              : '';
+          if (!leavingId) break;
+          setParticipants(prev => prev.filter(user => user.id !== leavingId));
+          if (leavingId !== chatUser.id) {
+            const username =
+              'username' in payload && typeof payload.username === 'string'
+                ? payload.username
+                : null;
             notifications.show({
               title: 'Participant Left',
-              message: 'A participant left the session',
+              message: username
+                ? `${username} left the session`
+                : 'A participant left the session',
               color: 'yellow',
             });
-            break;
-
-          case 'session_started':
+          } else {
+            hasJoinedRoomRef.current = false;
+          }
+          break;
+        }
+        case 'NEW_MESSAGE': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          const message = normalizeServerMessage(payload);
+          if (!message) break;
+          setParticipants(prev => {
+            if (prev.some(user => user.id === message.sender.id)) {
+              return prev;
+            }
+            return dedupeUsers([...prev, message.sender]);
+          });
+          setMessages(prev => {
+            if (prev.some(existing => existing.id === message.id)) {
+              return prev;
+            }
+            return [...prev, message];
+          });
+          break;
+        }
+        case 'MESSAGE_DELETED': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          const messageId =
+            'messageId' in payload &&
+            (typeof payload.messageId === 'string' || typeof payload.messageId === 'number')
+              ? String(payload.messageId)
+              : '';
+          if (!messageId) break;
+          setMessages(prev => prev.filter(message => message.id !== messageId));
+          break;
+        }
+        case 'USER_KICKED': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          const kickedId =
+            'kickedUserId' in payload &&
+            (typeof payload.kickedUserId === 'string' || typeof payload.kickedUserId === 'number')
+              ? String(payload.kickedUserId)
+              : '';
+          if (!kickedId) break;
+          setParticipants(prev => prev.filter(user => user.id !== kickedId));
+          if (kickedId !== chatUser.id) {
             notifications.show({
-              title: 'Session Started',
-              message: 'The instructor has started the session',
-              color: 'green',
+              title: 'Participant Removed',
+              message: `${'kickedUsername' in payload && typeof payload.kickedUsername === 'string'
+                ? payload.kickedUsername
+                : 'A participant'} was removed by the instructor`,
+              color: 'yellow',
             });
-            break;
-
-          case 'session_ended':
+          }
+          break;
+        }
+        case 'YOU_WERE_KICKED': {
+          if (isRecord(payload) && String(payload.roomId) === session.id) {
+            hasJoinedRoomRef.current = false;
+            setMessages([]);
+            setParticipants(prev => prev.filter(user => user.id !== chatUser.id));
             notifications.show({
-              title: 'Session Ended',
-              message: 'The session has ended',
+              title: 'Removed from Session',
+              message:
+                'reason' in payload && typeof payload.reason === 'string'
+                  ? payload.reason
+                  : 'You were removed from this session.',
               color: 'red',
             });
-            break;
-
-          default:
-            // no-op for unknown messages
-            break;
+          }
+          break;
         }
-      } catch (e) {
-        console.error('Failed to parse WS message', e);
+        case 'YOU_LEFT_ROOM': {
+          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
+          hasJoinedRoomRef.current = false;
+          setParticipants(prev => prev.filter(user => user.id !== chatUser.id));
+          notifications.show({
+            title: 'Left Session',
+            message: 'You left the session chat.',
+            color: 'yellow',
+          });
+          break;
+        }
+        case 'SERVER_SHUTDOWN':
+          notifications.show({
+            title: 'Server Shutdown',
+            message: 'The chat server is shutting down. Connection closed.',
+            color: 'red',
+          });
+          ws.close();
+          break;
+        case 'ERROR': {
+          const message =
+            isRecord(payload) && typeof payload.message === 'string'
+              ? payload.message
+              : 'An unknown error occurred.';
+          const isRoomMissing = message === 'Room not found.';
+          if (!roomMissingNotifiedRef.current || !isRoomMissing) {
+            notifications.show({
+              title: 'Chat Error',
+              message,
+              color: 'red',
+            });
+          }
+          if (isRoomMissing) {
+            roomMissingNotifiedRef.current = true;
+            if (chatUser.type === 'instructor' && !hasAttemptedRoomCreationRef.current) {
+              hasAttemptedRoomCreationRef.current = true;
+              requestCreateRoom();
+            }
+          }
+          break;
+        }
+        default:
+          break;
       }
     };
 
     ws.onclose = () => {
       setIsConnected(false);
+      hasJoinedRoomRef.current = false;
       notifications.show({
         title: 'Disconnected',
         message: 'Lost connection to live session',
@@ -139,7 +418,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
       });
     };
 
-    ws.onerror = (error) => {
+    ws.onerror = error => {
       console.error('WebSocket error:', error);
       notifications.show({
         title: 'Connection Error',
@@ -149,13 +428,39 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     };
 
     return () => {
-      // Always close the exact socket we created
-      ws.close();
+      if (ws.readyState === WebSocket.OPEN) {
+        if (hasJoinedRoomRef.current) {
+          try {
+            ws.send(
+              JSON.stringify({
+                type: 'LEAVE_ROOM',
+                payload: { roomId: session.id },
+              })
+            );
+          } catch (error) {
+            console.error('Failed to notify server about leaving room:', error);
+          }
+        }
+        ws.close();
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+
       if (wsRef.current === ws) {
         wsRef.current = null;
       }
+      hasJoinedRoomRef.current = false;
     };
-  }, [session.id, currentUser.id, currentUser.role]);
+  }, [
+    session.id,
+    session.name,
+    chatUser.id,
+    chatUser.username,
+    chatUser.type,
+    normalizeServerUser,
+    normalizeServerMessage,
+    dedupeUsers,
+  ]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -167,23 +472,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     const ws = wsRef.current;
     if (!messageInput.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-    // Optionally: optimistic UI (uncomment if server does not echo immediately)
-    // const optimistic: Message = {
-    //   id: Date.now().toString(),
-    //   sender: currentUser,
-    //   text: messageInput.trim(),
-    //   timestamp: new Date().toISOString(),
-    //   type: 'message',
-    // };
-    // setMessages((prev) => [...prev, optimistic]);
-
     ws.send(
       JSON.stringify({
-        type: 'send_message',
-        message: {
-          sessionId: session.id,
+        type: 'SEND_MESSAGE',
+        payload: {
+          roomId: session.id,
           text: messageInput.trim(),
-          senderId: currentUser.id,
         },
       })
     );
@@ -218,7 +512,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
     // Check if student is already enrolled in the session (for auto-created sessions from queue)
     const isEnrolled = session.students?.some(
-      (student: any) => student.id === currentUser.id
+      (student: User) => student.id === currentUser.id
     );
 
     if (isEnrolled) return true;
@@ -339,8 +633,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                         <Text c="dimmed">No messages yet. Start the conversation!</Text>
                       </Center>
                     ) : (
-                      messages.map((message) => {
-                        const isSelf = message.sender.id === currentUser.id;
+                      messages.map(message => {
+                        const isSelf = message.sender.id === chatUser.id;
                         return (
                           <Box
                             key={message.id}
@@ -351,13 +645,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                               gap: 'var(--mantine-spacing-xs)',
                             }}
                           >
-                            <Avatar
-                              size="sm"
-                              src={message.sender.profilePicture}
-                              radius="xl"
-                            >
-                              {message.sender.firstName?.[0]}
-                              {message.sender.lastName?.[0]}
+                            <Avatar size="sm" radius="xl">
+                              {getInitials(message.sender.username)}
                             </Avatar>
 
                             <Box
@@ -373,11 +662,16 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                             >
                               <Group gap="xs" style={{ marginBottom: 4 }}>
                                 <Text size="sm" fw={500}>
-                                  {message.sender.firstName} {message.sender.lastName}
+                                  {message.sender.username}
                                 </Text>
                                 <Text size="xs" style={{ opacity: 0.7 }}>
                                   {new Date(message.timestamp).toLocaleTimeString()}
                                 </Text>
+                                {message.sender.type === 'instructor' && (
+                                  <Badge size="xs" color={isSelf ? 'teal' : 'blue'} variant="light">
+                                    Instructor
+                                  </Badge>
+                                )}
                               </Group>
 
                               <Text size="sm">{message.text}</Text>
@@ -435,27 +729,23 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                           No participants yet
                         </Text>
                       ) : (
-                        participants.map((participant) => (
+                        participants.map(participant => (
                           <Group key={participant.id} gap="xs" wrap="nowrap">
-                            <Avatar
-                              size="sm"
-                              src={participant.profilePicture}
-                              radius="xl"
-                            >
-                              {participant.firstName?.[0]}
-                              {participant.lastName?.[0]}
+                            <Avatar size="sm" radius="xl">
+                              {getInitials(participant.username)}
                             </Avatar>
 
                             <Box style={{ flex: 1, minWidth: 0 }}>
                               <Text size="sm" fw={500} truncate="end">
-                                {participant.firstName} {participant.lastName}
+                                {participant.username}
                               </Text>
                               <Text size="xs" c="dimmed">
-                                {participant.role}
+                                {participant.type.toUpperCase()}
                               </Text>
                             </Box>
 
-                            {participant.id === session.instructorId && (
+                            {(participant.type === 'instructor' ||
+                              participant.id === session.instructorId) && (
                               <Badge size="xs" color="blue">
                                 Instructor
                               </Badge>

@@ -134,7 +134,10 @@ module "ecs" {
   vpc_id                 = module.vpc.vpc_id
 }
 
-# FOR DAEHOON AND SIDD
+
+
+
+# FOR DAEHOON AND SID
 module "dynamodb_dax" {
   source = "./modules/dynamodb_dax"
   environment = var.environment

@@ -1,18 +1,28 @@
 export async function getToken(): Promise<string | null> {
   try {
-    const response = await fetch('/api/auth/token');
+    const response = await fetch('/api/auth/token', {
+      method: 'GET',
+      credentials: 'include', // Ensure cookies are sent
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
     if (response.status === 401) {
       return null;
     }
     
     if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Token fetch failed:', response.status, errorData);
       return null;
     }
     
     const data = await response.json();
-    return data.token;
+    return data.token || null;
   } catch (error) {
     console.error('Error fetching token:', error);
+    // Don't throw, just return null to allow graceful degradation
     return null;
   }
 }

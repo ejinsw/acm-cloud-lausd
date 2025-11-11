@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Box, Loader, Alert, Button, Center, Text } from '@mantine/core';
+import { Box, Loader, Alert, Button, Text } from '@mantine/core';
 import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
+import ZoomMtg from '@zoom/meetingsdk';
 
 interface ZoomSDKConfig {
   meetingNumber: string;
@@ -20,62 +21,34 @@ interface ZoomEmbedProps {
   onError?: (error: string) => void;
 }
 
-declare global {
-  interface Window {
-    ZoomMtg: any;
-  }
-}
-
 export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: ZoomEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sdkLoaded, setSdkLoaded] = useState(false);
+  const zoomClientRef = useRef<any>(null);
 
   useEffect(() => {
-    // Load Zoom SDK script
-    const loadZoomSDK = () => {
-      if (window.ZoomMtg) {
-        setSdkLoaded(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://source.zoom.us/zoom-meeting-1.9.7.min.js';
-      script.async = true;
-      script.onload = () => {
-        setSdkLoaded(true);
-      };
-      script.onerror = () => {
-        setError('Failed to load Zoom SDK');
-        setLoading(false);
-        if (onError) {
-          onError('Failed to load Zoom SDK');
-        }
-      };
-      document.body.appendChild(script);
-    };
-
-    loadZoomSDK();
-  }, [onError]);
-
-  useEffect(() => {
-    if (!sdkLoaded || !window.ZoomMtg || !containerRef.current) {
+    if (!containerRef.current || !config.signature) {
+      console.log('ZoomEmbed: Missing container or signature', { 
+        hasContainer: !!containerRef.current, 
+        hasSignature: !!config.signature 
+      });
       return;
     }
 
     let zoomClient: any = null;
+    let joinTimeout: NodeJS.Timeout | null = null;
 
     const initZoom = async () => {
       try {
-        const ZoomMtg = window.ZoomMtg;
+        console.log('ZoomEmbed: Starting initialization...');
         
-        // Set up container
+        // Set up Zoom JS library path
         ZoomMtg.setZoomJSLib('https://source.zoom.us/lib', '/av');
         ZoomMtg.preLoadWasm();
         ZoomMtg.prepareWebSDK();
 
-        // Initialize Zoom client
+        // Create Zoom client
         zoomClient = ZoomMtg.createClient({
           sdkKey: config.sdkKey,
           sdkSecret: '', // Not needed when using signature
@@ -84,6 +57,8 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
           enforceMultipleVideoElements: false,
         });
 
+        console.log('ZoomEmbed: Client created, initializing...');
+
         // Initialize Zoom
         await zoomClient.init('en-US', 'Global', {
           patchJsMedia: true,
@@ -91,32 +66,53 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
           leaveOnBeforeUnload: true,
         });
 
-        // Join meeting
-        await zoomClient.join({
-          signature: config.signature,
-          meetingNumber: config.meetingNumber,
-          userName: config.userName || 'User',
-          userEmail: config.userEmail || '',
-          passWord: config.password || '',
-          tk: '',
-          zak: '',
-          success: (success: any) => {
-            console.log('Zoom meeting joined successfully:', success);
+        console.log('ZoomEmbed: Initialized, joining meeting...');
+
+        // Set a timeout to prevent infinite loading
+        joinTimeout = setTimeout(() => {
+          if (loading) {
+            console.warn('ZoomEmbed: Join timeout - taking too long');
+            setError('Zoom meeting join is taking longer than expected. Please try refreshing.');
             setLoading(false);
-            setError(null);
-          },
-          error: (err: any) => {
-            console.error('Zoom join error:', err);
-            const errorMsg = err.reason || 'Failed to join Zoom meeting';
-            setError(errorMsg);
-            setLoading(false);
-            if (onError) {
-              onError(errorMsg);
-            }
-          },
+          }
+        }, 30000); // 30 second timeout
+
+        // Join meeting - wrap in Promise to handle callbacks
+        const joinPromise = new Promise<void>((resolve, reject) => {
+          zoomClient.join({
+            signature: config.signature,
+            meetingNumber: config.meetingNumber,
+            userName: config.userName || 'User',
+            userEmail: config.userEmail || '',
+            passWord: config.password || '',
+            tk: '',
+            zak: '',
+            success: (success: any) => {
+              console.log('Zoom meeting joined successfully:', success);
+              if (joinTimeout) clearTimeout(joinTimeout);
+              setLoading(false);
+              setError(null);
+              resolve();
+            },
+            error: (err: any) => {
+              console.error('Zoom join error:', err);
+              if (joinTimeout) clearTimeout(joinTimeout);
+              const errorMsg = err.reason || err.message || 'Failed to join Zoom meeting';
+              setError(errorMsg);
+              setLoading(false);
+              if (onError) {
+                onError(errorMsg);
+              }
+              reject(new Error(errorMsg));
+            },
+          });
         });
+
+        await joinPromise;
+        zoomClientRef.current = zoomClient;
       } catch (err: any) {
         console.error('Zoom initialization error:', err);
+        if (joinTimeout) clearTimeout(joinTimeout);
         const errorMsg = err.message || 'Failed to initialize Zoom';
         setError(errorMsg);
         setLoading(false);
@@ -130,17 +126,21 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
 
     // Cleanup
     return () => {
-      if (zoomClient) {
+      if (joinTimeout) {
+        clearTimeout(joinTimeout);
+      }
+      if (zoomClientRef.current) {
         try {
-          zoomClient.leave().catch((err: any) => {
+          zoomClientRef.current.leave().catch((err: any) => {
             console.error('Error leaving Zoom meeting:', err);
           });
+          zoomClientRef.current = null;
         } catch (err) {
           console.error('Error cleaning up Zoom client:', err);
         }
       }
     };
-  }, [sdkLoaded, config, onError]);
+  }, [config, onError]);
 
   if (error) {
     return (
@@ -161,7 +161,7 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
     );
   }
 
-  if (loading || !sdkLoaded) {
+  if (loading) {
     return (
       <Box h={400} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Loader size="lg" />

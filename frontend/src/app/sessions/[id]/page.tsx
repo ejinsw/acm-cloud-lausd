@@ -215,7 +215,17 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
   // Check if user can join session
   const canJoinSession = () => {
-    if (currentUser.role === 'INSTRUCTOR') return true;
+    // Instructors can always join their own sessions
+    if (currentUser.role === 'INSTRUCTOR') {
+      return currentUser.id === session.instructorId;
+    }
+    
+    // Students can join if:
+    // 1. They are already in the session's students array (e.g., from queue acceptance)
+    // 2. OR they have an ACCEPTED session request
+    if (session.students?.some(student => student.id === currentUser.id)) {
+      return true;
+    }
     
     const request = currentUser.sessionRequests?.find(
       (req: SessionRequest) => req.sessionId === session.id
@@ -290,7 +300,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Grid.Col span={4}>
               <Stack align="flex-end" spacing="md">
                 <Button
-                  leftIcon={<IconVideo size={16} />}
+                  leftSection={<IconVideo size={16} />}
                   onClick={() => setShowZoomModal(true)}
                   color="blue"
                   size="lg"
@@ -318,7 +328,16 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               <Paper p="xl" radius="md">
                 <Stack spacing="md">
                   <Title order={3}>Zoom Meeting</Title>
-                  {zoomConfig ? (
+                  {zoomLoading ? (
+                    <Center h={400}>
+                      <Loader size="lg" />
+                      <Text ml="md">Loading Zoom meeting...</Text>
+                    </Center>
+                  ) : zoomError ? (
+                    <Alert color="red" icon={<IconX size={16} />}>
+                      Failed to load Zoom meeting: {zoomError}
+                    </Alert>
+                  ) : zoomConfig ? (
                     <ZoomEmbed
                       config={zoomConfig}
                       onError={(error) => {
@@ -330,16 +349,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                         });
                       }}
                     />
-                  ) : zoomLoading ? (
-                    <Center h={400}>
-                      <Loader size="lg" />
-                      <Text ml="md">Loading Zoom meeting...</Text>
-                    </Center>
-                  ) : zoomError ? (
-                    <Alert color="red" icon={<IconX size={16} />}>
-                      Failed to load Zoom meeting: {zoomError}
+                  ) : (
+                    <Alert color="yellow" icon={<IconX size={16} />}>
+                      Zoom meeting configuration not available. Please refresh the page.
                     </Alert>
-                  ) : null}
+                  )}
                 </Stack>
               </Paper>
             </Grid.Col>
@@ -350,9 +364,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Paper p="xl" radius="md" h={600}>
               <Stack spacing="md" h="100%">
                 <Group position="apart">
-                  <Title order={3} leftIcon={<IconMessage size={20} />}>
-                    Session Chat
-                  </Title>
+                  <Group gap="xs">
+                    <IconMessage size={20} />
+                    <Title order={3}>
+                      Session Chat
+                    </Title>
+                  </Group>
                   <Text size="sm" color="dimmed">
                     {participants.length} participants online
                   </Text>
@@ -444,9 +461,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               {/* Participants */}
               <Paper p="xl" radius="md">
                 <Stack spacing="md">
-                  <Title order={4} leftIcon={<IconUsers size={18} />}>
-                    Participants
-                  </Title>
+                  <Group gap="xs">
+                    <IconUsers size={18} />
+                    <Title order={4}>
+                      Participants
+                    </Title>
+                  </Group>
                   <ScrollArea h={200}>
                     <Stack spacing="xs">
                       {participants.length === 0 ? (
@@ -531,7 +551,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   Click the button below to join the Zoom meeting for this session.
                 </Text>
                 <Button
-                  leftIcon={<IconVideo size={16} />}
+                  leftSection={<IconVideo size={16} />}
                   onClick={joinZoomMeeting}
                   color="blue"
                   size="lg"

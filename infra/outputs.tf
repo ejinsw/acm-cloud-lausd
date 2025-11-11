@@ -51,6 +51,16 @@ output "alb_dns_name" {
   value = module.ecs.alb_dns_name
 }
 
+output "api_gateway_endpoint" {
+  description = "API Gateway HTTP API endpoint URL (HTTPS enabled)"
+  value       = module.api_gateway.stage_invoke_url
+}
+
+output "api_gateway_id" {
+  description = "API Gateway HTTP API ID"
+  value       = module.api_gateway.api_id
+}
+
 output "admin_access_key_id" {
   description = "AWS Access Key ID for Cognito admin operations"
   value       = module.cognito_admin.admin_access_key_id

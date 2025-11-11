@@ -4,8 +4,8 @@ resource "aws_apigatewayv2_api" "main" {
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_headers = ["Content-Type", "Authorization"]
+    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    allow_headers = ["Content-Type", "Authorization", "X-Requested-With"]
     max_age      = 300
   }
 
@@ -16,40 +16,83 @@ resource "aws_apigatewayv2_api" "main" {
 }
 
 resource "aws_apigatewayv2_stage" "main" {
-  api_id = aws_apigatewayv2_api.main.id
-  name   = var.environment
+  api_id      = aws_apigatewayv2_api.main.id
+  name        = var.environment
   auto_deploy = true
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gateway.arn
     format = jsonencode({
-      requestId      = "$context.requestId"
-      ip            = "$context.identity.sourceIp"
-      requestTime   = "$context.requestTime"
-      httpMethod    = "$context.httpMethod"
-      routeKey      = "$context.routeKey"
-      status        = "$context.status"
-      protocol      = "$context.protocol"
-      responseLength = "$context.responseLength"
+      requestId        = "$context.requestId"
+      ip               = "$context.identity.sourceIp"
+      requestTime      = "$context.requestTime"
+      httpMethod       = "$context.httpMethod"
+      routeKey         = "$context.routeKey"
+      status           = "$context.status"
+      protocol         = "$context.protocol"
+      responseLength   = "$context.responseLength"
       integrationError = "$context.integrationErrorMessage"
     })
   }
 }
 
-resource "aws_apigatewayv2_integration" "lambda" {
-  api_id           = aws_apigatewayv2_api.main.id
-  integration_type = "AWS_PROXY"
+# VPC Link to connect API Gateway to ALB
+resource "aws_apigatewayv2_vpc_link" "alb" {
+  name               = "${var.project_name}-vpc-link"
+  security_group_ids = []
+  subnet_ids         = var.subnet_ids
 
-  connection_type    = "INTERNET"
-  description        = "Lambda integration"
-  integration_method = "POST"
-  integration_uri    = var.lambda_arn
+  tags = {
+    Name        = "${var.project_name}-vpc-link"
+    Environment = var.environment
+  }
 }
 
-resource "aws_apigatewayv2_route" "main" {
+# Integration for API service (routes /api/* to ALB)
+resource "aws_apigatewayv2_integration" "api" {
+  api_id           = aws_apigatewayv2_api.main.id
+  integration_type = "HTTP_PROXY"
+
+  connection_type        = "VPC_LINK"
+  connection_id         = aws_apigatewayv2_vpc_link.alb.id
+  description           = "VPC Link integration to ALB for API service"
+  integration_method    = "ANY"
+  integration_uri       = var.alb_listener_arn
+  payload_format_version = "1.0"
+}
+
+# Integration for WebSocket service (routes /ws* to ALB)
+resource "aws_apigatewayv2_integration" "websocket" {
+  api_id           = aws_apigatewayv2_api.main.id
+  integration_type = "HTTP_PROXY"
+
+  connection_type        = "VPC_LINK"
+  connection_id         = aws_apigatewayv2_vpc_link.alb.id
+  description           = "VPC Link integration to ALB for WebSocket service"
+  integration_method    = "ANY"
+  integration_uri       = var.alb_listener_arn
+  payload_format_version = "1.0"
+}
+
+# Route for API endpoints: /api/{proxy+}
+resource "aws_apigatewayv2_route" "api" {
   api_id    = aws_apigatewayv2_api.main.id
-  route_key = "ANY /{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  route_key = "ANY /api/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+# Route for WebSocket endpoints: /ws/{proxy+}
+resource "aws_apigatewayv2_route" "websocket" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /ws/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
+}
+
+# Route for WebSocket root: /ws
+resource "aws_apigatewayv2_route" "websocket_root" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /ws"
+  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
 }
 
 resource "aws_cloudwatch_log_group" "api_gateway" {
@@ -60,13 +103,4 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
     Name        = "${var.project_name}-api-gateway-logs"
     Environment = var.environment
   }
-}
-
-# Lambda permission to allow API Gateway to invoke the function
-resource "aws_lambda_permission" "api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = var.lambda_function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 } 

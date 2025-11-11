@@ -101,12 +101,6 @@ module "cognito_admin" {
   depends_on = [module.cognito]
 }
 
-# --- Remove Lambda and API Gateway modules ---
-# module "lambda_api" { ... }
-# module "lambda_websocket" { ... }
-# module "api_gateway" { ... }
-# module "websocket_gateway" { ... }
-
 # --- Add ECS Fargate module ---
 module "ecs" {
   source                = "./modules/ecs"
@@ -147,8 +141,22 @@ module "ecs" {
   vpc_id                 = module.vpc.vpc_id
 }
 
+# API Gateway with VPC Link to ALB
+module "api_gateway" {
+  source = "./modules/api_gateway"
 
+  # Standard variables
+  project_name = var.project_name
+  environment  = var.environment
 
+  # API Gateway variables
+  vpc_id          = module.vpc.vpc_id
+  alb_listener_arn = module.ecs.alb_listener_arn
+  # VPC Link subnets should match ALB subnets (public subnets)
+  subnet_ids      = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
+
+  depends_on = [module.ecs]
+}
 
 # FOR DAEHOON AND SID
 module "dynamodb_dax" {

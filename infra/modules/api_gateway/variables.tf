@@ -10,12 +10,17 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "lambda_arn" {
-  description = "ARN of the Lambda function to integrate with"
+variable "vpc_id" {
+  description = "VPC ID for VPC Link"
   type        = string
 }
 
-variable "lambda_function_name" {
-  description = "Name of the Lambda function"
+variable "alb_listener_arn" {
+  description = "ARN of the Application Load Balancer listener"
   type        = string
+}
+
+variable "subnet_ids" {
+  description = "Subnet IDs for VPC Link (should be private subnets)"
+  type        = list(string)
 } 

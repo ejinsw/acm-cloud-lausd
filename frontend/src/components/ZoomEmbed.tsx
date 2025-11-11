@@ -26,6 +26,7 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const zoomClientRef = useRef<any>(null);
+  const isLoadingRef = useRef(true);
 
   useEffect(() => {
     if (!containerRef.current || !config.signature) {
@@ -35,6 +36,11 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
       });
       return;
     }
+
+    // Reset loading state
+    isLoadingRef.current = true;
+    setLoading(true);
+    setError(null);
 
     let zoomClient: any = null;
     let joinTimeout: NodeJS.Timeout | null = null;
@@ -70,10 +76,11 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
 
         // Set a timeout to prevent infinite loading
         joinTimeout = setTimeout(() => {
-          if (loading) {
+          if (isLoadingRef.current) {
             console.warn('ZoomEmbed: Join timeout - taking too long');
             setError('Zoom meeting join is taking longer than expected. Please try refreshing.');
             setLoading(false);
+            isLoadingRef.current = false;
           }
         }, 30000); // 30 second timeout
 
@@ -90,6 +97,7 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
             success: (success: any) => {
               console.log('Zoom meeting joined successfully:', success);
               if (joinTimeout) clearTimeout(joinTimeout);
+              isLoadingRef.current = false;
               setLoading(false);
               setError(null);
               resolve();
@@ -97,6 +105,7 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
             error: (err: any) => {
               console.error('Zoom join error:', err);
               if (joinTimeout) clearTimeout(joinTimeout);
+              isLoadingRef.current = false;
               const errorMsg = err.reason || err.message || 'Failed to join Zoom meeting';
               setError(errorMsg);
               setLoading(false);
@@ -113,6 +122,7 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
       } catch (err: any) {
         console.error('Zoom initialization error:', err);
         if (joinTimeout) clearTimeout(joinTimeout);
+        isLoadingRef.current = false;
         const errorMsg = err.message || 'Failed to initialize Zoom';
         setError(errorMsg);
         setLoading(false);

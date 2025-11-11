@@ -18,6 +18,11 @@ provider "aws" {
   region = var.aws_region
 }
 
+locals {
+  session_idle_timeout_ms = 30 * 60 * 1000
+  max_session_ttl_ms      = 24 * 60 * 60 * 1000
+}
+
 # VPC and Networking
 module "vpc" {
   source = "./modules/vpc"
@@ -122,7 +127,15 @@ module "ecs" {
   ]
   websocket_environment = [
     { name = "NODE_ENV", value = var.environment },
-    { name = "PORT", value = "9999" }
+    { name = "PORT", value = "9999" },
+    { name = "AWS_REGION", value = var.aws_region },
+    { name = "ROOMS_TABLE_NAME", value = module.dynamodb_dax.rooms_table_name },
+    { name = "ROOM_MEMBERS_TABLE_NAME", value = module.dynamodb_dax.room_members_table_name },
+    { name = "ROOM_MESSAGES_TABLE_NAME", value = module.dynamodb_dax.room_messages_table_name },
+    { name = "USER_SESSIONS_TABLE_NAME", value = module.dynamodb_dax.user_sessions_table_name },
+    { name = "DAX_ENDPOINT", value = module.dynamodb_dax.dax_configuration_endpoint },
+    { name = "SESSION_IDLE_TIMEOUT_MS", value = tostring(local.session_idle_timeout_ms) },
+    { name = "MAX_SESSION_TTL_MS", value = tostring(local.max_session_ttl_ms) }
   ]
   execution_role_arn         = aws_iam_role.ecs_execution_role.arn
   task_role_arn              = aws_iam_role.ecs_task_role.arn
@@ -141,5 +154,13 @@ module "ecs" {
 module "dynamodb_dax" {
   source = "./modules/dynamodb_dax"
   environment = var.environment
+  dax_vpc_id  = module.vpc.vpc_id
+  dax_subnet_ids = [
+    module.vpc.private_subnet_id_1,
+    module.vpc.private_subnet_id_2
+  ]
+  dax_allowed_security_group_ids = [module.vpc.fargate_sg_id]
+
+  depends_on = [module.vpc]
 }
 # END

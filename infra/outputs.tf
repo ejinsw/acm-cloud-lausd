@@ -62,3 +62,33 @@ output "admin_secret_access_key" {
   value       = module.cognito_admin.admin_secret_access_key
   sensitive   = true
 }
+
+output "rooms_table_name" {
+  description = "DynamoDB table storing room metadata."
+  value       = module.dynamodb_dax.rooms_table_name
+}
+
+output "room_members_table_name" {
+  description = "DynamoDB table storing membership records."
+  value       = module.dynamodb_dax.room_members_table_name
+}
+
+output "room_messages_table_name" {
+  description = "DynamoDB table storing chat messages."
+  value       = module.dynamodb_dax.room_messages_table_name
+}
+
+output "user_sessions_table_name" {
+  description = "DynamoDB table storing user sessions."
+  value       = module.dynamodb_dax.user_sessions_table_name
+}
+
+output "dax_configuration_endpoint" {
+  description = "DAX cluster configuration endpoint for clients."
+  value       = module.dynamodb_dax.dax_configuration_endpoint
+}
+
+output "dax_cluster_address" {
+  description = "Primary address for the DAX cluster."
+  value       = module.dynamodb_dax.dax_cluster_address
+}

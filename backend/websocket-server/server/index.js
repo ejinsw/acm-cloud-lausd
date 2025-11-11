@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { Profanity, CensorType } = require('@2toad/profanity');
 const dotenv = require('dotenv');
+const store = require('./daxStore');
 
 dotenv.config();
 
@@ -12,37 +13,49 @@ const profanity = new Profanity({
   languages: ['en', 'es', 'fr'],
 });
 
-// In-memory storage
-const rooms = {};
-const users = {};
+// Active socket bookkeeping only. All persistence lives in DynamoDB/DAX.
+const liveRooms = new Map(); // roomId -> { name, clients: Map<WebSocket, User>, lastActivity }
+const connectedUsers = new Map(); // userId -> { id, username, type, ws, currentRoomId }
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
+const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
 
 console.log(`WebSocket chat server started on port ${process.env.PORT || 9999}`);
 
 // --- Helper Functions ---
 function sanitizeInput(text) {
   if (typeof text !== 'string') return '';
-  return text.replace(/[&<>"']/g, function (match) {
-    return {
+  return text.replace(/[&<>"']/g, match => {
+    const map = {
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#39;',
-    }[match];
+    };
+    return map[match];
   });
 }
 
-function broadcastToRoom(roomId, message, excludeWs = null) {
-  const room = rooms[roomId];
-  if (room) {
-    room.clients.forEach((clientInfo, ws) => {
-      if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-      }
-    });
+function getRoomState(roomId, defaultName = null) {
+  if (!liveRooms.has(roomId)) {
+    liveRooms.set(roomId, { name: defaultName, clients: new Map(), lastActivity: Date.now() });
   }
+  const state = liveRooms.get(roomId);
+  if (defaultName && state && !state.name) {
+    state.name = defaultName;
+  }
+  return state;
+}
+
+function broadcastToRoom(roomId, message, excludeWs = null) {
+  const room = liveRooms.get(roomId);
+  if (!room) return;
+  room.clients.forEach((clientInfo, ws) => {
+    if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message));
+    }
+  });
 }
 
 function broadcastToAll(message, excludeWs = null) {
@@ -53,12 +66,20 @@ function broadcastToAll(message, excludeWs = null) {
   });
 }
 
-function getRoomList() {
-  return Object.values(rooms).map(room => ({
-    id: room.id,
-    name: room.name,
-    userCount: room.clients.size,
-  }));
+async function pushRoomListUpdate(targetWs = null) {
+  try {
+    const rooms = await store.listRooms();
+    const payload = { type: 'ROOM_LIST_UPDATED', payload: rooms };
+    if (targetWs) {
+      if (targetWs.readyState === WebSocket.OPEN) {
+        targetWs.send(JSON.stringify(payload));
+      }
+    } else {
+      broadcastToAll(payload);
+    }
+  } catch (err) {
+    console.error('Failed to fetch room list:', err);
+  }
 }
 
 function verifyToken(token) {
@@ -124,80 +145,84 @@ function verifyToken(token) {
   return null;
 }
 
-// --- Room Management ---
-function createRoom(ws, roomName, user) {
+async function createRoom(ws, roomName, user) {
   const roomId = uuidv4();
-  const cleanRoomName = sanitizeInput(roomName) || `Room ${Object.keys(rooms).length + 1}`;
+  const cleanRoomName = sanitizeInput(roomName) || `Room-${roomId.slice(0, 6)}`;
 
-  if (!user || !user.id || !user.username || !user.type) {
+  try {
+    await store.createRoom({
+      id: roomId,
+      name: cleanRoomName,
+      ownerId: user.id,
+      settings: {},
+    });
+    console.log(`Room created: ${cleanRoomName} (ID: ${roomId}) by ${user.username}`);
+    await joinRoom(ws, roomId, user);
+  } catch (err) {
+    console.error('Failed to create room:', err);
     ws.send(
       JSON.stringify({
         type: 'ERROR',
-        payload: { message: 'User information is required to create a room.' },
+        payload: { message: 'Failed to create room. Please try again.' },
       })
     );
-    return;
   }
-
-  rooms[roomId] = {
-    id: roomId,
-    name: cleanRoomName,
-    clients: new Map(),
-    messages: [],
-    ownerId: user.id,
-    lastActivity: Date.now(),
-    settings: {},
-  };
-  console.log(`Room created: ${cleanRoomName} (ID: ${roomId}) by ${user.username}`);
-  broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
-  joinRoom(ws, roomId, user);
-  return rooms[roomId];
 }
 
-function joinRoom(ws, roomId, user) {
-  const room = rooms[roomId];
+async function joinRoom(ws, roomId, user) {
+  const room = await store.getRoom(roomId);
   if (!room) {
     ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Room not found.' } }));
     return;
   }
-  if (!user || !user.id || !user.username || !user.type) {
-    ws.send(
-      JSON.stringify({
-        type: 'ERROR',
-        payload: { message: 'User information is required to join a room.' },
-      })
-    );
-    return;
-  }
+  const sanitizedUser = {
+    id: user.id,
+    username: sanitizeInput(user.username),
+    type: user.type,
+  };
 
-  const existingUserEntry = users[user.id];
+  const existingUserEntry = connectedUsers.get(user.id);
   if (
     existingUserEntry &&
     existingUserEntry.currentRoomId &&
     existingUserEntry.currentRoomId !== roomId
   ) {
-    leaveRoom(existingUserEntry.ws, existingUserEntry.currentRoomId, user.id, false);
+    await leaveRoom(existingUserEntry.ws, existingUserEntry.currentRoomId, user.id, false);
   }
 
-  room.clients.set(ws, { id: user.id, username: sanitizeInput(user.username), type: user.type });
-  users[user.id] = {
-    ws,
-    username: sanitizeInput(user.username),
-    type: user.type,
-    currentRoomId: roomId,
-  };
-  ws.userId = user.id;
-  room.lastActivity = Date.now();
+  try {
+    await store.addMember(roomId, sanitizedUser);
+    await store.setUserSession({ ...sanitizedUser, currentRoomId: roomId });
+  } catch (err) {
+    console.error('Failed to persist membership record:', err);
+    ws.send(
+      JSON.stringify({
+        type: 'ERROR',
+        payload: { message: 'Could not join the room. Please try again.' },
+      })
+    );
+    return;
+  }
 
-  const roomUsers = Array.from(room.clients.values());
+  const roomState = getRoomState(roomId, room.name);
+  roomState.clients.set(ws, sanitizedUser);
+  roomState.lastActivity = Date.now();
+  connectedUsers.set(user.id, { ...sanitizedUser, ws, currentRoomId: roomId });
+  ws.userId = sanitizedUser.id;
+
+  const [members, messages] = await Promise.all([
+    store.listMembers(roomId),
+    store.fetchMessages(roomId),
+  ]);
+
   ws.send(
     JSON.stringify({
       type: 'ROOM_JOINED',
       payload: {
-        id: room.id,
-        name: room.name,
-        users: roomUsers,
-        messages: room.messages.slice(-50),
+        id: roomId,
+        name: roomState.name,
+        users: members,
+        messages,
       },
     })
   );
@@ -208,64 +233,84 @@ function joinRoom(ws, roomId, user) {
       type: 'USER_JOINED',
       payload: {
         roomId,
-        user: { id: user.id, username: sanitizeInput(user.username), type: user.type },
+        user: sanitizedUser,
       },
     },
     ws
   );
 
-  console.log(`${user.username} (ID: ${user.id}, Type: ${user.type}) joined room: ${room.name}`);
-  broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
+  console.log(`${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type}) joined room: ${roomState.name}`);
+  await pushRoomListUpdate();
 }
 
-function leaveRoom(ws, roomId, userId, sendYouLeftNotification = true) {
-  const room = rooms[roomId];
-  const userToLeave = users[userId];
+async function leaveRoom(ws, roomId, userId, sendYouLeftNotification = true) {
+  const roomState = liveRooms.get(roomId);
+  const activeUser = connectedUsers.get(userId);
 
-  if (room && userToLeave) {
-    let actualWsInRoom = null;
-    for (const [socketInRoom, clientInfo] of room.clients.entries()) {
+  let targetSocket = ws;
+  let departingInfo = activeUser || null;
+
+  if (roomState) {
+    for (const [socket, clientInfo] of roomState.clients.entries()) {
       if (clientInfo.id === userId) {
-        if (socketInRoom === ws || socketInRoom === userToLeave.ws) {
-          actualWsInRoom = socketInRoom;
-          break;
-        }
+        if (!targetSocket) targetSocket = socket;
+        departingInfo = clientInfo;
+        roomState.clients.delete(socket);
+        break;
       }
     }
-
-    if (actualWsInRoom && room.clients.has(actualWsInRoom)) {
-      const userInfo = room.clients.get(actualWsInRoom);
-      room.clients.delete(actualWsInRoom);
-      room.lastActivity = Date.now();
-
-      broadcastToRoom(roomId, {
-        type: 'USER_LEFT',
-        payload: { roomId, userId: userInfo.id, username: userInfo.username },
-      });
-      console.log(`${userInfo.username} (ID: ${userInfo.id}) left room: ${room.name}`);
-
-      if (sendYouLeftNotification && actualWsInRoom.readyState === WebSocket.OPEN) {
-        actualWsInRoom.send(JSON.stringify({ type: 'YOU_LEFT_ROOM', payload: { roomId } }));
-      }
-
-      if (room.clients.size === 0) {
-        console.log(`Room ${room.name} is now empty.`);
-      }
+    roomState.lastActivity = Date.now();
+    if (roomState.clients.size === 0) {
+      liveRooms.delete(roomId);
     }
   }
 
-  if (userToLeave && userToLeave.currentRoomId === roomId) {
-    userToLeave.currentRoomId = null;
+  try {
+    await store.removeMember(roomId, userId);
+    await store.setUserSession({
+      id: userId,
+      username: departingInfo?.username || activeUser?.username || `User ${userId}`,
+      type: departingInfo?.type || activeUser?.type || 'student',
+      currentRoomId: null,
+    });
+  } catch (err) {
+    console.error(`Failed to update membership/session for user ${userId}:`, err);
   }
-  broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
+
+  const currentEntry = connectedUsers.get(userId);
+  if (currentEntry) {
+    currentEntry.currentRoomId = null;
+  }
+
+  if (
+    sendYouLeftNotification &&
+    targetSocket &&
+    targetSocket.readyState === WebSocket.OPEN
+  ) {
+    targetSocket.send(JSON.stringify({ type: 'YOU_LEFT_ROOM', payload: { roomId } }));
+  }
+
+  if (departingInfo) {
+    broadcastToRoom(roomId, {
+      type: 'USER_LEFT',
+      payload: { roomId, userId: departingInfo.id, username: departingInfo.username },
+    });
+    console.log(`${departingInfo.username} (ID: ${departingInfo.id}) left room: ${roomState?.name || roomId}`);
+  }
+
+  const updatedRoom = await store.getRoom(roomId);
+  if (!updatedRoom || (updatedRoom.participantCount || 0) <= 0) {
+    await store.expireRoom(roomId);
+  }
+
+  await pushRoomListUpdate();
 }
 
-// --- Message Handling ---
-function handleMessage(ws, messageData) {
-  const room = rooms[messageData.roomId];
-  const senderInfo = room ? room.clients.get(ws) : null;
+async function handleMessage(ws, messageData) {
+  const roomState = liveRooms.get(messageData.roomId);
+  const senderInfo = roomState ? roomState.clients.get(ws) : null;
 
-  if (!room || !senderInfo) {
+  if (!roomState || !senderInfo) {
     ws.send(
       JSON.stringify({
         type: 'ERROR',
@@ -280,40 +325,40 @@ function handleMessage(ws, messageData) {
 
   if (!filteredText.trim()) {
     console.log(
-      `[${room.name}] ${senderInfo.username} sent a message that was fully filtered. Original: "${messageData.text}"`
+      `[${roomState.name}] ${senderInfo.username} sent a message that was fully filtered. Original: "${messageData.text}"`
     );
     return;
   }
 
   const message = {
     id: uuidv4(),
-    text: filteredText, // Use the filtered text from the library
+    text: filteredText,
     sender: { id: senderInfo.id, username: senderInfo.username, type: senderInfo.type },
     roomId: messageData.roomId,
-    timestamp: Date.now(),
   };
 
-  room.messages.push(message);
-  if (room.messages.length > 200) {
-    room.messages.shift();
-  }
-  room.lastActivity = Date.now();
-
-  broadcastToRoom(messageData.roomId, { type: 'NEW_MESSAGE', payload: message });
-  if (messageData.text !== filteredText) {
-    console.log(
-      `[${room.name}] ${senderInfo.username}: ${filteredText} (Original: "${messageData.text}")`
-    );
-  } else {
-    console.log(`[${room.name}] ${senderInfo.username}: ${message.text}`);
+  try {
+    const savedMessage = await store.saveMessage(messageData.roomId, message);
+    roomState.lastActivity = Date.now();
+    broadcastToRoom(messageData.roomId, { type: 'NEW_MESSAGE', payload: savedMessage });
+    if (messageData.text !== filteredText) {
+      console.log(
+        `[${roomState.name}] ${senderInfo.username}: ${filteredText} (Original: "${messageData.text}")`
+      );
+    } else {
+      console.log(`[${roomState.name}] ${senderInfo.username}: ${message.text}`);
+    }
+  } catch (err) {
+    console.error('Failed to persist message:', err);
+    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Message failed to send.' } }));
   }
 }
 
-function deleteMessage(ws, roomId, messageId) {
-  const room = rooms[roomId];
-  const requesterInfo = room ? room.clients.get(ws) : null;
+async function deleteMessage(ws, roomId, messageId) {
+  const roomState = liveRooms.get(roomId);
+  const requesterInfo = roomState ? roomState.clients.get(ws) : null;
 
-  if (!room || !requesterInfo) {
+  if (!roomState || !requesterInfo) {
     ws.send(
       JSON.stringify({
         type: 'ERROR',
@@ -333,27 +378,24 @@ function deleteMessage(ws, roomId, messageId) {
     return;
   }
 
-  const messageIndex = room.messages.findIndex(msg => msg.id === messageId);
-  if (messageIndex === -1) {
+  const deleted = await store.deleteMessage(roomId, messageId);
+  if (!deleted) {
     ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Message not found.' } }));
     return;
   }
-
-  room.messages.splice(messageIndex, 1);
-  room.lastActivity = Date.now();
 
   broadcastToRoom(roomId, {
     type: 'MESSAGE_DELETED',
     payload: { roomId, messageId, deletedBy: requesterInfo.id },
   });
-  console.log(`Message ${messageId} deleted from ${room.name} by ${requesterInfo.username}`);
+  console.log(`Message ${messageId} deleted from ${roomState.name} by ${requesterInfo.username}`);
 }
 
-function kickUser(ws, roomId, userIdToKick) {
-  const room = rooms[roomId];
-  const requesterInfo = room ? room.clients.get(ws) : null;
+async function kickUser(ws, roomId, userIdToKick) {
+  const roomState = liveRooms.get(roomId);
+  const requesterInfo = roomState ? roomState.clients.get(ws) : null;
 
-  if (!room || !requesterInfo) {
+  if (!roomState || !requesterInfo) {
     ws.send(
       JSON.stringify({
         type: 'ERROR',
@@ -381,7 +423,7 @@ function kickUser(ws, roomId, userIdToKick) {
   let kickedUserSocket = null;
   let kickedUserInfo = null;
 
-  for (const [socket, uInfo] of room.clients.entries()) {
+  for (const [socket, uInfo] of roomState.clients.entries()) {
     if (uInfo.id === userIdToKick) {
       kickedUserSocket = socket;
       kickedUserInfo = uInfo;
@@ -402,11 +444,11 @@ function kickUser(ws, roomId, userIdToKick) {
   kickedUserSocket.send(
     JSON.stringify({
       type: 'YOU_WERE_KICKED',
-      payload: { roomId, roomName: room.name, reason: `Kicked by ${requesterInfo.username}` },
+      payload: { roomId, roomName: roomState.name, reason: `Kicked by ${requesterInfo.username}` },
     })
   );
 
-  leaveRoom(kickedUserSocket, roomId, kickedUserInfo.id, false);
+  await leaveRoom(kickedUserSocket, roomId, kickedUserInfo.id, false);
 
   broadcastToRoom(
     roomId,
@@ -421,7 +463,66 @@ function kickUser(ws, roomId, userIdToKick) {
     },
     kickedUserSocket
   );
-  console.log(`${kickedUserInfo.username} kicked from ${room.name} by ${requesterInfo.username}`);
+  console.log(`${kickedUserInfo.username} kicked from ${roomState.name} by ${requesterInfo.username}`);
+}
+
+async function handleIdentify(ws, payload) {
+  if (!payload?.token) {
+    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Token required.' } }));
+    return;
+  }
+
+  let userData;
+  try {
+    userData = verifyToken(payload.token);
+  } catch {
+    userData = null;
+  }
+
+  if (!userData) {
+    ws.send(
+      JSON.stringify({
+        type: 'ERROR',
+        payload: { message: 'Invalid authentication token.' },
+      })
+    );
+    ws.close();
+    return;
+  }
+
+  const existing = connectedUsers.get(userData.id);
+  if (existing && existing.ws !== ws) {
+    try {
+      existing.ws.send(
+        JSON.stringify({
+          type: 'ERROR',
+          payload: {
+            message: 'You have logged in from another location. This session is being disconnected.',
+          },
+        })
+      );
+    } catch (sendError) {
+      console.warn(
+        `Failed to notify existing session for user ${userData.username} (${userData.id}) about duplicate login:`,
+        sendError
+      );
+    }
+    try {
+      existing.ws.close();
+    } catch (closeError) {
+      console.warn(
+        `Failed to close existing session for user ${userData.username} (${userData.id}):`,
+        closeError
+      );
+    }
+  }
+
+  connectedUsers.set(userData.id, { ...userData, ws, currentRoomId: null });
+  ws.userId = userData.id;
+
+  await store.setUserSession({ ...userData, currentRoomId: null });
+  console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id})`);
+  ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: userData }));
 }
 
 // --- WebSocket Server Event Handlers ---
@@ -430,51 +531,43 @@ server.on('connection', ws => {
   ws.tempId = connectionId;
   console.log(`Client connected: ${connectionId}`);
 
-  ws.send(JSON.stringify({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() }));
+  pushRoomListUpdate(ws);
   ws.send(JSON.stringify({ type: 'REQUEST_USER_INFO' }));
 
-  ws.on('message', message => {
+  ws.on('message', async rawMessage => {
     let data;
     try {
-      data = JSON.parse(message.toString());
+      data = JSON.parse(rawMessage.toString());
     } catch (error) {
-      console.error('Failed to parse message or message is not JSON:', message.toString());
+      console.error('Failed to parse message or message is not JSON:', rawMessage.toString());
       ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Invalid message format.' } }));
       return;
     }
 
     const { type, payload } = data;
-    let actingUser = null;
-    if (ws.userId && users[ws.userId]) {
-      actingUser = users[ws.userId];
-    } else if (payload && payload.user && payload.user.id) {
-      actingUser = payload.user;
-    }
+    const actingUser = ws.userId ? connectedUsers.get(ws.userId) : payload?.user;
 
     console.log(
-      `Received message type: ${type} from ${actingUser ? `${actingUser.username} (ID: ${actingUser.id})` : ws.userId || ws.tempId}`
+      `Received message type: ${type} from ${
+        actingUser ? `${actingUser.username} (ID: ${actingUser.id})` : ws.userId || ws.tempId
+      }`
     );
 
     if (type !== 'IDENTIFY_USER' && !ws.userId) {
-      if (type === 'CREATE_ROOM' || type === 'JOIN_ROOM') {
-        if (
-          !payload ||
-          !payload.user ||
-          !payload.user.id ||
-          !payload.user.username ||
-          !payload.user.type
-        ) {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: {
-                message:
-                  'User identification data (id, username, type) is required in payload for this action.',
-              },
-            })
-          );
-          return;
-        }
+      if (
+        (type === 'CREATE_ROOM' || type === 'JOIN_ROOM') &&
+        payload?.user?.id &&
+        payload?.user?.username &&
+        payload?.user?.type
+      ) {
+        ws.userId = payload.user.id;
+        connectedUsers.set(payload.user.id, {
+          id: payload.user.id,
+          username: sanitizeInput(payload.user.username),
+          type: payload.user.type,
+          ws,
+          currentRoomId: null,
+        });
       } else {
         ws.send(
           JSON.stringify({
@@ -486,229 +579,90 @@ server.on('connection', ws => {
       }
     }
 
-    switch (type) {
-      case 'IDENTIFY_USER': {
-        if (payload?.token) {
-          let userData;
-          try {
-            userData = verifyToken(payload.token);
-          } catch {
-            userData = null;
+    try {
+      switch (type) {
+        case 'IDENTIFY_USER':
+          await handleIdentify(ws, payload);
+          break;
+        case 'CREATE_ROOM':
+          await createRoom(ws, payload?.roomName, payload?.user || actingUser);
+          break;
+        case 'JOIN_ROOM':
+          if (payload?.roomId && (payload?.user || connectedUsers.get(ws.userId))) {
+            await joinRoom(ws, payload.roomId, payload.user || connectedUsers.get(ws.userId));
+          } else {
+            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Missing join data.' } }));
           }
-
-          // If the token is invalid, reject the connection
-          if (!userData) {
+          break;
+        case 'SEND_MESSAGE':
+          await handleMessage(ws, payload);
+          break;
+        case 'LEAVE_ROOM':
+          if (payload?.roomId && ws.userId) {
+            await leaveRoom(ws, payload.roomId, ws.userId);
+          } else {
             ws.send(
               JSON.stringify({
                 type: 'ERROR',
-                payload: { message: 'Invalid authentication token.' },
+                payload: { message: 'Room ID required or user not identified.' },
               })
             );
-            ws.close();
-            break;
           }
-
-          // Check if a user with this ID is already connected
-          const existing = users[userData.id]?.ws;
-          if (existing && existing !== ws) {
-            try {
-              existing.send(
-                JSON.stringify({
-                  type: 'ERROR',
-                  payload: {
-                    message:
-                      'You have logged in from another location. This session is being disconnected.',
-                  },
-                })
-              );
-            } catch (sendError) {
-              console.warn(
-                `Failed to notify existing session for user ${userData.username} (${userData.id}) about duplicate login:`,
-                sendError
-              );
-            }
-            try {
-              existing.close();
-            } catch (closeError) {
-              console.warn(
-                `Failed to close existing session for user ${userData.username} (${userData.id}):`,
-                closeError
-              );
-            }
-          }
-
-          users[userData.id] = { ws, ...userData };
-          ws.userId = userData.id;
-
-          console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id})`);
-          ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: userData }));
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Authentication token required.' },
-            })
-          );
-        }
-        break;
-      }
-
-      case 'CREATE_ROOM': {
-        if (payload?.roomName && payload?.user?.id) {
-          if (!ws.userId) {
-            users[payload.user.id] = {
-              ws,
-              ...payload.user,
-              currentRoomId: null,
-            };
-            ws.userId = payload.user.id;
-            delete ws.tempId;
-            console.log(
-              `User identified via CREATE_ROOM: ${payload.user.username} (ID: ${payload.user.id})`
-            );
+          break;
+        case 'DELETE_MESSAGE':
+          if (payload?.roomId && payload?.messageId && ws.userId) {
+            await deleteMessage(ws, payload.roomId, payload.messageId);
+          } else {
             ws.send(
               JSON.stringify({
-                type: 'USER_IDENTIFIED',
-                payload: payload.user,
+                type: 'ERROR',
+                payload: { message: 'Invalid delete message data or user not identified.' },
               })
             );
           }
-          createRoom(ws, payload.roomName, users[ws.userId]);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: {
-                message: 'Room name and complete user info (with ID) are required.',
-              },
-            })
-          );
-        }
-        break;
-      }
-
-      case 'JOIN_ROOM': {
-        if (payload?.roomId && payload?.user?.id) {
-          if (!ws.userId) {
-            users[payload.user.id] = {
-              ws,
-              ...payload.user,
-              currentRoomId: null,
-            };
-            ws.userId = payload.user.id;
-            delete ws.tempId;
-            console.log(
-              `User identified via JOIN_ROOM: ${payload.user.username} (ID: ${payload.user.id})`
-            );
+          break;
+        case 'KICK_USER':
+          if (payload?.roomId && payload?.userIdToKick && ws.userId) {
+            await kickUser(ws, payload.roomId, payload.userIdToKick);
+          } else {
             ws.send(
               JSON.stringify({
-                type: 'USER_IDENTIFIED',
-                payload: payload.user,
+                type: 'ERROR',
+                payload: { message: 'Invalid kick user data or user not identified.' },
               })
             );
           }
-          joinRoom(ws, payload.roomId, users[ws.userId]);
-        } else {
+          break;
+        default:
+          console.log('Unknown message type:', type);
           ws.send(
             JSON.stringify({
               type: 'ERROR',
-              payload: {
-                message: 'Room ID and complete user info (with ID) are required.',
-              },
+              payload: { message: `Unknown message type: ${type}` },
             })
           );
-        }
-        break;
+          break;
       }
-
-      case 'SEND_MESSAGE': {
-        if (payload?.roomId && typeof payload.text === 'string' && ws.userId) {
-          handleMessage(ws, payload);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: {
-                message: 'Invalid message data or user not identified.',
-              },
-            })
-          );
-        }
-        break;
-      }
-
-      case 'LEAVE_ROOM': {
-        if (payload?.roomId && ws.userId) {
-          leaveRoom(ws, payload.roomId, ws.userId);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: { message: 'Room ID required or user not identified.' },
-            })
-          );
-        }
-        break;
-      }
-
-      case 'DELETE_MESSAGE': {
-        if (payload?.roomId && payload?.messageId && ws.userId) {
-          deleteMessage(ws, payload.roomId, payload.messageId);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: {
-                message: 'Invalid delete message data or user not identified.',
-              },
-            })
-          );
-        }
-        break;
-      }
-
-      case 'KICK_USER': {
-        if (payload?.roomId && payload?.userIdToKick && ws.userId) {
-          kickUser(ws, payload.roomId, payload.userIdToKick);
-        } else {
-          ws.send(
-            JSON.stringify({
-              type: 'ERROR',
-              payload: {
-                message: 'Invalid kick user data or user not identified.',
-              },
-            })
-          );
-        }
-        break;
-      }
-
-      default: {
-        console.log('Unknown message type:', type);
-        ws.send(
-          JSON.stringify({
-            type: 'ERROR',
-            payload: { message: `Unknown message type: ${type}` },
-          })
-        );
-        break;
-      }
+    } catch (err) {
+      console.error(`Error handling message type ${type}:`, err);
+      ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Unexpected server error.' } }));
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', async () => {
     const userId = ws.userId;
-    if (userId && users[userId]) {
-      const user = users[userId];
+    if (userId && connectedUsers.has(userId)) {
+      const user = connectedUsers.get(userId);
       console.log(
         `${user.username} (ID: ${user.id}, Type: ${user.type}) disconnected (ws: ${ws.userId || ws.tempId}).`
       );
-      if (users[userId].ws === ws) {
+      if (user.ws === ws) {
         if (user.currentRoomId) {
-          leaveRoom(ws, user.currentRoomId, userId, false);
+          await leaveRoom(ws, user.currentRoomId, userId, false);
         }
-        delete users[userId];
-        broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
+        connectedUsers.delete(userId);
+        await store.removeUserSession(userId);
+        await pushRoomListUpdate();
       }
     } else {
       console.log(
@@ -742,25 +696,29 @@ process.on('SIGINT', () => {
   });
 });
 
-const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
-
 setInterval(() => {
-  const now = Date.now();
-  let roomsChanged = false;
-
-  console.log('Running inactivity check...');
-  for (const roomId in rooms) {
-    const room = rooms[roomId];
-    // Clean up rooms that are both empty and inactive for the timeout period (5 min)
-    if (room.clients.size === 0 && now - room.lastActivity > INACTIVITY_TIMEOUT) {
-      console.log(`Cleaning up inactive and empty room: ${room.name} (ID: ${roomId})`);
-      delete rooms[roomId];
-      roomsChanged = true;
+  (async () => {
+    const now = Date.now();
+    const expiredRooms = [];
+    for (const [roomId, state] of liveRooms.entries()) {
+      if (state.clients.size === 0 && now - state.lastActivity > INACTIVITY_TIMEOUT) {
+        expiredRooms.push(roomId);
+      }
     }
-  }
 
-  if (roomsChanged) {
-    console.log('Broadcasting updated room list after cleanup.');
-    broadcastToAll({ type: 'ROOM_LIST_UPDATED', payload: getRoomList() });
-  }
+    if (expiredRooms.length === 0) {
+      return;
+    }
+
+    console.log('Running inactivity cleanup for rooms:', expiredRooms.join(', '));
+    for (const roomId of expiredRooms) {
+      liveRooms.delete(roomId);
+      try {
+        await store.expireRoom(roomId);
+      } catch (err) {
+        console.error(`Failed to expire room ${roomId}:`, err);
+      }
+    }
+    await pushRoomListUpdate();
+  })().catch(err => console.error('Room cleanup loop failed:', err));
 }, ROOM_CLEANUP_INTERVAL);

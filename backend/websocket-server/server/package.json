@@ -18,6 +18,8 @@
   "description": "",
   "dependencies": {
     "@2toad/profanity": "^3.1.1",
+    "amazon-dax-client": "^1.2.5",
+    "aws-sdk": "^2.1613.0",
     "uuid": "^11.1.0",
     "ws": "^8.18.1",
     "dotenv": "^16.4.5"

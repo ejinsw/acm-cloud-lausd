@@ -29,11 +29,8 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
   const isLoadingRef = useRef(true);
 
   useEffect(() => {
-    if (!containerRef.current || !config.signature) {
-      console.log('ZoomEmbed: Missing container or signature', { 
-        hasContainer: !!containerRef.current, 
-        hasSignature: !!config.signature 
-      });
+    // Wait for both container and signature to be available
+    if (!containerRef.current || !config?.signature) {
       return;
     }
 
@@ -171,17 +168,38 @@ export function ZoomEmbed({ config, containerId = 'zoom-container', onError }: Z
     );
   }
 
-  if (loading) {
-    return (
-      <Box h={400} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader size="lg" />
-        <Text ml="md">Loading Zoom meeting...</Text>
-      </Box>
-    );
-  }
-
+  // Always render the container with ref, conditionally show loader inside
   return (
-    <Box id={containerId} ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '400px' }} />
+    <Box
+      id={containerId}
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: '400px',
+        position: 'relative',
+      }}
+    >
+      {loading && (
+        <Box
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            zIndex: 10,
+          }}
+        >
+          <Loader size="lg" />
+          <Text ml="md">Loading Zoom meeting...</Text>
+        </Box>
+      )}
+    </Box>
   );
 }
 

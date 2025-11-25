@@ -12,6 +12,7 @@ import {
   getAdminStats,
   confirmUserAccount,
   runMigrations,
+  initializeDB,
 } from '../controllers/adminController';
 import { authenticateToken, checkRole } from '../middleware/auth';
 
@@ -43,5 +44,6 @@ router.delete('/admin/sessions/:id', ...adminAuth, adminDeleteSession);
 
 // Database migrations
 router.post('/admin/migrations/run', runMigrations);
+router.post('/admin/initialize', initializeDB);
 
 export default router;

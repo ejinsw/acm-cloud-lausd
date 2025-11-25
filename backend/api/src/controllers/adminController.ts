@@ -755,3 +755,62 @@ export const runMigrations = expressAsyncHandler(
     }
   }
 );
+
+export const initializeDB = expressAsyncHandler(async (req, res) => {
+  try {
+    // Subjects to seed if they don't exist
+    const defaultSubjects = [
+      {
+        name: "Mathematics",
+        description: "The study of quantities, structures, space, and change.",
+        category: "Science",
+        level: "Beginner"
+      },
+      {
+        name: "Physics",
+        description: "The fundamental science of matter, energy, and their interactions.",
+        category: "Science",
+        level: "Intermediate"
+      },
+      {
+        name: "Chemistry",
+        description: "Composition, structure, properties, and change of matter.",
+        category: "Science",
+        level: "Intermediate"
+      },
+      {
+        name: "Biology",
+        description: "The science of life and living organisms.",
+        category: "Science",
+        level: "Beginner"
+      },
+      {
+        name: "English",
+        description: "Study of the English language and literature.",
+        category: "Language",
+        level: "Beginner"
+      }
+    ];
+
+    // For each subject, check if it exists — if not, create it
+    for (const subj of defaultSubjects) {
+      const exists = await prisma.subject.findFirst({
+        where: { name: subj.name }
+      });
+
+      if (!exists) {
+        await prisma.subject.create({ data: subj });
+      }
+    }
+
+    res.status(200).json({
+      message: "Subjects initialized (created if they did not already exist)"
+    });
+  } catch (error: any) {
+    console.error("Error initializing DB subjects:", error);
+    res.status(500).json({
+      message: "Failed to initialize database subjects",
+      error: error.message || String(error)
+    });
+  }
+});

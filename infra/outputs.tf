@@ -47,9 +47,6 @@ output "websocket_ecr_repository_url" {
 output "ecs_cluster_id" {
   value = module.ecs.cluster_id
 }
-output "alb_dns_name" {
-  value = module.ecs.alb_dns_name
-}
 
 output "api_gateway_endpoint" {
   description = "API Gateway HTTP API endpoint URL (HTTPS enabled)"

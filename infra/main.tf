@@ -135,13 +135,12 @@ module "ecs" {
   task_role_arn              = aws_iam_role.ecs_task_role.arn
   public_subnet_ids          = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
   fargate_sg_id              = module.vpc.fargate_sg_id
-  alb_sg_id                  = module.vpc.alb_sg_id
   api_desired_count          = var.api_desired_count
   websocket_desired_count    = var.websocket_desired_count
   vpc_id                 = module.vpc.vpc_id
 }
 
-# API Gateway with VPC Link to ALB
+# API Gateway with VPC Link to Cloud Map
 module "api_gateway" {
   source = "./modules/api_gateway"
 
@@ -151,9 +150,11 @@ module "api_gateway" {
 
   # API Gateway variables
   vpc_id          = module.vpc.vpc_id
-  alb_listener_arn = module.ecs.alb_listener_arn
-  # VPC Link subnets should match ALB subnets (public subnets)
-  subnet_ids      = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
+  cloudmap_api_service_arn = module.ecs.cloudmap_api_service_arn
+  cloudmap_websocket_service_arn = module.ecs.cloudmap_websocket_service_arn
+  # VPC Link should be in private subnets (AWS best practice)
+  subnet_ids      = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
+  vpc_link_security_group_ids = [module.vpc.vpc_link_sg_id]
 
   depends_on = [module.ecs]
 }

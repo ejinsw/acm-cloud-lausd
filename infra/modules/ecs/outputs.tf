@@ -1,12 +1,9 @@
 output "cluster_id" {
   value = aws_ecs_cluster.main.id
 }
-output "alb_dns_name" {
-  value = aws_lb.main.dns_name
+output "cloudmap_api_service_arn" {
+  value = aws_service_discovery_service.api.arn
 }
-output "alb_arn" {
-  value = aws_lb.main.arn
-}
-output "alb_listener_arn" {
-  value = aws_lb_listener.http.arn
+output "cloudmap_websocket_service_arn" {
+  value = aws_service_discovery_service.websocket.arn
 } 

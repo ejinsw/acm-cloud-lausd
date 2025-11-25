@@ -40,7 +40,25 @@ resource "aws_security_group" "fargate" {
   description = "Security group for ECS Fargate tasks"
   vpc_id      = aws_vpc.main.id
 
-  # Allow ALB to reach Fargate tasks on port 8080 (API)
+  # Allow VPC Link to reach Fargate tasks on port 8080 (API)
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.vpc_link.id]
+    description     = "Allow VPC Link to reach API on port 8080"
+  }
+
+  # Allow VPC Link to reach Fargate tasks on port 8081 (WebSocket)
+  ingress {
+    from_port       = 8081
+    to_port         = 8081
+    protocol        = "tcp"
+    security_groups = [aws_security_group.vpc_link.id]
+    description     = "Allow VPC Link to reach WebSocket on port 8081"
+  }
+
+  # Also allow ALB for backward compatibility (if still using ALB for direct access)
   ingress {
     from_port   = 8080
     to_port     = 8080
@@ -49,7 +67,6 @@ resource "aws_security_group" "fargate" {
     description = "Allow ALB to reach API on port 8080"
   }
 
-  # Allow ALB to reach Fargate tasks on port 8081 (WebSocket)
   ingress {
     from_port   = 8081
     to_port     = 8081
@@ -108,6 +125,42 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow all outbound traffic"
   }
+}
+
+resource "aws_security_group" "vpc_link" {
+  name        = "vpc-link-sg"
+  description = "Security group for API Gateway VPC Link"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow outbound HTTP to ECS tasks (via Cloud Map)
+  egress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = [var.cidr_block]
+    description = "Allow outbound HTTP to API tasks on port 8080"
+  }
+
+  egress {
+    from_port   = 8081
+    to_port     = 8081
+    protocol    = "tcp"
+    cidr_blocks = [var.cidr_block]
+    description = "Allow outbound HTTP to WebSocket tasks on port 8081"
+  }
+
+  # Allow outbound HTTPS (for future use)
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow outbound HTTPS"
+  }
+
+  tags = merge(local.standard_tags, {
+    Name = "${local.base_name}-vpc-link-sg"
+  })
 }
 
 resource "aws_security_group" "rds" {

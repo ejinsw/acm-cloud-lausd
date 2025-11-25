@@ -65,7 +65,7 @@ output "rds_sg_id" {
   value       = aws_security_group.rds.id
 }
 
-output "alb_sg_id" {
-  description = "The ID of the ALB security group"
-  value       = aws_security_group.alb.id
+output "vpc_link_sg_id" {
+  description = "The ID of the VPC Link security group"
+  value       = aws_security_group.vpc_link.id
 }

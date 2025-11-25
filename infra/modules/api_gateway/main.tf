@@ -17,7 +17,7 @@ resource "aws_apigatewayv2_api" "main" {
 
 resource "aws_apigatewayv2_stage" "main" {
   api_id      = aws_apigatewayv2_api.main.id
-  name        = var.environment
+  name        = "$default"
   auto_deploy = true
 
   access_log_settings {
@@ -39,7 +39,7 @@ resource "aws_apigatewayv2_stage" "main" {
 # VPC Link to connect API Gateway to ALB
 resource "aws_apigatewayv2_vpc_link" "alb" {
   name               = "${var.project_name}-vpc-link"
-  security_group_ids = []
+  security_group_ids = var.vpc_link_security_group_ids
   subnet_ids         = var.subnet_ids
 
   tags = {
@@ -48,29 +48,29 @@ resource "aws_apigatewayv2_vpc_link" "alb" {
   }
 }
 
-# Integration for API service (routes /api/* to ALB)
+# Integration for API service (routes /api/* to Cloud Map)
 resource "aws_apigatewayv2_integration" "api" {
   api_id           = aws_apigatewayv2_api.main.id
   integration_type = "HTTP_PROXY"
 
   connection_type        = "VPC_LINK"
   connection_id         = aws_apigatewayv2_vpc_link.alb.id
-  description           = "VPC Link integration to ALB for API service"
+  description           = "VPC Link integration to Cloud Map for API service"
   integration_method    = "ANY"
-  integration_uri       = var.alb_listener_arn
+  integration_uri       = var.cloudmap_api_service_arn
   payload_format_version = "1.0"
 }
 
-# Integration for WebSocket service (routes /ws* to ALB)
+# Integration for WebSocket service (routes /ws* to Cloud Map)
 resource "aws_apigatewayv2_integration" "websocket" {
   api_id           = aws_apigatewayv2_api.main.id
   integration_type = "HTTP_PROXY"
 
   connection_type        = "VPC_LINK"
   connection_id         = aws_apigatewayv2_vpc_link.alb.id
-  description           = "VPC Link integration to ALB for WebSocket service"
+  description           = "VPC Link integration to Cloud Map for WebSocket service"
   integration_method    = "ANY"
-  integration_uri       = var.alb_listener_arn
+  integration_uri       = var.cloudmap_websocket_service_arn
   payload_format_version = "1.0"
 }
 

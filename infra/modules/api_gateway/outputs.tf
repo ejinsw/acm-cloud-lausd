@@ -19,7 +19,7 @@ output "vpc_link_id" {
 }
 
 output "stage_invoke_url" {
-  description = "Full invoke URL for the API Gateway stage"
-  value       = "${aws_apigatewayv2_api.main.api_endpoint}/${aws_apigatewayv2_stage.main.name}"
+  description = "Full invoke URL for the API Gateway stage (using $default stage, no prefix)"
+  value       = aws_apigatewayv2_api.main.api_endpoint
 }
 

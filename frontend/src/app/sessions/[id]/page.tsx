@@ -30,8 +30,6 @@ import { Session, User, SessionRequest } from '@/lib/types';
 import { getToken } from '@/actions/authentication';
 import { useAuth } from '@/components/AuthProvider';
 import { routes } from '@/app/routes';
-import { ZoomEmbed } from '@/components/ZoomEmbed';
-import { useZoomSDK } from '@/hooks/useZoomSDK';
 
 interface Message {
   id: string;
@@ -56,25 +54,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
 
-  // Zoom SDK hook
-  const { config: zoomConfig, loading: zoomLoading, error: zoomError, fetchSDKSignature } = useZoomSDK();
-
-  // Fetch Zoom SDK signature when session loads
-  useEffect(() => {
-    if (session.id && session.zoomLink) {
-      const userName = `${currentUser.firstName} ${currentUser.lastName}`;
-      const role = currentUser.id === session.instructorId ? 'host' : 'participant';
-      fetchSDKSignature(
-        0, // queueId not needed
-        userName,
-        currentUser.email,
-        role,
-        session.id // Use sessionId
-      ).catch(err => {
-        console.error('Failed to fetch Zoom SDK signature:', err);
-      });
-    }
-  }, [session.id, session.zoomLink, currentUser.id, currentUser.firstName, currentUser.lastName, currentUser.email, fetchSDKSignature]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -322,38 +301,24 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
         {/* Main Content */}
         <Grid>
-          {/* Zoom Embed Section */}
+          {/* Zoom Meeting Section */}
           {session.zoomLink && (
             <Grid.Col span={12} mb="lg">
               <Paper p="xl" radius="md">
                 <Stack spacing="md">
                   <Title order={3}>Zoom Meeting</Title>
-                  {zoomLoading ? (
-                    <Center h={400}>
-                      <Loader size="lg" />
-                      <Text ml="md">Loading Zoom meeting...</Text>
-                    </Center>
-                  ) : zoomError ? (
-                    <Alert color="red" icon={<IconX size={16} />}>
-                      Failed to load Zoom meeting: {zoomError}
-                    </Alert>
-                  ) : zoomConfig ? (
-                    <ZoomEmbed
-                      config={zoomConfig}
-                      onError={(error) => {
-                        console.error('Zoom embed error:', error);
-                        notifications.show({
-                          title: 'Zoom Error',
-                          message: error,
-                          color: 'red',
-                        });
-                      }}
-                    />
-                  ) : (
-                    <Alert color="yellow" icon={<IconX size={16} />}>
-                      Zoom meeting configuration not available. Please refresh the page.
-                    </Alert>
-                  )}
+                  <Button
+                    leftSection={<IconVideo size={20} />}
+                    onClick={() => window.open(session.zoomLink!, '_blank')}
+                    color="blue"
+                    size="lg"
+                    fullWidth
+                  >
+                    Join Zoom Meeting
+                  </Button>
+                  <Text size="sm" color="dimmed" align="center">
+                    Click the button above to join the Zoom meeting in a new window
+                  </Text>
                 </Stack>
               </Paper>
             </Grid.Col>

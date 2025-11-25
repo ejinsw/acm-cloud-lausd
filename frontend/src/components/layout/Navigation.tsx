@@ -16,8 +16,8 @@ import {
   MessageCircle,
   Clock,
 } from "lucide-react";
-import { Routes } from "../app/routes";
-import { useAuth } from "./AuthProvider";
+import { Routes } from "../../app/routes";
+import { useAuth } from "../AuthProvider";
 
 interface NavigationProps {
   routes: Routes;

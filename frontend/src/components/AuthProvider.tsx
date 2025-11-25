@@ -31,13 +31,13 @@ interface AuthProviderProps {
 }
 
 // Protected routes that require authentication
-const PROTECTED_ROUTES = [
-  "/dashboard",
-  "/sessions",
-  "/profile",
-  "/instructor",
-  "/help",
-];
+// const PROTECTED_ROUTES = [
+//   "/dashboard",
+//   "/sessions",
+//   "/profile",
+//   "/instructor",
+//   "/help",
+// ];
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
@@ -48,9 +48,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const pathname = usePathname();
 
   // Check if current route requires authentication
-  const isProtectedRoute = (path: string) => {
-    return PROTECTED_ROUTES.some((route) => path.startsWith(route));
-  };
+  // const isProtectedRoute = (path: string) => {
+  //   return PROTECTED_ROUTES.some((route) => path.startsWith(route));
+  // };
 
   // Helper function to check if token is valid and not expired
   const isTokenValid = (token: string): boolean => {

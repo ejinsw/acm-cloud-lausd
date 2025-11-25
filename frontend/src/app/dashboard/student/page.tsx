@@ -17,21 +17,17 @@ import {
   Rating,
   Loader,
   Alert,
+  Avatar,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Search, Sparkles, GraduationCap, Calendar, BookOpen, AlertCircle } from "lucide-react";
-import Link from "next/link";
-import { routes } from "@/app/routes";
+import { Sparkles, History, Star, AlertCircle } from "lucide-react";
 import { ProgressOverview } from "@/components/dashboard/student/ProgressOverview";
 import { StatsGrid } from "@/components/dashboard/student/StatsGrid";
 import { SessionHistoryTab, PastSession } from "@/components/dashboard/student/SessionHistoryTab";
-import { UpcomingSessionsTab } from "@/components/dashboard/student/UpcomingSessionsTab";
-import { SessionRequestsManager } from "@/components/dashboard/student/SessionRequestsManager";
-import { AchievementsPanel } from "@/components/dashboard/student/AchievementsPanel";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session, SessionRequest, SessionHistoryItem } from "@/lib/types";
+import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 
 function StudentDashboardContent() {
@@ -45,8 +41,8 @@ function StudentDashboardContent() {
   
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionRequests, setSessionRequests] = useState<SessionRequest[]>([]);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,31 +75,6 @@ function StudentDashboardContent() {
     }
   };
 
-  // Fetch session requests from user data
-  const fetchSessionRequests = async () => {
-    try {
-      const token = await getToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/session-requests`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch session requests');
-      }
-
-      const data = await response.json();
-      setSessionRequests(data.sessionRequests || []);
-    } catch (err) {
-      console.error('Error fetching session requests:', err);
-      // Don't set error here as it's not critical for the dashboard
-    }
-  };
-
   // Fetch session history
   const fetchSessionHistory = async () => {
     try {
@@ -129,6 +100,29 @@ function StudentDashboardContent() {
     }
   };
 
+  const fetchReviews = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/users/reviews`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reviews");
+      }
+
+      const data = await response.json();
+      setReviews(data.reviews || []);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     const loadData = async () => {
@@ -138,8 +132,8 @@ function StudentDashboardContent() {
       try {
         await Promise.all([
           fetchUserSessions(),
-          fetchSessionRequests(),
           fetchSessionHistory(),
+          fetchReviews(),
         ]);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -151,11 +145,6 @@ function StudentDashboardContent() {
 
     loadData();
   }, []);
-
-  // Update session requests when user data changes
-  useEffect(() => {
-    fetchSessionRequests();
-  }, [user?.sessionRequests]);
 
   // Update URL when tab changes
   useEffect(() => {
@@ -257,9 +246,13 @@ function StudentDashboardContent() {
     }
   }
 
-  // Handle session requests change
-  const handleSessionRequestsChange = () => {
-    fetchSessionRequests();
+  const formatReviewDate = (dateString?: string) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   if (isLoading) {
@@ -293,15 +286,8 @@ function StudentDashboardContent() {
         <Group justify="space-between" mb="xl">
           <div>
             <Title order={2}>Student Dashboard</Title>
-            <Text c="dimmed">Track your learning and discover new sessions</Text>
+            <Text c="dimmed">Track your learning progress and feedback</Text>
           </div>
-          <Button 
-            component={Link} 
-            href={routes.exploreSessions} 
-            leftSection={<Search size={18} />}
-          >
-            Find Sessions
-          </Button>
         </Group>
 
         <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
@@ -309,17 +295,11 @@ function StudentDashboardContent() {
             <Tabs.Tab value="overview" leftSection={<Sparkles size={16} />}>
               Overview
             </Tabs.Tab>
-            <Tabs.Tab value="sessions" leftSection={<Calendar size={16} />}>
-              My Sessions ({upcomingSessions.length})
-            </Tabs.Tab>
-            <Tabs.Tab value="requests" leftSection={<BookOpen size={16} />}>
-              Session Requests ({sessionRequests.length})
-            </Tabs.Tab>
-            <Tabs.Tab value="history" leftSection={<BookOpen size={16} />}>
+            <Tabs.Tab value="history" leftSection={<History size={16} />}>
               Session History ({sessionHistory.length})
             </Tabs.Tab>
-            <Tabs.Tab value="achievements" leftSection={<GraduationCap size={16} />}>
-              Achievements
+            <Tabs.Tab value="reviews" leftSection={<Star size={16} />}>
+              Reviews ({reviews.length})
             </Tabs.Tab>
           </Tabs.List>
 
@@ -332,23 +312,6 @@ function StudentDashboardContent() {
               />
               
               <StatsGrid {...achievementStats} />
-              
-              <UpcomingSessionsTab sessions={sessions} />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="sessions">
-            <Box pt="md">
-              <UpcomingSessionsTab sessions={sessions} />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="requests">
-            <Box pt="md">
-              <SessionRequestsManager
-                sessionRequests={sessionRequests}
-                onSessionRequestsChange={handleSessionRequestsChange}
-              />
             </Box>
           </Tabs.Panel>
 
@@ -361,9 +324,57 @@ function StudentDashboardContent() {
             </Box>
           </Tabs.Panel>
 
-          <Tabs.Panel value="achievements">
+          <Tabs.Panel value="reviews">
             <Box pt="md">
-              <AchievementsPanel {...achievementStats} />
+              {reviews.length === 0 ? (
+                <Paper withBorder radius="md" p="xl" ta="center">
+                  <Text fw={500} size="lg" mb="xs">
+                    No reviews yet
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Once you leave reviews for your sessions, they will appear here.
+                  </Text>
+                </Paper>
+              ) : (
+                <Stack gap="md">
+                  {reviews.map((review) => (
+                    <Paper key={review.id} withBorder radius="md" p="md">
+                      <Group justify="space-between" align="flex-start">
+                        <Group align="center">
+                          <Avatar color="blue">
+                            {review.recipient?.firstName?.charAt(0)}
+                            {review.recipient?.lastName?.charAt(0)}
+                          </Avatar>
+                          <div>
+                            <Text fw={600}>
+                              Reviewing{" "}
+                              {review.recipient
+                                ? `${review.recipient.firstName} ${review.recipient.lastName}`
+                                : "Instructor"}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {formatReviewDate(review.createdAt)}
+                            </Text>
+                          </div>
+                        </Group>
+                        <Rating value={review.rating} readOnly fractions={2} />
+                      </Group>
+
+                      {review.sessionHistoryItem?.name && (
+                        <Text size="sm" c="dimmed" mt="xs">
+                          Session: {review.sessionHistoryItem.name}
+                        </Text>
+                      )}
+
+                      {review.comment && (
+                        <Text mt="md" size="sm">
+                          {review.comment}
+                        </Text>
+                      )}
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
             </Box>
           </Tabs.Panel>
         </Tabs>

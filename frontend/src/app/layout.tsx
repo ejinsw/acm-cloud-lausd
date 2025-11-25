@@ -1,11 +1,13 @@
 "use client";
 
-import { MantineProvider, AppShell, Burger, Group } from '@mantine/core';
+import { MantineProvider, AppShell } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Inter as FontSans } from "next/font/google";
 import { Theme } from '../theme';
-import Navigation from '../components/Navigation';
-import Footer from '../components/Footer';
+import Navigation from '../components/layout/Navigation';
+import Footer from '../components/layout/Footer';
+import Sidebar from '../components/layout/Sidebar';
+import BottomNav from '../components/layout/BottomNav';
 import { routes } from './routes';
 import { Notifications } from "@mantine/notifications";
 import { AuthProvider } from '../components/AuthProvider';
@@ -25,7 +27,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [opened, { toggle }] = useDisclosure();
+  const [opened] = useDisclosure(false);
+  const [sidebarCollapsed, { toggle: toggleSidebar }] = useDisclosure(false); // Start expanded
 
   return (
     <html lang="en" className={fontSans.variable}>
@@ -42,29 +45,32 @@ export default function RootLayout({
             <Notifications position="top-right" />
             <AuthProvider>
               <AppShell
-                header={{ height: 60 }}
-                navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: true, mobile: !opened } }}
+                navbar={{ 
+                  width: sidebarCollapsed ? 80 : 250, 
+                  breakpoint: 'sm', 
+                  collapsed: { desktop: false, mobile: !opened } 
+                }}
                 padding="md"
               >
-                <AppShell.Header>
-                  <Group h="100%" px="md" justify="space-between">
-                    <Group>
-                      <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-                      <Navigation.Logo />
-                    </Group>
-                    <Navigation.DesktopNav routes={routes} />
-                    <Navigation.Actions routes={routes} />
-                  </Group>
-                </AppShell.Header>
+                <AppShell.Navbar p="md" visibleFrom="sm">
+                  <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+                </AppShell.Navbar>
 
-                <AppShell.Navbar p="md">
+                <AppShell.Navbar p="md" hiddenFrom="sm">
                   <Navigation.MobileNav routes={routes} />
                 </AppShell.Navbar>
 
-                <AppShell.Main>
+                <AppShell.Main
+                  style={{
+                    paddingBottom: "80px", // Space for bottom nav on mobile
+                  }}
+                  className="main-content"
+                >
                   {children}
                   <Footer />
                 </AppShell.Main>
+
+                <BottomNav />
               </AppShell>
             </AuthProvider>
           </MantineProvider>

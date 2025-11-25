@@ -13,7 +13,7 @@ import {
   Box
 } from "@mantine/core";
 import { Facebook, Instagram, Twitter, Youtube } from "lucide-react";
-import { routes } from "../app/routes";
+import { routes } from "../../app/routes";
 import Link from "next/link";
 
 export default function Footer() {

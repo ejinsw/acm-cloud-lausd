@@ -13,30 +13,19 @@ import {
   Button,
   Loader,
   Alert,
+  Stack,
+  Avatar,
+  Rating,
 } from "@mantine/core";
-import {
-  Search,
-  Sparkles,
-  BookOpen,
-  Calendar,
-  AlertCircle,
-  MessageCircle,
-  Play,
-  History,
-  Video,
-} from "lucide-react";
+import { Search, Sparkles, AlertCircle, History, Video, Star } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
-import { UpcomingSessionsTab } from "@/components/dashboard/instructor/UpcomingSessionsTab";
-import { SessionManagementTab } from "@/components/dashboard/instructor/SessionManagementTab";
-import { SessionRequestsManager } from "@/components/dashboard/instructor/SessionRequestsManager";
-import { ActiveSessionManager } from "@/components/dashboard/instructor/ActiveSessionManager";
 import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
 import ZoomConnection from "@/components/sessions/ZoomConnection";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session, SessionHistoryItem } from "@/lib/types";
+import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 
 function InstructorDashboardContent() {
@@ -46,9 +35,8 @@ function InstructorDashboardContent() {
 
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>(
-    []
-  );
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +76,11 @@ function InstructorDashboardContent() {
       setError(null);
 
       try {
-        await Promise.all([fetchInstructorSessions(), fetchSessionHistory()]);
+        await Promise.all([
+          fetchInstructorSessions(),
+          fetchSessionHistory(),
+          fetchReviews(),
+        ]);
       } catch (err) {
         console.error("Error loading dashboard data:", err);
         setError("Failed to load dashboard data");
@@ -110,10 +102,6 @@ function InstructorDashboardContent() {
   }, [activeTab, router, searchParams]);
 
   // Calculate statistics
-  const upcomingSessions = sessions.filter(
-    (session) =>
-      session.status === "SCHEDULED" || session.status === "IN_PROGRESS"
-  );
   const completedSessions = sessions.filter(
     (session) => session.status === "COMPLETED"
   );
@@ -169,10 +157,43 @@ function InstructorDashboardContent() {
     }
   };
 
+  const fetchReviews = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/users/reviews`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reviews");
+      }
+
+      const data = await response.json();
+      setReviews(data.reviews || []);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    }
+  };
+
   // Handle session updates
   const handleSessionUpdate = () => {
     fetchInstructorSessions();
     fetchSessionHistory();
+    fetchReviews();
+  };
+
+  const formatReviewDate = (dateString?: string) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   if (isLoading) {
@@ -210,13 +231,6 @@ function InstructorDashboardContent() {
               Manage your tutoring sessions and track your progress
             </Text>
           </div>
-          <Button
-            component={Link}
-            href={routes.createSession}
-            leftSection={<Search size={18} />}
-          >
-            Create New Session
-          </Button>
         </Group>
 
         <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
@@ -224,23 +238,11 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="overview" leftSection={<Sparkles size={16} />}>
               Overview
             </Tabs.Tab>
-            <Tabs.Tab value="sessions" leftSection={<BookOpen size={16} />}>
-              My Sessions ({totalSessions})
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="requests"
-              leftSection={<MessageCircle size={16} />}
-            >
-              Session Requests
-            </Tabs.Tab>
-            <Tabs.Tab value="active" leftSection={<Play size={16} />}>
-              Active Sessions
-            </Tabs.Tab>
             <Tabs.Tab value="history" leftSection={<History size={16} />}>
               Session History ({sessionHistory.length})
             </Tabs.Tab>
-            <Tabs.Tab value="schedule" leftSection={<Calendar size={16} />}>
-              Schedule ({upcomingSessions.length})
+            <Tabs.Tab value="reviews" leftSection={<Star size={16} />}>
+              Reviews ({reviews.length})
             </Tabs.Tab>
             <Tabs.Tab value="zoom" leftSection={<Video size={16} />}>
               Zoom Integration
@@ -250,32 +252,6 @@ function InstructorDashboardContent() {
           <Tabs.Panel value="overview">
             <Box pt="md">
               <StatsGrid {...statsData} />
-
-              <UpcomingSessionsTab sessions={sessions} />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="sessions">
-            <Box pt="md">
-              <SessionManagementTab
-                sessions={sessions}
-                onSessionUpdate={handleSessionUpdate}
-              />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="requests">
-            <Box pt="md">
-              <SessionRequestsManager onSessionUpdate={handleSessionUpdate} />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="active">
-            <Box pt="md">
-              <ActiveSessionManager
-                sessions={sessions}
-                onSessionUpdate={handleSessionUpdate}
-              />
             </Box>
           </Tabs.Panel>
 
@@ -288,9 +264,56 @@ function InstructorDashboardContent() {
             </Box>
           </Tabs.Panel>
 
-          <Tabs.Panel value="schedule">
+          <Tabs.Panel value="reviews">
             <Box pt="md">
-              <UpcomingSessionsTab sessions={sessions} />
+              {reviews.length === 0 ? (
+                <Paper withBorder radius="md" p="xl" ta="center">
+                  <Text fw={500} size="lg" mb="xs">
+                    No reviews yet
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Reviews from your students will appear here once they start leaving feedback.
+                  </Text>
+                </Paper>
+              ) : (
+                <Stack gap="md">
+                  {reviews.map((review) => (
+                    <Paper key={review.id} withBorder radius="md" p="md">
+                      <Group justify="space-between" align="flex-start">
+                        <Group align="center">
+                          <Avatar color="blue">
+                            {review.owner?.firstName?.charAt(0)}
+                            {review.owner?.lastName?.charAt(0)}
+                          </Avatar>
+                          <div>
+                            <Text fw={600}>
+                              {review.owner
+                                ? `${review.owner.firstName} ${review.owner.lastName}`
+                                : "Student"}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {formatReviewDate(review.createdAt)}
+                            </Text>
+                          </div>
+                        </Group>
+                        <Rating value={review.rating} readOnly fractions={2} />
+                      </Group>
+
+                      {review.sessionHistoryItem?.name && (
+                        <Text size="sm" c="dimmed" mt="xs">
+                          Session: {review.sessionHistoryItem.name}
+                        </Text>
+                      )}
+
+                      {review.comment && (
+                        <Text mt="md" size="sm">
+                          {review.comment}
+                        </Text>
+                      )}
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
             </Box>
           </Tabs.Panel>
 

@@ -28,18 +28,8 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     return routes.queue;
   };
 
-  // Determine History route based on user role
-  const getHistoryRoute = () => {
-    if (user?.role === "STUDENT") {
-      return `${routes.studentDashboard}?tab=history`;
-    } else if (user?.role === "INSTRUCTOR") {
-      return `${routes.instructorDashboard}?tab=history`;
-    }
-    return routes.home;
-  };
-
   const joinRoute = getJoinRoute();
-  const historyRoute = getHistoryRoute();
+  const historyRoute = routes.history;
 
   // Check if current path matches the route (including query params for history)
   const isActive = (route: string) => {

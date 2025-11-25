@@ -43,6 +43,7 @@ export const routes = {
   // Legal
   terms: "/legal/terms",
   privacy: "/legal/privacy",
+  history: "/history",
 };
 
 // Type for the routes object

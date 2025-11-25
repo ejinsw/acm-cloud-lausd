@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Container,
@@ -22,7 +20,6 @@ import {
   ScrollArea,
   Avatar,
   ActionIcon,
-  Modal,
   Alert,
   Tabs,
 } from "@mantine/core";
@@ -32,11 +29,8 @@ import {
   IconVideo,
   IconUsers,
   IconClock,
-  IconMapPin,
-  IconUser,
   IconSend,
   IconX,
-  IconScreenShare,
 } from "@tabler/icons-react";
 import PageWrapper from "@/components/PageWrapper";
 import ZoomMeeting from "@/components/sessions/ZoomMeeting";
@@ -45,7 +39,7 @@ import { getToken } from "@/actions/authentication";
 import { useAuth } from "@/components/AuthProvider";
 import { routes } from "@/app/routes";
 
-type ChatRole = 'student' | 'instructor';
+type ChatRole = "student" | "instructor";
 
 interface ChatUser {
   id: string;
@@ -57,7 +51,7 @@ interface ChatMessage {
   id: string;
   sender: ChatUser;
   text: string;
-  timestamp: string;
+  timestamp: number;
   type: "message" | "system";
 }
 
@@ -66,26 +60,48 @@ interface LiveSessionProps {
   currentUser: User;
 }
 
+const getInitials = (value: string) =>
+  value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
+
+const normalizeUserFromProfile = (user?: User | null): ChatUser | null => {
+  if (!user) return null;
+  const username =
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+    user.email ||
+    user.id;
+  const type: ChatRole =
+    user.role === "INSTRUCTOR" || user.role === "ADMIN"
+      ? "instructor"
+      : "student";
+
+  return { id: user.id, username, type };
+};
+
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const [isConnected, setIsConnected] = useState(false);
-  const [participants, setParticipants] = useState<User[]>([]);
+  const [participants, setParticipants] = useState<ChatUser[]>([]);
   const [activeTab, setActiveTab] = useState<string>("chat");
-  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const chatUser = useMemo<ChatUser>(() => {
     const displayName = [currentUser.firstName, currentUser.lastName]
       .filter(Boolean)
-      .join(' ')
+      .join(" ")
       .trim();
     const fallbackName = displayName || currentUser.email || currentUser.id;
-    const normalizedRole =
-      currentUser.role === 'INSTRUCTOR' || currentUser.role === 'ADMIN'
-        ? 'instructor'
-        : 'student';
+    const normalizedRole: ChatRole =
+      currentUser.role === "INSTRUCTOR" || currentUser.role === "ADMIN"
+        ? "instructor"
+        : "student";
 
     return {
       id: currentUser.id,
@@ -100,229 +116,277 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     currentUser.role,
   ]);
 
-  const getInitials = (value: string) =>
-    value
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(part => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || '?';
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
 
   const normalizeServerUser = useCallback((raw: unknown): ChatUser | null => {
-    if (!raw || typeof raw !== 'object') return null;
-    const candidate = raw as { id?: string | number; username?: string; type?: string };
-    if (candidate.id === undefined || candidate.id === null) return null;
+    if (!isRecord(raw)) return null;
+    const candidate = raw as {
+      id?: string | number;
+      username?: string;
+      name?: string;
+      displayName?: string;
+      type?: string;
+      role?: string;
+    };
+
+    if (candidate.id === undefined || candidate.id === null) {
+      return null;
+    }
 
     const id = String(candidate.id);
     const username =
-      (candidate.username && String(candidate.username).trim()) || `User ${id}`;
-    const rawType = candidate.type ? String(candidate.type).toLowerCase() : 'student';
-    const type: ChatRole = rawType === 'instructor' || rawType === 'admin' ? 'instructor' : 'student';
+      (candidate.username ??
+        candidate.name ??
+        candidate.displayName ??
+        `User ${id}`) || `User ${id}`;
+    const normalizedType = (candidate.type ?? candidate.role ?? "")
+      .toString()
+      .toLowerCase();
+
+    const type: ChatRole =
+      normalizedType === "instructor" || normalizedType === "admin"
+        ? "instructor"
+        : "student";
 
     return { id, username, type };
   }, []);
 
-  const normalizeServerMessage = useCallback((raw: unknown): ChatMessage | null => {
-    if (!raw || typeof raw !== 'object') return null;
-    const candidate = raw as {
-      id?: string | number;
-      text?: string;
-      timestamp?: number | string;
-      sender?: unknown;
-    };
-    if (candidate.id === undefined || typeof candidate.text !== 'string') {
-      return null;
-    }
+  const normalizeServerMessage = useCallback(
+    (raw: unknown): ChatMessage | null => {
+      if (!isRecord(raw)) return null;
+      const candidate = raw as {
+        id?: string | number;
+        text?: string;
+        message?: string;
+        timestamp?: number | string;
+        sender?: unknown;
+        type?: string;
+      };
 
-    const sender = normalizeServerUser(candidate.sender);
-    if (!sender) return null;
+      const text = candidate.text ?? candidate.message;
+      if (candidate.id === undefined || typeof text !== "string") {
+        return null;
+      }
 
-    const timestampValue =
-      typeof candidate.timestamp === 'number'
-        ? candidate.timestamp
-        : Number.isFinite(Date.parse(String(candidate.timestamp)))
+      const sender = normalizeServerUser(candidate.sender);
+      if (!sender) return null;
+
+      const timestampValue =
+        typeof candidate.timestamp === "number"
+          ? candidate.timestamp
+          : Number.isFinite(Date.parse(String(candidate.timestamp)))
           ? Date.parse(String(candidate.timestamp))
           : Date.now();
 
-    return {
-      id: String(candidate.id),
-      sender,
-      text: candidate.text,
-      timestamp: timestampValue,
-    };
-  }, [normalizeServerUser]);
+      const messageType =
+        candidate.type === "system" ? ("system" as const) : ("message" as const);
+
+      return {
+        id: String(candidate.id),
+        sender,
+        text,
+        timestamp: timestampValue,
+        type: messageType,
+      };
+    },
+    [normalizeServerUser]
+  );
 
   const dedupeUsers = useCallback((users: ChatUser[]) => {
     const seen = new Map<string, ChatUser>();
-    users.forEach(user => {
+    users.forEach((user) => {
       seen.set(user.id, user);
     });
     return Array.from(seen.values());
   }, []);
 
-  const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null;
+  const handleSocketPayload = useCallback(
+    (payload: unknown) => {
+      if (!isRecord(payload)) return;
+      const eventType =
+        typeof payload.type === "string" ? payload.type : undefined;
 
-  // Initialize WebSocket connection
-  useEffect(() => {
-    const connectWebSocket = () => {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
-      const ws = new WebSocket(
-        `${wsUrl}?sessionId=${session.id}&userId=${
-          currentUser.id
-        }&userType=${currentUser.role.toLowerCase()}`
-      );
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        notifications.show({
-          title: "Connected",
-          message: "Connected to live session",
-          color: "green",
-        });
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case "message":
-            setMessages((prev) => [...prev, data.message]);
-            break;
-          case "participant_joined":
-            setParticipants((prev) => [...prev, data.user]);
+      switch (eventType) {
+        case "message":
+        case "system": {
+          const normalized = normalizeServerMessage(
+            (payload as Record<string, unknown>).message ?? payload
+          );
+          if (normalized) {
+            setMessages((prev) => [...prev, normalized]);
+          }
+          break;
+        }
+        case "participant_joined": {
+          const user = normalizeServerUser(
+            (payload as Record<string, unknown>).user
+          );
+          if (user) {
+            setParticipants((prev) => dedupeUsers([...prev, user]));
             notifications.show({
               title: "Participant Joined",
-              message: `${data.user.firstName} ${data.user.lastName} joined the session`,
+              message: `${user.username} joined the session`,
               color: "blue",
             });
-            break;
-          case "participant_left":
-            setParticipants((prev) => prev.filter((p) => p.id !== data.userId));
+          }
+          break;
+        }
+        case "participant_left": {
+          const rawId = (payload as Record<string, unknown>).userId;
+          const userId =
+            typeof rawId === "number"
+              ? String(rawId)
+              : typeof rawId === "string"
+              ? rawId
+              : null;
+          if (userId) {
+            setParticipants((prev) =>
+              prev.filter((participant) => participant.id !== userId)
+            );
             notifications.show({
               title: "Participant Left",
               message: "A participant left the session",
               color: "yellow",
             });
-            break;
-          case "session_started":
-            notifications.show({
-              title: "Session Started",
-              message: "The instructor has started the session",
-              color: "green",
-            });
-            break;
-          case "session_ended":
-            notifications.show({
-              title: "Session Ended",
-              message: "The session has ended",
-              color: "red",
-            });
-          }
-          if (isRoomMissing) {
-            roomMissingNotifiedRef.current = true;
-            if (chatUser.type === 'instructor' && !hasAttemptedRoomCreationRef.current) {
-              hasAttemptedRoomCreationRef.current = true;
-              requestCreateRoom();
-            }
           }
           break;
         }
+        case "participants_snapshot":
+        case "participants_list": {
+          const rawUsers = (payload as Record<string, unknown>).users;
+          if (Array.isArray(rawUsers)) {
+            const normalized = rawUsers
+              .map((user) => normalizeServerUser(user))
+              .filter(Boolean) as ChatUser[];
+            setParticipants(dedupeUsers(normalized));
+          }
+          break;
+        }
+        case "session_started":
+          notifications.show({
+            title: "Session Started",
+            message: "The instructor has started the session",
+            color: "green",
+          });
+          break;
+        case "session_ended":
+          notifications.show({
+            title: "Session Ended",
+            message: "The session has ended",
+            color: "red",
+          });
+          break;
         default:
           break;
       }
-    };
+    },
+    [dedupeUsers, normalizeServerMessage, normalizeServerUser]
+  );
 
-      ws.onclose = () => {
-        setIsConnected(false);
-        notifications.show({
-          title: "Disconnected",
-          message: "Lost connection to live session",
-          color: "red",
-        });
-      };
+  useEffect(() => {
+    const wsUrl =
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        notifications.show({
-          title: "Connection Error",
-          message: "Failed to connect to live session",
-          color: "red",
-        });
-      };
-
-      setWsConnection(ws);
-    };
-
-    if (session.id && currentUser.id) {
-      connectWebSocket();
+    if (!session.id || !chatUser.id) {
+      return undefined;
     }
 
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        if (hasJoinedRoomRef.current) {
-          try {
-            ws.send(
-              JSON.stringify({
-                type: 'LEAVE_ROOM',
-                payload: { roomId: session.id },
-              })
-            );
-          } catch (error) {
-            console.error('Failed to notify server about leaving room:', error);
-          }
-        }
-        ws.close();
-      } else if (ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
+    const socket = new WebSocket(
+      `${wsUrl}?sessionId=${encodeURIComponent(
+        session.id
+      )}&userId=${encodeURIComponent(chatUser.id)}&userType=${chatUser.type}`
+    );
 
-      if (wsRef.current === ws) {
+    wsRef.current = socket;
+
+    socket.onopen = () => {
+      setIsConnected(true);
+      notifications.show({
+        title: "Connected",
+        message: "Connected to live session",
+        color: "green",
+      });
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        handleSocketPayload(parsed);
+      } catch (error) {
+        console.error("Failed to parse WebSocket message", error);
+      }
+    };
+
+    socket.onclose = () => {
+      setIsConnected(false);
+      notifications.show({
+        title: "Disconnected",
+        message: "Lost connection to live session",
+        color: "red",
+      });
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      notifications.show({
+        title: "Connection Error",
+        message: "Failed to connect to live session",
+        color: "red",
+      });
+    };
+
+    return () => {
+      socket.close();
+      if (wsRef.current === socket) {
         wsRef.current = null;
       }
-      hasJoinedRoomRef.current = false;
     };
-  }, [
-    session.id,
-    session.name,
-    chatUser.id,
-    chatUser.username,
-    chatUser.type,
-    normalizeServerUser,
-    normalizeServerMessage,
-    dedupeUsers,
-  ]);
+  }, [chatUser.id, chatUser.type, handleSocketPayload, session.id]);
 
-  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    const snapshot: ChatUser[] = [];
+
+    const instructor = normalizeUserFromProfile(session.instructor);
+    if (instructor) {
+      snapshot.push(instructor);
+    } else if (session.instructorId) {
+      snapshot.push({
+        id: session.instructorId,
+        username: "Instructor",
+        type: "instructor",
+      });
+    }
+
+    if (Array.isArray(session.students)) {
+      session.students.forEach((student) => {
+        const normalized = normalizeUserFromProfile(student);
+        if (normalized) {
+          snapshot.push(normalized);
+        }
+      });
+    }
+
+    setParticipants(dedupeUsers(snapshot));
+  }, [dedupeUsers, session.instructor, session.instructorId, session.students]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send message
   const sendMessage = () => {
-    if (
-      !messageInput.trim() ||
-      !wsConnection ||
-      wsConnection.readyState !== WebSocket.OPEN
-    )
+    const text = messageInput.trim();
+    const ws = wsRef.current;
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) {
       return;
+    }
 
-    const message: Message = {
-      id: Date.now().toString(),
-      sender: currentUser,
-      text: messageInput.trim(),
-      timestamp: new Date().toISOString(),
-      type: "message",
-    };
-
-    wsConnection.send(
+    ws.send(
       JSON.stringify({
         type: "send_message",
         message: {
           sessionId: session.id,
-          text: message.text,
+          text,
           senderId: currentUser.id,
         },
       })
@@ -331,15 +395,13 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     setMessageInput("");
   };
 
-  // Handle Enter key press
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       sendMessage();
     }
   };
 
-  // Handle Zoom meeting end
   const handleZoomMeetingEnd = () => {
     notifications.show({
       title: "Meeting Ended",
@@ -348,7 +410,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     });
   };
 
-  // Handle Zoom error
   const handleZoomError = (error: string) => {
     notifications.show({
       title: "Zoom Error",
@@ -357,7 +418,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     });
   };
 
-  // Check if user can join session
   const canJoinSession = () => {
     if (currentUser.role === "INSTRUCTOR") return true;
 
@@ -377,8 +437,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               <Stack align="center" gap="md">
                 <IconX size={48} color="red" />
                 <Title order={2}>Access Denied</Title>
-                <Text color="dimmed" align="center">
-                  You don't have permission to join this session. Please request
+                <Text c="dimmed" ta="center">
+                  You do not have permission to join this session. Please request
                   to join the session first.
                 </Text>
                 <Button variant="outline" onClick={() => window.history.back()}>
@@ -395,14 +455,13 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   return (
     <PageWrapper>
       <Container size="xl" py="xl">
-        {/* Session Header */}
         <Paper p="xl" radius="md" mb="lg">
           <Grid>
             <Grid.Col span={8}>
               <Stack gap="xs">
                 <Title order={1}>{session.name}</Title>
                 <Text color="dimmed">{session.description}</Text>
-                <Group spacing="lg">
+                <Group gap="lg">
                   <Badge
                     color={session.status === "IN_PROGRESS" ? "green" : "blue"}
                     variant="light"
@@ -419,12 +478,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     </Group>
                   )}
 
-                  {typeof session.maxAttendees === 'number' && (
+                  {typeof session.maxAttendees === "number" && (
                     <Group gap="xs">
                       <IconUsers size={16} />
                       <Text size="sm">
-                        {participants.length}/{session.maxAttendees}{" "}
-                        participants
+                        {participants.length}/{session.maxAttendees} participants
                       </Text>
                     </Group>
                   )}
@@ -433,7 +491,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Grid.Col>
 
             <Grid.Col span={4}>
-              <Stack align="flex-end" spacing="md">
+              <Stack align="flex-end" gap="md">
                 <Badge
                   color={isConnected ? "green" : "red"}
                   variant="light"
@@ -442,7 +500,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
                 {session.zoomLink && (
-                  <Text size="sm" color="dimmed" align="right">
+                  <Text size="sm" color="dimmed" ta="right">
                     Embedded video meeting available
                   </Text>
                 )}
@@ -451,27 +509,27 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           </Grid>
         </Paper>
 
-        {/* Main Content */}
         <Grid>
-          {/* Main Session Area */}
           <Grid.Col span={8}>
             <Paper p="xl" radius="md" h={600}>
-              <Tabs value={activeTab} onTabChange={setActiveTab} h="100%">
+              <Tabs
+                value={activeTab}
+                onChange={(value) => value && setActiveTab(value)}
+                h="100%"
+              >
                 <Tabs.List>
-                  <Tabs.Tab value="chat" leftIcon={<IconMessage size={16} />}>
+                  <Tabs.Tab value="chat" leftSection={<IconMessage size={16} />}>
                     Chat
                   </Tabs.Tab>
-                  <Tabs.Tab value="video" leftIcon={<IconVideo size={16} />}>
+                  <Tabs.Tab value="video" leftSection={<IconVideo size={16} />}>
                     Video Meeting
                   </Tabs.Tab>
                 </Tabs.List>
 
                 <Tabs.Panel value="chat" pt="md" h="calc(100% - 40px)">
-                  <Stack spacing="md" h="100%">
-                    <Group position="apart">
-                      <Title order={3} leftIcon={<IconMessage size={20} />}>
-                        Session Chat
-                      </Title>
+                  <Stack gap="md" h="100%">
+                    <Group justify="space-between">
+                      <Title order={3}>Session Chat</Title>
                       <Text size="sm" color="dimmed">
                         {participants.length} participants online
                       </Text>
@@ -479,9 +537,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
                     <Divider />
 
-                    {/* Messages */}
-                    <ScrollArea h={400} viewportRef={messageContainerRef}>
-                      <Stack spacing="xs">
+                    <ScrollArea h={400}>
+                      <Stack gap="xs">
                         {messages.length === 0 ? (
                           <Center h={200}>
                             <Text color="dimmed">
@@ -489,57 +546,53 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                             </Text>
                           </Center>
                         ) : (
-                          messages.map((message) => (
-                            <Box
-                              key={message.id}
-                              sx={{
-                                display: "flex",
-                                flexDirection:
-                                  message.sender.id === currentUser.id
+                          messages.map((message) => {
+                            const isCurrentUser =
+                              message.sender.id === chatUser.id;
+                            return (
+                              <Box
+                                key={message.id}
+                                style={{
+                                  display: "flex",
+                                  flexDirection: isCurrentUser
                                     ? "row-reverse"
                                     : "row",
-                                alignItems: "flex-start",
-                                gap: "xs",
-                              }}
-                            >
-                              <Avatar
-                                size="sm"
-                                src={message.sender.profilePicture}
-                                radius="xl"
-                              >
-                                {message.sender.firstName[0]}
-                                {message.sender.lastName[0]}
-                              </Avatar>
-                              <Box
-                                sx={{
-                                  maxWidth: "70%",
-                                  backgroundColor:
-                                    message.sender.id === currentUser.id
-                                      ? "var(--mantine-color-blue-6)"
-                                      : "var(--mantine-color-gray-2)",
-                                  color:
-                                    message.sender.id === currentUser.id
-                                      ? "white"
-                                      : "inherit",
-                                  padding: "xs",
-                                  borderRadius: "md",
+                                  alignItems: "flex-start",
+                                  gap: "var(--mantine-spacing-xs)",
                                 }}
                               >
-                                <Group spacing="xs" mb={4}>
-                                  <Text size="sm" weight={500}>
-                                    {message.sender.firstName}{" "}
-                                    {message.sender.lastName}
-                                  </Text>
-                                  <Text size="xs" opacity={0.7}>
-                                    {new Date(
-                                      message.timestamp
-                                    ).toLocaleTimeString()}
-                                  </Text>
-                                </Group>
-                                <Text size="sm">{message.text}</Text>
+                                <Avatar size="sm" radius="xl">
+                                  {getInitials(message.sender.username)}
+                                </Avatar>
+                                <Box
+                                  style={{
+                                    maxWidth: "70%",
+                                    backgroundColor: isCurrentUser
+                                      ? "var(--mantine-color-blue-6)"
+                                      : "var(--mantine-color-gray-2)",
+                                    color: isCurrentUser ? "white" : "inherit",
+                                    padding: "var(--mantine-spacing-xs)",
+                                    borderRadius: "var(--mantine-radius-md)",
+                                  }}
+                                >
+                                  <Group gap="xs" mb={4}>
+                                    <Text size="sm" fw={500}>
+                                      {message.sender.username}
+                                    </Text>
+                                    <Text size="xs" c="dimmed">
+                                      {new Date(
+                                        message.timestamp
+                                      ).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </Text>
+                                  </Group>
+                                  <Text size="sm">{message.text}</Text>
+                                </Box>
                               </Box>
-                            </Box>
-                          ))
+                            );
+                          })
                         )}
                         <div ref={messagesEndRef} />
                       </Stack>
@@ -547,13 +600,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
                     <Divider />
 
-                    {/* Message Input */}
-                    <Group spacing="xs">
+                    <Group gap="xs">
                       <TextInput
                         placeholder="Type your message..."
                         value={messageInput}
-                        onChange={(e) => setMessageInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
+                        onChange={(event) => setMessageInput(event.target.value)}
+                        onKeyDown={handleKeyDown}
                         style={{ flex: 1 }}
                         disabled={!isConnected}
                       />
@@ -590,10 +642,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Paper>
           </Grid.Col>
 
-          {/* Participants & Session Info */}
           <Grid.Col span={4}>
             <Stack gap="md">
-              {/* Participants */}
               <Paper p="xl" radius="md">
                 <Stack gap="md">
                   <Group gap="xs">
@@ -609,14 +659,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                         </Text>
                       ) : (
                         participants.map((participant) => (
-                          <Group key={participant.id} spacing="xs">
-                            <Avatar
-                              size="sm"
-                              src={participant.profilePicture}
-                              radius="xl"
-                            >
-                              {participant.firstName[0]}
-                              {participant.lastName[0]}
+                          <Group key={participant.id} gap="xs">
+                            <Avatar size="sm" radius="xl">
+                              {getInitials(participant.username)}
                             </Avatar>
 
                             <Box style={{ flex: 1, minWidth: 0 }}>
@@ -640,37 +685,37 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 </Stack>
               </Paper>
 
-              {/* Session Materials */}
-              {Array.isArray(session.materials) && session.materials.length > 0 && (
-                <Paper p="xl" radius="md">
-                  <Stack gap="md">
-                    <Title order={4}>Session Materials</Title>
-                    <Stack gap="xs">
-                      {session.materials.map((material, index) => (
-                        <Text key={index} size="sm">
-                          • {material}
-                        </Text>
-                      ))}
+              {Array.isArray(session.materials) &&
+                session.materials.length > 0 && (
+                  <Paper p="xl" radius="md">
+                    <Stack gap="md">
+                      <Title order={4}>Session Materials</Title>
+                      <Stack gap="xs">
+                        {session.materials.map((material, index) => (
+                          <Text key={index} size="sm">
+                            • {material}
+                          </Text>
+                        ))}
+                      </Stack>
                     </Stack>
-                  </Stack>
-                </Paper>
-              )}
+                  </Paper>
+                )}
 
-              {/* Learning Objectives */}
-              {Array.isArray(session.objectives) && session.objectives.length > 0 && (
-                <Paper p="xl" radius="md">
-                  <Stack gap="md">
-                    <Title order={4}>Learning Objectives</Title>
-                    <Stack gap="xs">
-                      {session.objectives.map((objective, index) => (
-                        <Text key={index} size="sm">
-                          • {objective}
-                        </Text>
-                      ))}
+              {Array.isArray(session.objectives) &&
+                session.objectives.length > 0 && (
+                  <Paper p="xl" radius="md">
+                    <Stack gap="md">
+                      <Title order={4}>Learning Objectives</Title>
+                      <Stack gap="xs">
+                        {session.objectives.map((objective, index) => (
+                          <Text key={index} size="sm">
+                            • {objective}
+                          </Text>
+                        ))}
+                      </Stack>
                     </Stack>
-                  </Stack>
-                </Paper>
-              )}
+                  </Paper>
+                )}
             </Stack>
           </Grid.Col>
         </Grid>
@@ -679,7 +724,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   );
 };
 
-// Main page component
 const LiveSessionPage: React.FC = () => {
   const { user } = useAuth();
   const params = useParams<{ id: string }>();
@@ -700,10 +744,12 @@ const LiveSessionPage: React.FC = () => {
         }
 
         const sessionId = params?.id;
-        if (!sessionId) throw new Error('Missing session id');
+        if (!sessionId) throw new Error("Missing session id");
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${encodeURIComponent(sessionId)}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${encodeURIComponent(
+            sessionId
+          )}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -750,7 +796,7 @@ const LiveSessionPage: React.FC = () => {
               <Stack align="center" gap="md">
                 <IconX size={48} color="red" />
                 <Title order={2}>Error</Title>
-                <Text color="dimmed" align="center">
+                <Text c="dimmed" ta="center">
                   {error || "Session not found"}
                 </Text>
                 <Button

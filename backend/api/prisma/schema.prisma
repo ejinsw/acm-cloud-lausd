@@ -40,6 +40,11 @@ model User {
   profilePicture String?
   bio            String?
 
+  // Zoom integration
+  zoomAccessToken    String?
+  zoomRefreshToken   String?
+  zoomTokenExpiresAt DateTime?
+
   // Role-specific fields
   grade             String? // For students
   parentFirstName   String? // For students

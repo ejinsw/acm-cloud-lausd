@@ -13,6 +13,7 @@ import subjectRouter from './routes/subjectRouter';
 import adminRouter from './routes/adminRouter';
 import queueRouter from './routes/queueRouter';
 import sseRouter from './routes/sseRouter';
+import zoomRouter from './routes/zoomRouter';
 import { prisma } from './config/prisma';
 import sessionHistoryRouter from './routes/sessionHistoryRouter';
 
@@ -62,6 +63,7 @@ app.use('/api', adminRouter);
 app.use('/api', sessionHistoryRouter);
 app.use('/api', queueRouter);
 app.use('/api', sseRouter);
+app.use('/api/zoom', zoomRouter);
 
 // Health check endpoint
 app.get('/api/health', async (req: Request, res: Response) => {

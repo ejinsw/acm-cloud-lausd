@@ -14,7 +14,17 @@ import {
   Loader,
   Alert,
 } from "@mantine/core";
-import { Search, Sparkles, BookOpen, Calendar, AlertCircle, MessageCircle, Play, History } from "lucide-react";
+import {
+  Search,
+  Sparkles,
+  BookOpen,
+  Calendar,
+  AlertCircle,
+  MessageCircle,
+  Play,
+  History,
+  Video,
+} from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
@@ -23,6 +33,7 @@ import { SessionManagementTab } from "@/components/dashboard/instructor/SessionM
 import { SessionRequestsManager } from "@/components/dashboard/instructor/SessionRequestsManager";
 import { ActiveSessionManager } from "@/components/dashboard/instructor/ActiveSessionManager";
 import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
+import ZoomConnection from "@/components/sessions/ZoomConnection";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
 import { Session, SessionHistoryItem } from "@/lib/types";
@@ -32,10 +43,12 @@ function InstructorDashboardContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,14 +70,14 @@ function InstructorDashboardContent() {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch sessions');
+        throw new Error("Failed to fetch sessions");
       }
 
       const data = await response.json();
       setSessions(data.sessions || []);
     } catch (err) {
-      console.error('Error fetching sessions:', err);
-      setError('Failed to load sessions');
+      console.error("Error fetching sessions:", err);
+      setError("Failed to load sessions");
     }
   };
 
@@ -73,15 +86,12 @@ function InstructorDashboardContent() {
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
-        await Promise.all([
-          fetchInstructorSessions(),
-          fetchSessionHistory(),
-        ]);
+        await Promise.all([fetchInstructorSessions(), fetchSessionHistory()]);
       } catch (err) {
-        console.error('Error loading dashboard data:', err);
-        setError('Failed to load dashboard data');
+        console.error("Error loading dashboard data:", err);
+        setError("Failed to load dashboard data");
       } finally {
         setIsLoading(false);
       }
@@ -100,28 +110,31 @@ function InstructorDashboardContent() {
   }, [activeTab, router, searchParams]);
 
   // Calculate statistics
-  const upcomingSessions = sessions.filter(session => 
-    session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS'
+  const upcomingSessions = sessions.filter(
+    (session) =>
+      session.status === "SCHEDULED" || session.status === "IN_PROGRESS"
   );
-  const completedSessions = sessions.filter(session => 
-    session.status === 'COMPLETED'
+  const completedSessions = sessions.filter(
+    (session) => session.status === "COMPLETED"
   );
   const totalSessions = sessions.length;
   const totalStudents = new Set(
-    sessions.flatMap(session => 
-      session.students?.map(student => student.id) || []
+    sessions.flatMap(
+      (session) => session.students?.map((student) => student.id) || []
     )
   ).size;
-  
-  const hoursTutored = Math.round(completedSessions.reduce((total, session) => {
-    if (session.startTime && session.endTime) {
-      const start = new Date(session.startTime).getTime();
-      const end = new Date(session.endTime).getTime();
-      return total + (end - start) / (1000 * 60 * 60); // Convert to hours
-    }
-    return total;
-  }, 0));
-  
+
+  const hoursTutored = Math.round(
+    completedSessions.reduce((total, session) => {
+      if (session.startTime && session.endTime) {
+        const start = new Date(session.startTime).getTime();
+        const end = new Date(session.endTime).getTime();
+        return total + (end - start) / (1000 * 60 * 60); // Convert to hours
+      }
+      return total;
+    }, 0)
+  );
+
   const averageRating = user?.averageRating || 0;
 
   const statsData = {
@@ -145,13 +158,13 @@ function InstructorDashboardContent() {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch session history');
+        throw new Error("Failed to fetch session history");
       }
 
       const data = await response.json();
       setSessionHistory(data.sessions || []);
     } catch (err) {
-      console.error('Error fetching session history:', err);
+      console.error("Error fetching session history:", err);
       // Don't set error here as it's not critical for the dashboard
     }
   };
@@ -193,11 +206,13 @@ function InstructorDashboardContent() {
         <Group justify="space-between" mb="xl">
           <div>
             <Title order={2}>Instructor Dashboard</Title>
-            <Text c="dimmed">Manage your tutoring sessions and track your progress</Text>
+            <Text c="dimmed">
+              Manage your tutoring sessions and track your progress
+            </Text>
           </div>
-          <Button 
-            component={Link} 
-            href={routes.createSession} 
+          <Button
+            component={Link}
+            href={routes.createSession}
             leftSection={<Search size={18} />}
           >
             Create New Session
@@ -212,7 +227,10 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="sessions" leftSection={<BookOpen size={16} />}>
               My Sessions ({totalSessions})
             </Tabs.Tab>
-            <Tabs.Tab value="requests" leftSection={<MessageCircle size={16} />}>
+            <Tabs.Tab
+              value="requests"
+              leftSection={<MessageCircle size={16} />}
+            >
               Session Requests
             </Tabs.Tab>
             <Tabs.Tab value="active" leftSection={<Play size={16} />}>
@@ -224,20 +242,23 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="schedule" leftSection={<Calendar size={16} />}>
               Schedule ({upcomingSessions.length})
             </Tabs.Tab>
+            <Tabs.Tab value="zoom" leftSection={<Video size={16} />}>
+              Zoom Integration
+            </Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="overview">
             <Box pt="md">
               <StatsGrid {...statsData} />
-              
+
               <UpcomingSessionsTab sessions={sessions} />
             </Box>
           </Tabs.Panel>
 
           <Tabs.Panel value="sessions">
             <Box pt="md">
-              <SessionManagementTab 
-                sessions={sessions} 
+              <SessionManagementTab
+                sessions={sessions}
                 onSessionUpdate={handleSessionUpdate}
               />
             </Box>
@@ -251,8 +272,8 @@ function InstructorDashboardContent() {
 
           <Tabs.Panel value="active">
             <Box pt="md">
-              <ActiveSessionManager 
-                sessions={sessions} 
+              <ActiveSessionManager
+                sessions={sessions}
                 onSessionUpdate={handleSessionUpdate}
               />
             </Box>
@@ -260,8 +281,8 @@ function InstructorDashboardContent() {
 
           <Tabs.Panel value="history">
             <Box pt="md">
-              <SessionHistoryTab 
-                sessionHistory={sessionHistory} 
+              <SessionHistoryTab
+                sessionHistory={sessionHistory}
                 onReviewClick={() => {}} // Instructors don't review sessions, but keep interface consistent
               />
             </Box>
@@ -270,6 +291,15 @@ function InstructorDashboardContent() {
           <Tabs.Panel value="schedule">
             <Box pt="md">
               <UpcomingSessionsTab sessions={sessions} />
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="zoom">
+            <Box pt="md">
+              <ZoomConnection
+                onConnected={handleSessionUpdate}
+                onDisconnected={handleSessionUpdate}
+              />
             </Box>
           </Tabs.Panel>
         </Tabs>
@@ -284,4 +314,4 @@ export default function InstructorDashboard() {
       <InstructorDashboardContent />
     </PageWrapper>
   );
-} 
+}

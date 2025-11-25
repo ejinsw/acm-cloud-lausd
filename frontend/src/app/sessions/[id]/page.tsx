@@ -1,7 +1,9 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Container,
   Title,
@@ -22,14 +24,26 @@ import {
   ActionIcon,
   Modal,
   Alert,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconMessage, IconVideo, IconUsers, IconClock, IconSend, IconX } from '@tabler/icons-react';
-import PageWrapper from '@/components/PageWrapper';
-import { Session, User, SessionRequest } from '@/lib/types';
-import { getToken } from '@/actions/authentication';
-import { useAuth } from '@/components/AuthProvider';
-import { routes } from '@/app/routes';
+  Tabs,
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import {
+  IconMessage,
+  IconVideo,
+  IconUsers,
+  IconClock,
+  IconMapPin,
+  IconUser,
+  IconSend,
+  IconX,
+  IconScreenShare,
+} from "@tabler/icons-react";
+import PageWrapper from "@/components/PageWrapper";
+import ZoomMeeting from "@/components/sessions/ZoomMeeting";
+import { Session, User, SessionRequest } from "@/lib/types";
+import { getToken } from "@/actions/authentication";
+import { useAuth } from "@/components/AuthProvider";
+import { routes } from "@/app/routes";
 
 type ChatRole = 'student' | 'instructor';
 
@@ -43,7 +57,8 @@ interface ChatMessage {
   id: string;
   sender: ChatUser;
   text: string;
-  timestamp: number;
+  timestamp: string;
+  type: "message" | "system";
 }
 
 interface LiveSessionProps {
@@ -52,18 +67,12 @@ interface LiveSessionProps {
 }
 
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [messageInput, setMessageInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageInput, setMessageInput] = useState("");
   const [isConnected, setIsConnected] = useState(false);
-  const [participants, setParticipants] = useState<ChatUser[]>([]);
-  const [showZoomModal, setShowZoomModal] = useState(false);
-
-  // Keep socket in a ref to avoid re-renders and stale cleanup
-  const wsRef = useRef<WebSocket | null>(null);
-  const hasAttemptedRoomCreationRef = useRef(false);
-  const hasJoinedRoomRef = useRef(false);
-  const roomMissingNotifiedRef = useRef(false);
-
+  const [participants, setParticipants] = useState<User[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("chat");
+  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
 
@@ -157,241 +166,59 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    if (!session.id || !chatUser.id) return;
-
-    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL ?? 'ws://localhost:3001';
-    const connectionUrl = `${wsUrl}?sessionId=${encodeURIComponent(session.id)}&userId=${encodeURIComponent(chatUser.id)}&userType=${encodeURIComponent(chatUser.type)}`;
-    const ws = new WebSocket(connectionUrl);
-
-    wsRef.current = ws;
-    hasAttemptedRoomCreationRef.current = false;
-    hasJoinedRoomRef.current = false;
-    roomMissingNotifiedRef.current = false;
-
-    const userPayload: ChatUser = {
-      id: chatUser.id,
-      username: chatUser.username,
-      type: chatUser.type,
-    };
-
-    const sendMessageToServer = (type: string, payload?: Record<string, unknown>) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(
-        JSON.stringify(
-          payload !== undefined
-            ? { type, payload }
-            : { type }
-        )
+    const connectWebSocket = () => {
+      const wsUrl =
+        process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
+      const ws = new WebSocket(
+        `${wsUrl}?sessionId=${session.id}&userId=${
+          currentUser.id
+        }&userType=${currentUser.role.toLowerCase()}`
       );
-    };
 
-    const requestJoinRoom = () => {
-      sendMessageToServer('JOIN_ROOM', {
-        roomId: session.id,
-        user: userPayload,
-      });
-    };
+      ws.onopen = () => {
+        setIsConnected(true);
+        notifications.show({
+          title: "Connected",
+          message: "Connected to live session",
+          color: "green",
+        });
+      };
 
-    const requestCreateRoom = () => {
-      sendMessageToServer('CREATE_ROOM', {
-        roomName: session.name || `Session ${session.id}`,
-        user: userPayload,
-      });
-    };
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      notifications.show({
-        title: 'Connected',
-        message: 'Connected to live session',
-        color: 'green',
-      });
-      requestJoinRoom();
-    };
-
-    ws.onmessage = event => {
-      let data: { type?: string; payload?: unknown };
-      try {
-        data = JSON.parse(event.data);
-      } catch (error) {
-        console.error('Failed to parse WS message', error);
-        return;
-      }
-
-      const { type, payload } = data;
-
-      switch (type) {
-        case 'REQUEST_USER_INFO':
-          requestJoinRoom();
-          break;
-        case 'USER_IDENTIFIED':
-          break;
-        case 'ROOM_LIST_UPDATED':
-          if (!hasJoinedRoomRef.current && Array.isArray(payload)) {
-            const hasRoom = payload.some(
-              (room: { id?: string | number }) => String(room.id) === session.id
-            );
-            if (hasRoom) {
-              requestJoinRoom();
-            }
-          }
-          break;
-        case 'ROOM_JOINED': {
-          if (!isRecord(payload) || String(payload.id) !== session.id) break;
-          hasJoinedRoomRef.current = true;
-          roomMissingNotifiedRef.current = false;
-
-          const mappedUsers = Array.isArray(payload.users)
-            ? payload.users
-                .map(normalizeServerUser)
-                .filter((user): user is ChatUser => Boolean(user))
-            : [];
-          setParticipants(dedupeUsers([...mappedUsers, userPayload]));
-
-          const mappedMessages = Array.isArray(payload.messages)
-            ? payload.messages
-                .map(normalizeServerMessage)
-                .filter((message): message is ChatMessage => Boolean(message))
-            : [];
-          mappedMessages.sort((a, b) => a.timestamp - b.timestamp);
-          setMessages(mappedMessages);
-          break;
-        }
-        case 'USER_JOINED': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          const user = normalizeServerUser(payload.user);
-          if (!user) break;
-          setParticipants(prev => dedupeUsers([...prev, user]));
-          if (user.id !== chatUser.id) {
+        switch (data.type) {
+          case "message":
+            setMessages((prev) => [...prev, data.message]);
+            break;
+          case "participant_joined":
+            setParticipants((prev) => [...prev, data.user]);
             notifications.show({
-              title: 'Participant Joined',
-              message: `${user.username} joined the session`,
-              color: 'blue',
+              title: "Participant Joined",
+              message: `${data.user.firstName} ${data.user.lastName} joined the session`,
+              color: "blue",
             });
-          }
-          break;
-        }
-        case 'USER_LEFT': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          const leavingId =
-            'userId' in payload &&
-            (typeof payload.userId === 'string' || typeof payload.userId === 'number')
-              ? String(payload.userId)
-              : '';
-          if (!leavingId) break;
-          setParticipants(prev => prev.filter(user => user.id !== leavingId));
-          if (leavingId !== chatUser.id) {
-            const username =
-              'username' in payload && typeof payload.username === 'string'
-                ? payload.username
-                : null;
+            break;
+          case "participant_left":
+            setParticipants((prev) => prev.filter((p) => p.id !== data.userId));
             notifications.show({
-              title: 'Participant Left',
-              message: username
-                ? `${username} left the session`
-                : 'A participant left the session',
-              color: 'yellow',
+              title: "Participant Left",
+              message: "A participant left the session",
+              color: "yellow",
             });
-          } else {
-            hasJoinedRoomRef.current = false;
-          }
-          break;
-        }
-        case 'NEW_MESSAGE': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          const message = normalizeServerMessage(payload);
-          if (!message) break;
-          setParticipants(prev => {
-            if (prev.some(user => user.id === message.sender.id)) {
-              return prev;
-            }
-            return dedupeUsers([...prev, message.sender]);
-          });
-          setMessages(prev => {
-            if (prev.some(existing => existing.id === message.id)) {
-              return prev;
-            }
-            return [...prev, message];
-          });
-          break;
-        }
-        case 'MESSAGE_DELETED': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          const messageId =
-            'messageId' in payload &&
-            (typeof payload.messageId === 'string' || typeof payload.messageId === 'number')
-              ? String(payload.messageId)
-              : '';
-          if (!messageId) break;
-          setMessages(prev => prev.filter(message => message.id !== messageId));
-          break;
-        }
-        case 'USER_KICKED': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          const kickedId =
-            'kickedUserId' in payload &&
-            (typeof payload.kickedUserId === 'string' || typeof payload.kickedUserId === 'number')
-              ? String(payload.kickedUserId)
-              : '';
-          if (!kickedId) break;
-          setParticipants(prev => prev.filter(user => user.id !== kickedId));
-          if (kickedId !== chatUser.id) {
+            break;
+          case "session_started":
             notifications.show({
-              title: 'Participant Removed',
-              message: `${'kickedUsername' in payload && typeof payload.kickedUsername === 'string'
-                ? payload.kickedUsername
-                : 'A participant'} was removed by the instructor`,
-              color: 'yellow',
+              title: "Session Started",
+              message: "The instructor has started the session",
+              color: "green",
             });
-          }
-          break;
-        }
-        case 'YOU_WERE_KICKED': {
-          if (isRecord(payload) && String(payload.roomId) === session.id) {
-            hasJoinedRoomRef.current = false;
-            setMessages([]);
-            setParticipants(prev => prev.filter(user => user.id !== chatUser.id));
+            break;
+          case "session_ended":
             notifications.show({
-              title: 'Removed from Session',
-              message:
-                'reason' in payload && typeof payload.reason === 'string'
-                  ? payload.reason
-                  : 'You were removed from this session.',
-              color: 'red',
-            });
-          }
-          break;
-        }
-        case 'YOU_LEFT_ROOM': {
-          if (!isRecord(payload) || String(payload.roomId) !== session.id) break;
-          hasJoinedRoomRef.current = false;
-          setParticipants(prev => prev.filter(user => user.id !== chatUser.id));
-          notifications.show({
-            title: 'Left Session',
-            message: 'You left the session chat.',
-            color: 'yellow',
-          });
-          break;
-        }
-        case 'SERVER_SHUTDOWN':
-          notifications.show({
-            title: 'Server Shutdown',
-            message: 'The chat server is shutting down. Connection closed.',
-            color: 'red',
-          });
-          ws.close();
-          break;
-        case 'ERROR': {
-          const message =
-            isRecord(payload) && typeof payload.message === 'string'
-              ? payload.message
-              : 'An unknown error occurred.';
-          const isRoomMissing = message === 'Room not found.';
-          if (!roomMissingNotifiedRef.current || !isRoomMissing) {
-            notifications.show({
-              title: 'Chat Error',
-              message,
-              color: 'red',
+              title: "Session Ended",
+              message: "The session has ended",
+              color: "red",
             });
           }
           if (isRoomMissing) {
@@ -408,24 +235,30 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
       }
     };
 
-    ws.onclose = () => {
-      setIsConnected(false);
-      hasJoinedRoomRef.current = false;
-      notifications.show({
-        title: 'Disconnected',
-        message: 'Lost connection to live session',
-        color: 'red',
-      });
+      ws.onclose = () => {
+        setIsConnected(false);
+        notifications.show({
+          title: "Disconnected",
+          message: "Lost connection to live session",
+          color: "red",
+        });
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        notifications.show({
+          title: "Connection Error",
+          message: "Failed to connect to live session",
+          color: "red",
+        });
+      };
+
+      setWsConnection(ws);
     };
 
-    ws.onerror = error => {
-      console.error('WebSocket error:', error);
-      notifications.show({
-        title: 'Connection Error',
-        message: 'Failed to connect to live session',
-        color: 'red',
-      });
-    };
+    if (session.id && currentUser.id) {
+      connectWebSocket();
+    }
 
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -464,65 +297,75 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Send message
   const sendMessage = () => {
-    const ws = wsRef.current;
-    if (!messageInput.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (
+      !messageInput.trim() ||
+      !wsConnection ||
+      wsConnection.readyState !== WebSocket.OPEN
+    )
+      return;
 
-    ws.send(
+    const message: Message = {
+      id: Date.now().toString(),
+      sender: currentUser,
+      text: messageInput.trim(),
+      timestamp: new Date().toISOString(),
+      type: "message",
+    };
+
+    wsConnection.send(
       JSON.stringify({
-        type: 'SEND_MESSAGE',
-        payload: {
-          roomId: session.id,
-          text: messageInput.trim(),
+        type: "send_message",
+        message: {
+          sessionId: session.id,
+          text: message.text,
+          senderId: currentUser.id,
         },
       })
     );
 
-    setMessageInput('');
+    setMessageInput("");
   };
 
-  // Handle Enter key press (without Shift)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  // Handle Enter key press
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  // Join Zoom meeting
-  const joinZoomMeeting = () => {
-    if (session.zoomLink) {
-      window.open(session.zoomLink, '_blank');
-    } else {
-      notifications.show({
-        title: 'No Zoom Link',
-        message: 'Zoom link not available for this session',
-        color: 'yellow',
-      });
-    }
+  // Handle Zoom meeting end
+  const handleZoomMeetingEnd = () => {
+    notifications.show({
+      title: "Meeting Ended",
+      message: "The Zoom meeting has ended",
+      color: "blue",
+    });
+  };
+
+  // Handle Zoom error
+  const handleZoomError = (error: string) => {
+    notifications.show({
+      title: "Zoom Error",
+      message: error,
+      color: "red",
+    });
   };
 
   // Check if user can join session
   const canJoinSession = () => {
-    if (currentUser.role === 'INSTRUCTOR') return true;
+    if (currentUser.role === "INSTRUCTOR") return true;
 
-    // Check if student is already enrolled in the session (for auto-created sessions from queue)
-    const isEnrolled = session.students?.some(
-      (student: User) => student.id === currentUser.id
-    );
-
-    if (isEnrolled) return true;
-
-    // Check if student has an accepted session request (for regular session requests)
     const request = currentUser.sessionRequests?.find(
       (req: SessionRequest) => req.sessionId === session.id
     );
 
-    return request?.status === 'ACCEPTED';
+    return request?.status === "ACCEPTED";
   };
 
   if (!canJoinSession()) {
@@ -534,9 +377,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               <Stack align="center" gap="md">
                 <IconX size={48} color="red" />
                 <Title order={2}>Access Denied</Title>
-                <Text c="dimmed" ta="center">
-                  You don&apos;t have permission to join this session.
-                  Please request to join the session first.
+                <Text color="dimmed" align="center">
+                  You don't have permission to join this session. Please request
+                  to join the session first.
                 </Text>
                 <Button variant="outline" onClick={() => window.history.back()}>
                   Go Back
@@ -558,13 +401,13 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Grid.Col span={8}>
               <Stack gap="xs">
                 <Title order={1}>{session.name}</Title>
-                <Text c="dimmed">{session.description}</Text>
-                <Group gap="lg">
+                <Text color="dimmed">{session.description}</Text>
+                <Group spacing="lg">
                   <Badge
-                    color={session.status === 'IN_PROGRESS' ? 'green' : 'blue'}
+                    color={session.status === "IN_PROGRESS" ? "green" : "blue"}
                     variant="light"
                   >
-                    {session.status || 'SCHEDULED'}
+                    {session.status || "SCHEDULED"}
                   </Badge>
 
                   {session.startTime && (
@@ -580,7 +423,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     <Group gap="xs">
                       <IconUsers size={16} />
                       <Text size="sm">
-                        {participants.length}/{session.maxAttendees} participants
+                        {participants.length}/{session.maxAttendees}{" "}
+                        participants
                       </Text>
                     </Group>
                   )}
@@ -589,19 +433,19 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Grid.Col>
 
             <Grid.Col span={4}>
-              <Stack align="flex-end" gap="md">
-                <Button
-                  leftSection={<IconVideo size={16} />}
-                  onClick={() => setShowZoomModal(true)}
-                  color="blue"
+              <Stack align="flex-end" spacing="md">
+                <Badge
+                  color={isConnected ? "green" : "red"}
+                  variant="light"
                   size="lg"
-                  fullWidth
                 >
-                  Join Zoom Meeting
-                </Button>
-                <Badge color={isConnected ? 'green' : 'red'} variant="light" size="lg">
-                  {isConnected ? 'Connected' : 'Disconnected'}
+                  {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
+                {session.zoomLink && (
+                  <Text size="sm" color="dimmed" align="right">
+                    Embedded video meeting available
+                  </Text>
+                )}
               </Stack>
             </Grid.Col>
           </Grid>
@@ -609,105 +453,140 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
         {/* Main Content */}
         <Grid>
-          {/* Chat Section */}
+          {/* Main Session Area */}
           <Grid.Col span={8}>
             <Paper p="xl" radius="md" h={600}>
-              <Stack gap="md" h="100%">
-                <Group justify="space-between">
-                  <Group gap="xs">
-                    <IconMessage size={20} />
-                    <Title order={3}>Session Chat</Title>
-                  </Group>
-                  <Text size="sm" c="dimmed">
-                    {participants.length} participants online
-                  </Text>
-                </Group>
+              <Tabs value={activeTab} onTabChange={setActiveTab} h="100%">
+                <Tabs.List>
+                  <Tabs.Tab value="chat" leftIcon={<IconMessage size={16} />}>
+                    Chat
+                  </Tabs.Tab>
+                  <Tabs.Tab value="video" leftIcon={<IconVideo size={16} />}>
+                    Video Meeting
+                  </Tabs.Tab>
+                </Tabs.List>
 
-                <Divider />
+                <Tabs.Panel value="chat" pt="md" h="calc(100% - 40px)">
+                  <Stack spacing="md" h="100%">
+                    <Group position="apart">
+                      <Title order={3} leftIcon={<IconMessage size={20} />}>
+                        Session Chat
+                      </Title>
+                      <Text size="sm" color="dimmed">
+                        {participants.length} participants online
+                      </Text>
+                    </Group>
 
-                {/* Messages */}
-                <ScrollArea h={400} viewportRef={messageContainerRef}>
-                  <Stack gap="xs">
-                    {messages.length === 0 ? (
-                      <Center h={200}>
-                        <Text c="dimmed">No messages yet. Start the conversation!</Text>
-                      </Center>
-                    ) : (
-                      messages.map(message => {
-                        const isSelf = message.sender.id === chatUser.id;
-                        return (
-                          <Box
-                            key={message.id}
-                            style={{
-                              display: 'flex',
-                              flexDirection: isSelf ? 'row-reverse' : 'row',
-                              alignItems: 'flex-start',
-                              gap: 'var(--mantine-spacing-xs)',
-                            }}
-                          >
-                            <Avatar size="sm" radius="xl">
-                              {getInitials(message.sender.username)}
-                            </Avatar>
+                    <Divider />
 
+                    {/* Messages */}
+                    <ScrollArea h={400} viewportRef={messageContainerRef}>
+                      <Stack spacing="xs">
+                        {messages.length === 0 ? (
+                          <Center h={200}>
+                            <Text color="dimmed">
+                              No messages yet. Start the conversation!
+                            </Text>
+                          </Center>
+                        ) : (
+                          messages.map((message) => (
                             <Box
-                              style={{
-                                maxWidth: '70%',
-                                backgroundColor: isSelf
-                                  ? 'var(--mantine-color-blue-6)'
-                                  : 'var(--mantine-color-gray-2)',
-                                color: isSelf ? 'white' : 'inherit',
-                                padding: 'var(--mantine-spacing-xs)',
-                                borderRadius: 'var(--mantine-radius-md)',
+                              key={message.id}
+                              sx={{
+                                display: "flex",
+                                flexDirection:
+                                  message.sender.id === currentUser.id
+                                    ? "row-reverse"
+                                    : "row",
+                                alignItems: "flex-start",
+                                gap: "xs",
                               }}
                             >
-                              <Group gap="xs" style={{ marginBottom: 4 }}>
-                                <Text size="sm" fw={500}>
-                                  {message.sender.username}
-                                </Text>
-                                <Text size="xs" style={{ opacity: 0.7 }}>
-                                  {new Date(message.timestamp).toLocaleTimeString()}
-                                </Text>
-                                {message.sender.type === 'instructor' && (
-                                  <Badge size="xs" color={isSelf ? 'teal' : 'blue'} variant="light">
-                                    Instructor
-                                  </Badge>
-                                )}
-                              </Group>
-
-                              <Text size="sm">{message.text}</Text>
+                              <Avatar
+                                size="sm"
+                                src={message.sender.profilePicture}
+                                radius="xl"
+                              >
+                                {message.sender.firstName[0]}
+                                {message.sender.lastName[0]}
+                              </Avatar>
+                              <Box
+                                sx={{
+                                  maxWidth: "70%",
+                                  backgroundColor:
+                                    message.sender.id === currentUser.id
+                                      ? "var(--mantine-color-blue-6)"
+                                      : "var(--mantine-color-gray-2)",
+                                  color:
+                                    message.sender.id === currentUser.id
+                                      ? "white"
+                                      : "inherit",
+                                  padding: "xs",
+                                  borderRadius: "md",
+                                }}
+                              >
+                                <Group spacing="xs" mb={4}>
+                                  <Text size="sm" weight={500}>
+                                    {message.sender.firstName}{" "}
+                                    {message.sender.lastName}
+                                  </Text>
+                                  <Text size="xs" opacity={0.7}>
+                                    {new Date(
+                                      message.timestamp
+                                    ).toLocaleTimeString()}
+                                  </Text>
+                                </Group>
+                                <Text size="sm">{message.text}</Text>
+                              </Box>
                             </Box>
-                          </Box>
-                        );
-                      })
-                    )}
-                    <div ref={messagesEndRef} />
+                          ))
+                        )}
+                        <div ref={messagesEndRef} />
+                      </Stack>
+                    </ScrollArea>
+
+                    <Divider />
+
+                    {/* Message Input */}
+                    <Group spacing="xs">
+                      <TextInput
+                        placeholder="Type your message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        style={{ flex: 1 }}
+                        disabled={!isConnected}
+                      />
+                      <ActionIcon
+                        size="lg"
+                        color="blue"
+                        onClick={sendMessage}
+                        disabled={!isConnected || !messageInput.trim()}
+                      >
+                        <IconSend size={16} />
+                      </ActionIcon>
+                    </Group>
                   </Stack>
-                </ScrollArea>
+                </Tabs.Panel>
 
-                <Divider />
-
-                {/* Message Input */}
-                <Group gap="xs">
-                  <TextInput
-                    placeholder="Type your message..."
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.currentTarget.value)}
-                    onKeyDown={handleKeyDown}
-                    style={{ flex: 1 }}
-                    disabled={!isConnected}
-                  />
-                  <ActionIcon
-                    size="lg"
-                    color="blue"
-                    onClick={sendMessage}
-                    disabled={!isConnected || !messageInput.trim()}
-                    variant="filled"
-                    aria-label="Send message"
-                  >
-                    <IconSend size={16} />
-                  </ActionIcon>
-                </Group>
-              </Stack>
+                <Tabs.Panel value="video" pt="md" h="calc(100% - 40px)">
+                  {session.zoomLink ? (
+                    <ZoomMeeting
+                      sessionId={session.id}
+                      userName={`${currentUser.firstName} ${currentUser.lastName}`}
+                      userEmail={currentUser.email}
+                      onMeetingEnd={handleZoomMeetingEnd}
+                      onError={handleZoomError}
+                    />
+                  ) : (
+                    <Center h="100%">
+                      <Alert color="yellow" icon={<IconX size={16} />}>
+                        No Zoom meeting available for this session
+                      </Alert>
+                    </Center>
+                  )}
+                </Tabs.Panel>
+              </Tabs>
             </Paper>
           </Grid.Col>
 
@@ -729,10 +608,15 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                           No participants yet
                         </Text>
                       ) : (
-                        participants.map(participant => (
-                          <Group key={participant.id} gap="xs" wrap="nowrap">
-                            <Avatar size="sm" radius="xl">
-                              {getInitials(participant.username)}
+                        participants.map((participant) => (
+                          <Group key={participant.id} spacing="xs">
+                            <Avatar
+                              size="sm"
+                              src={participant.profilePicture}
+                              radius="xl"
+                            >
+                              {participant.firstName[0]}
+                              {participant.lastName[0]}
                             </Avatar>
 
                             <Box style={{ flex: 1, minWidth: 0 }}>
@@ -743,9 +627,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                                 {participant.type.toUpperCase()}
                               </Text>
                             </Box>
-
-                            {(participant.type === 'instructor' ||
-                              participant.id === session.instructorId) && (
+                            {participant.id === session.instructorId && (
                               <Badge size="xs" color="blue">
                                 Instructor
                               </Badge>
@@ -792,38 +674,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Stack>
           </Grid.Col>
         </Grid>
-
-        {/* Zoom Modal */}
-        <Modal
-          opened={showZoomModal}
-          onClose={() => setShowZoomModal(false)}
-          title="Join Zoom Meeting"
-          size="md"
-        >
-          <Stack gap="md">
-            {session.zoomLink ? (
-              <>
-                <Text>Click the button below to join the Zoom meeting for this session.</Text>
-                <Button
-                  leftSection={<IconVideo size={16} />}
-                  onClick={joinZoomMeeting}
-                  color="blue"
-                  size="lg"
-                  fullWidth
-                >
-                  Open Zoom Meeting
-                </Button>
-                <Text size="sm" c="dimmed">
-                  Meeting link: {session.zoomLink}
-                </Text>
-              </>
-            ) : (
-              <Alert color="yellow" icon={<IconX size={16} />}>
-                No Zoom link available for this session. Please contact the instructor.
-              </Alert>
-            )}
-          </Stack>
-        </Modal>
       </Container>
     </PageWrapper>
   );
@@ -862,13 +712,13 @@ const LiveSessionPage: React.FC = () => {
         );
 
         if (!response.ok) {
-          throw new Error('Session not found');
+          throw new Error("Session not found");
         }
 
         const data = await response.json();
         setSession(data.session as Session);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load session');
+        setError(err instanceof Error ? err.message : "Failed to load session");
       } finally {
         setIsLoading(false);
       }
@@ -900,10 +750,13 @@ const LiveSessionPage: React.FC = () => {
               <Stack align="center" gap="md">
                 <IconX size={48} color="red" />
                 <Title order={2}>Error</Title>
-                <Text c="dimmed" ta="center">
-                  {error || 'Session not found'}
+                <Text color="dimmed" align="center">
+                  {error || "Session not found"}
                 </Text>
-                <Button variant="outline" onClick={() => router.push(routes.exploreSessions)}>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(routes.exploreSessions)}
+                >
                   Back to Sessions
                 </Button>
               </Stack>

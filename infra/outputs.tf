@@ -58,15 +58,9 @@ output "api_gateway_id" {
   value       = module.api_gateway.api_id
 }
 
-output "websocket_gateway_endpoint" {
-  description = "WebSocket API Gateway endpoint URL (wss://)"
-  value       = module.websocket_gateway.websocket_api_endpoint
-}
-
-output "websocket_gateway_id" {
-  description = "WebSocket API Gateway ID"
-  value       = module.websocket_gateway.websocket_api_id
-}
+# Note: WebSocket routes are now handled by HTTP API Gateway at /ws/*
+# WebSocket API Gateway doesn't support VPC Links, so we use HTTP API Gateway
+# for WebSocket endpoints (HTTP only, not true WebSocket protocol upgrades)
 
 output "admin_access_key_id" {
   description = "AWS Access Key ID for Cognito admin operations"

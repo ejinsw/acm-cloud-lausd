@@ -61,11 +61,41 @@ resource "aws_apigatewayv2_integration" "api" {
   payload_format_version = "1.0"
 }
 
+# Integration for WebSocket service (routes /ws/* to Cloud Map)
+# Note: HTTP API Gateway doesn't support WebSocket protocol upgrades,
+# but can proxy HTTP requests to WebSocket server endpoints
+resource "aws_apigatewayv2_integration" "websocket" {
+  api_id           = aws_apigatewayv2_api.main.id
+  integration_type = "HTTP_PROXY"
+
+  connection_type        = "VPC_LINK"
+  connection_id         = aws_apigatewayv2_vpc_link.alb.id
+  description           = "VPC Link integration to Cloud Map for WebSocket service"
+  integration_method    = "ANY"
+  integration_uri       = var.cloudmap_websocket_service_arn
+  payload_format_version = "1.0"
+}
+
 # Route for API endpoints: /api/{proxy+}
 resource "aws_apigatewayv2_route" "api" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "ANY /api/{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+# Route for WebSocket endpoints: /ws/{proxy+}
+# Note: This routes HTTP requests, not WebSocket protocol upgrades
+resource "aws_apigatewayv2_route" "websocket" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /ws/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
+}
+
+# Route for WebSocket root: /ws
+resource "aws_apigatewayv2_route" "websocket_root" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /ws"
+  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
 }
 
 resource "aws_cloudwatch_log_group" "api_gateway" {

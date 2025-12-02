@@ -16,18 +16,8 @@ resource "aws_apigatewayv2_stage" "websocket" {
   name        = "$default"
   auto_deploy = true
 
-  access_log_settings {
-    destination_arn = aws_cloudwatch_log_group.websocket_api.arn
-    format = jsonencode({
-      requestId      = "$context.requestId"
-      ip             = "$context.identity.sourceIp"
-      requestTime    = "$context.requestTime"
-      routeKey       = "$context.routeKey"
-      status         = "$context.status"
-      connectionId   = "$context.connectionId"
-      messageId      = "$context.messageId"
-    })
-  }
+  # Note: CloudWatch logging requires account-level role setup
+  # Removing access_log_settings to avoid the error
 
   tags = {
     Name        = "${var.project_name}-websocket-stage"

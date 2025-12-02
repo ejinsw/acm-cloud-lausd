@@ -58,6 +58,16 @@ output "api_gateway_id" {
   value       = module.api_gateway.api_id
 }
 
+output "websocket_gateway_endpoint" {
+  description = "WebSocket API Gateway endpoint URL (wss://)"
+  value       = module.websocket_gateway.websocket_api_endpoint
+}
+
+output "websocket_gateway_id" {
+  description = "WebSocket API Gateway ID"
+  value       = module.websocket_gateway.websocket_api_id
+}
+
 output "admin_access_key_id" {
   description = "AWS Access Key ID for Cognito admin operations"
   value       = module.cognito_admin.admin_access_key_id

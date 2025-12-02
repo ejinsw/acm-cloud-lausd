@@ -151,10 +151,27 @@ module "api_gateway" {
   # API Gateway variables
   vpc_id          = module.vpc.vpc_id
   cloudmap_api_service_arn = module.ecs.cloudmap_api_service_arn
-  cloudmap_websocket_service_arn = module.ecs.cloudmap_websocket_service_arn
   # VPC Link should be in private subnets (AWS best practice)
   subnet_ids      = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   vpc_link_security_group_ids = [module.vpc.vpc_link_sg_id]
+
+  depends_on = [module.ecs]
+}
+
+# WebSocket API Gateway with VPC Link to Cloud Map
+module "websocket_gateway" {
+  source = "./modules/websocket_gateway"
+
+  # Standard variables
+  project_name = var.project_name
+  environment  = var.environment
+
+  # WebSocket Gateway variables
+  vpc_id                        = module.vpc.vpc_id
+  cloudmap_websocket_service_arn = module.ecs.cloudmap_websocket_service_arn
+  # VPC Link should be in private subnets (AWS best practice)
+  subnet_ids                    = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
+  vpc_link_security_group_ids   = [module.vpc.vpc_link_sg_id]
 
   depends_on = [module.ecs]
 }

@@ -4,7 +4,7 @@ output "websocket_api_id" {
 }
 
 output "websocket_api_endpoint" {
-  description = "The WebSocket API Gateway endpoint URL"
+  description = "The WebSocket API Gateway endpoint URL (wss://)"
   value       = aws_apigatewayv2_stage.websocket.invoke_url
 }
 

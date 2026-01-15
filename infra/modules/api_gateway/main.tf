@@ -3,7 +3,7 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["*"]
+    allow_origins = ["https://acm-cloud-lausd.vercel.app"]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
     allow_headers = ["Content-Type", "Authorization", "X-Requested-With"]
     max_age      = 300

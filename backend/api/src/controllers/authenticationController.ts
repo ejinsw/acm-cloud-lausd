@@ -170,11 +170,11 @@ export const signup = expressAsyncHandler(
                 in: Array.isArray(subjects) ? subjects : [subjects],
               },
             },
-            select: { id: true },
+            select: { id: true, name: true },
           });
 
           if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
-            const foundSubjectNames = subjectsToAdd.map(s => s.id);
+            const foundSubjectNames = subjectsToAdd.map(s => s.name);
             const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
             const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
             throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);

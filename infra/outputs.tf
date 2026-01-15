@@ -94,12 +94,12 @@ output "user_sessions_table_name" {
   value       = module.dynamodb_dax.user_sessions_table_name
 }
 
-output "dax_configuration_endpoint" {
-  description = "DAX cluster configuration endpoint for clients."
-  value       = module.dynamodb_dax.dax_configuration_endpoint
-}
+# output "dax_configuration_endpoint" {
+#   description = "DAX cluster configuration endpoint for clients."
+#   value       = module.dynamodb_dax.dax_configuration_endpoint
+# }
 
-output "dax_cluster_address" {
-  description = "Primary address for the DAX cluster."
-  value       = module.dynamodb_dax.dax_cluster_address
-}
+# output "dax_cluster_address" {
+#   description = "Primary address for the DAX cluster."
+#   value       = module.dynamodb_dax.dax_cluster_address
+# }

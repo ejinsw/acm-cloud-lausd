@@ -55,19 +55,19 @@ resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
         ]
         Resource = local.dynamodb_table_arns
       },
-      {
-        Sid      = "DaxAccess"
-        Effect   = "Allow"
-        Action   = [
-          "dax:BatchGetItem",
-          "dax:BatchWriteItem",
-          "dax:GetItem",
-          "dax:PutItem",
-          "dax:Query",
-          "dax:Scan"
-        ]
-        Resource = [module.dynamodb_dax.dax_cluster_arn]
-      }
+      # {
+      #   Sid      = "DaxAccess"
+      #   Effect   = "Allow"
+      #   Action   = [
+      #     "dax:BatchGetItem",
+      #     "dax:BatchWriteItem",
+      #     "dax:GetItem",
+      #     "dax:PutItem",
+      #     "dax:Query",
+      #     "dax:Scan"
+      #   ]
+      #   Resource = [module.dynamodb_dax.dax_cluster_arn]
+      # }
     ]
   })
 }

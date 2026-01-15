@@ -170,7 +170,7 @@ export const signup = expressAsyncHandler(
                 in: Array.isArray(subjects) ? subjects : [subjects],
               },
             },
-            select: { id: true },
+            select: { id: true, name: true },
           });
 
           // if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {

@@ -55,6 +55,7 @@ resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
         ]
         Resource = local.dynamodb_table_arns
       },
+      # DAX access - commented out to reduce costs (using direct DynamoDB access)
       # {
       #   Sid      = "DaxAccess"
       #   Effect   = "Allow"

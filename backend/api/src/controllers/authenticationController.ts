@@ -173,12 +173,12 @@ export const signup = expressAsyncHandler(
             select: { id: true },
           });
 
-          if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
-            const foundSubjectNames = subjectsToAdd.map(s => s.id);
-            const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
-            const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
-            throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
-          }
+          // if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
+          //   const foundSubjectNames = subjectsToAdd.map(s => s.id);
+          //   const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
+          //   const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
+          //   throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
+          // }
 
           await tx.user.create({
             data: {

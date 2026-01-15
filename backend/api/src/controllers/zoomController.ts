@@ -51,8 +51,8 @@ export const connectZoom = expressAsyncHandler(
     // Build OAuth URL
     const authUrl = new URL(ZOOM_ENDPOINTS.OAUTH_AUTHORIZE);
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('client_id', ZOOM_CONFIG.clientId);
-    authUrl.searchParams.set('redirect_uri', ZOOM_CONFIG.redirectUri);
+    authUrl.searchParams.set('client_id', ZOOM_CONFIG.clientId ?? "");
+    authUrl.searchParams.set('redirect_uri', ZOOM_CONFIG.redirectUri ?? "");
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('scope', 'meeting:write meeting:read user:read');
 

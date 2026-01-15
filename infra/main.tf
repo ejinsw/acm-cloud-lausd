@@ -133,7 +133,7 @@ module "ecs" {
     { name = "ROOM_MEMBERS_TABLE_NAME", value = module.dynamodb_dax.room_members_table_name },
     { name = "ROOM_MESSAGES_TABLE_NAME", value = module.dynamodb_dax.room_messages_table_name },
     { name = "USER_SESSIONS_TABLE_NAME", value = module.dynamodb_dax.user_sessions_table_name },
-    { name = "DAX_ENDPOINT", value = module.dynamodb_dax.dax_configuration_endpoint },
+    # { name = "DAX_ENDPOINT", value = module.dynamodb_dax.dax_configuration_endpoint },
     { name = "SESSION_IDLE_TIMEOUT_MS", value = tostring(local.session_idle_timeout_ms) },
     { name = "MAX_SESSION_TTL_MS", value = tostring(local.max_session_ttl_ms) }
   ]
@@ -154,12 +154,13 @@ module "ecs" {
 module "dynamodb_dax" {
   source = "./modules/dynamodb_dax"
   environment = var.environment
-  dax_vpc_id  = module.vpc.vpc_id
-  dax_subnet_ids = [
-    module.vpc.private_subnet_id_1,
-    module.vpc.private_subnet_id_2
-  ]
-  dax_allowed_security_group_ids = [module.vpc.fargate_sg_id]
+  # DAX configuration - commented out to reduce costs (using direct DynamoDB access)
+  # dax_vpc_id  = module.vpc.vpc_id
+  # dax_subnet_ids = [
+  #   module.vpc.private_subnet_id_1,
+  #   module.vpc.private_subnet_id_2
+  # ]
+  # dax_allowed_security_group_ids = [module.vpc.fargate_sg_id]
 
   depends_on = [module.vpc]
 }

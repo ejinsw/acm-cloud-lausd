@@ -20,7 +20,7 @@ import {
   MultiSelect,
   Loader,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
+import { DatePicker } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
 import { IconUpload, IconX, IconPhoto } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
@@ -72,6 +72,19 @@ const gradeLevels = [
   { value: "12", label: "12th Grade" },
 ];
 
+const fallbackSubjects: Subject[] = [
+  { id: "mathematics", name: "Mathematics" },
+  { id: "physics", name: "Physics" },
+  { id: "chemistry", name: "Chemistry" },
+  { id: "biology", name: "Biology" },
+  { id: "english", name: "English Literature" },
+  { id: "history", name: "History" },
+  { id: "computer-science", name: "Computer Science" },
+  { id: "spanish", name: "Spanish" },
+  { id: "art", name: "Art" },
+  { id: "music", name: "Music" },
+];
+
 export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -86,16 +99,24 @@ export default function SignUpPage() {
         setSubjectsLoading(true);
         setSubjectsError(null);
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/subjects`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const response = await fetch(`${apiUrl}/api/subjects`);
         if (!response.ok) {
           throw new Error('Failed to fetch subjects');
         }
         
         const subjectsData = await response.json();
-        setSubjects(subjectsData);
+        if (Array.isArray(subjectsData) && subjectsData.length > 0) {
+          setSubjects(subjectsData);
+        } else {
+          console.warn('Subjects response was empty, using fallback list');
+          setSubjects(fallbackSubjects);
+          setSubjectsError('Subjects list was empty, using a default list.');
+        }
       } catch (error) {
         console.error('Error fetching subjects:', error);
-        setSubjectsError('Failed to load subjects. Please refresh the page.');
+        setSubjectsError('Failed to load subjects from API. Using default subjects.');
+        setSubjects(fallbackSubjects);
       } finally {
         setSubjectsLoading(false);
       }
@@ -263,7 +284,7 @@ export default function SignUpPage() {
   }
 
   // Show error state if subjects failed to load
-  if (subjectsError) {
+  if (subjectsError && subjects.length === 0) {
     return (
       <main>
         <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
@@ -326,14 +347,21 @@ export default function SignUpPage() {
                     />
                   </Group>
 
-                  <DatePickerInput
-                    label="Birthdate"
-                    placeholder="Select your birthdate"
-                    required
-                    minDate={new Date(new Date().setFullYear(new Date().getFullYear() - 100))}
-                    maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 13))}
-                    {...form.getInputProps("birthdate")}
-                  />
+                  <Stack gap={4}>
+                    <Text size="sm" fw={500}>
+                      Birthdate
+                    </Text>
+                    <Stack gap={4}>
+                      <Text size="sm" fw={500}>
+                        Select your birthdate
+                      </Text>
+                      <DatePicker
+                        minDate={new Date(new Date().setFullYear(new Date().getFullYear() - 100))}
+                        maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 13))}
+                        {...form.getInputProps("birthdate")}
+                      />
+                    </Stack>
+                  </Stack>
 
                   <TextInput
                     label="Email"
@@ -450,6 +478,11 @@ export default function SignUpPage() {
                         searchable
                         {...form.getInputProps("subjects")}
                       />
+                      {subjectsError && (
+                        <Text size="xs" c="red">
+                          {subjectsError}
+                        </Text>
+                      )}
 
                       <TextInput
                         label="Parent/Guardian Email"

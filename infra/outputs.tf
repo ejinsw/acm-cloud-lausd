@@ -47,9 +47,20 @@ output "websocket_ecr_repository_url" {
 output "ecs_cluster_id" {
   value = module.ecs.cluster_id
 }
-output "alb_dns_name" {
-  value = module.ecs.alb_dns_name
+
+output "api_gateway_endpoint" {
+  description = "API Gateway HTTP API endpoint URL (HTTPS enabled)"
+  value       = module.api_gateway.stage_invoke_url
 }
+
+output "api_gateway_id" {
+  description = "API Gateway HTTP API ID"
+  value       = module.api_gateway.api_id
+}
+
+# Note: WebSocket routes are now handled by HTTP API Gateway at /ws/*
+# WebSocket API Gateway doesn't support VPC Links, so we use HTTP API Gateway
+# for WebSocket endpoints (HTTP only, not true WebSocket protocol upgrades)
 
 output "admin_access_key_id" {
   description = "AWS Access Key ID for Cognito admin operations"

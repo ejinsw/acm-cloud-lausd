@@ -1,6 +1,7 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
+import { zoomService } from '../services/zoomService';
 
 // Types
 interface SessionData {
@@ -148,7 +149,6 @@ export const createSession = expressAsyncHandler(
       description,
       startTime,
       endTime,
-      zoomLink,
       maxAttendees,
       materials,
       objectives,
@@ -161,17 +161,10 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
-    // Validate all required fields
-    if (
-      !description ||
-      !startTime ||
-      !endTime ||
-      !zoomLink ||
-      !maxAttendees
-    ) {
+    // Validate all required fields (removed zoomLink requirement - we'll create it)
+    if (!description || !startTime || !endTime || !maxAttendees) {
       res.status(400).json({
-        message:
-          'Missing required fields: description, startTime, endTime, zoomLink, and maxAttendees',
+        message: 'Missing required fields: description, startTime, endTime, and maxAttendees',
       });
       return;
     }
@@ -254,13 +247,56 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
+    // Check if instructor has Zoom connected - REQUIRED for session creation
+    const instructor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        zoomAccessToken: true,
+        zoomTokenExpiresAt: true,
+      },
+    });
+
+    if (
+      !instructor?.zoomAccessToken ||
+      !instructor?.zoomTokenExpiresAt ||
+      new Date() >= instructor.zoomTokenExpiresAt
+    ) {
+      res.status(400).json({
+        message: 'Zoom account not connected. Please connect your Zoom account first.',
+        needsZoomConnection: true,
+      });
+      return;
+    }
+
+    // Create Zoom meeting - REQUIRED for embedded video
+    let zoomMeeting;
+    try {
+      zoomMeeting = await zoomService.createMeeting({
+        topic: name,
+        startTime: startTime ? new Date(startTime).toISOString() : new Date().toISOString(),
+        duration:
+          endTime && startTime
+            ? Math.ceil((new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60)) // duration in minutes
+            : 60, // default 60 minutes
+        instructorEmail: instructor.email,
+      });
+    } catch (error: any) {
+      console.error('Failed to create Zoom meeting:', error);
+      res.status(500).json({
+        message: 'Failed to create Zoom meeting. Please try again.',
+        error: error.message,
+      });
+      return;
+    }
+
     const session = await prisma.session.create({
       data: {
         name,
         description,
         startTime: startTime ? new Date(startTime) : undefined,
         endTime: endTime ? new Date(endTime) : undefined,
-        zoomLink,
+        zoomLink: zoomMeeting.join_url, // Always use our created Zoom meeting
         maxAttendees,
         materials: materials || [],
         objectives: objectives || [],
@@ -275,7 +311,15 @@ export const createSession = expressAsyncHandler(
       },
     });
 
-    res.status(201).json({ session });
+    res.status(201).json({
+      session,
+      zoomMeeting: {
+        id: zoomMeeting.id,
+        joinUrl: zoomMeeting.join_url,
+        startUrl: zoomMeeting.start_url,
+      },
+      message: 'Session created with embedded Zoom meeting',
+    });
   }
 );
 
@@ -426,6 +470,32 @@ export const updateSession = expressAsyncHandler(
       return;
     }
 
+    // Update Zoom meeting if session has one and time/name changed
+    try {
+      if (session.zoomLink && (data.startTime || data.name)) {
+        const meetingId = session.zoomLink.includes('zoom.us')
+          ? session.zoomLink.split('/').pop()
+          : session.zoomLink;
+
+        if (meetingId) {
+          await zoomService.updateMeeting(meetingId, {
+            topic: data.name,
+            startTime: data.startTime,
+            duration:
+              data.endTime && data.startTime
+                ? Math.ceil(
+                    (new Date(data.endTime).getTime() - new Date(data.startTime).getTime()) /
+                      (1000 * 60)
+                  )
+                : undefined,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update Zoom meeting:', error);
+      // Continue with session update even if Zoom fails
+    }
+
     const updatedSession = await prisma.session.update({
       where: { id },
       data,
@@ -462,6 +532,22 @@ export const deleteSession = expressAsyncHandler(
     if (session.instructorId !== userId) {
       res.status(403).json({ message: 'You do not have permission to delete this session' });
       return;
+    }
+
+    // Delete Zoom meeting if session has one
+    try {
+      if (session.zoomLink) {
+        const meetingId = session.zoomLink.includes('zoom.us')
+          ? session.zoomLink.split('/').pop()
+          : session.zoomLink;
+
+        if (meetingId) {
+          await zoomService.deleteMeeting(meetingId);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete Zoom meeting:', error);
+      // Continue with session deletion even if Zoom fails
     }
 
     await prisma.session.delete({ where: { id } });
@@ -635,8 +721,8 @@ export const createSessionRequest = expressAsyncHandler(async (req: Request, res
       students: { select: { id: true } },
       sessionRequests: {
         where: { studentId: userId },
-        select: { id: true, status: true, studentId: true }
-      }
+        select: { id: true, status: true, studentId: true },
+      },
     },
   });
 
@@ -670,15 +756,15 @@ export const createSessionRequest = expressAsyncHandler(async (req: Request, res
         select: {
           id: true,
           name: true,
-          instructor: { select: { id: true, firstName: true, lastName: true, email: true } }
-        }
-      }
+          instructor: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      },
     },
   });
 
-  res.status(201).json({ 
-    message: 'Session request created successfully', 
-    sessionRequest 
+  res.status(201).json({
+    message: 'Session request created successfully',
+    sessionRequest,
   });
 });
 
@@ -705,7 +791,7 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
   if (user.role === 'INSTRUCTOR') {
     // For instructors: get requests for their sessions
     whereClause.session = {
-      instructorId: userId
+      instructorId: userId,
     };
   } else if (user.role === 'STUDENT') {
     // For students: get their own requests
@@ -717,7 +803,7 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
 
   // Get query parameters for filtering (only for instructors)
   const { status, sessionId } = req.query;
-  
+
   // Add status filter if provided
   if (status && ['PENDING', 'ACCEPTED', 'REJECTED'].includes(status as string)) {
     whereClause.status = status;
@@ -732,15 +818,15 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
   const sessionRequests = await prisma.sessionRequest.findMany({
     where: whereClause,
     include: {
-      student: { 
-        select: { 
-          id: true, 
-          firstName: true, 
-          lastName: true, 
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
           email: true,
           grade: true,
-          schoolName: true
-        } 
+          schoolName: true,
+        },
       },
       session: {
         select: {
@@ -758,29 +844,29 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
               lastName: true,
               email: true,
               profilePicture: true,
-              averageRating: true
-            }
+              averageRating: true,
+            },
           },
           subjects: {
             select: {
               id: true,
               name: true,
-              description: true
-            }
-          }
-        }
-      }
+              description: true,
+            },
+          },
+        },
+      },
     },
     orderBy: {
-      createdAt: 'desc'
-    }
+      createdAt: 'desc',
+    },
   });
 
-  res.status(200).json({ 
-    message: 'Session requests retrieved successfully', 
+  res.status(200).json({
+    message: 'Session requests retrieved successfully',
     sessionRequests,
     count: sessionRequests.length,
-    userRole: user.role
+    userRole: user.role,
   });
 });
 
@@ -799,12 +885,14 @@ export const deleteSessionRequest = expressAsyncHandler(async (req: Request, res
   });
 
   if (user?.sessionRequests.length === 0) {
-    res.status(404).json({ message: 'Session request not found or you do not have permission to delete it' });
+    res
+      .status(404)
+      .json({ message: 'Session request not found or you do not have permission to delete it' });
     return;
   }
 
   const deletedRequest = await prisma.sessionRequest.delete({
-    where: { id: id }
+    where: { id: id },
   });
 
   res.status(200).json({ message: 'Session request deleted successfully', deletedRequest });
@@ -835,8 +923,8 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
     where: {
       id: id,
       session: {
-        instructorId: userId
-      }
+        instructorId: userId,
+      },
     },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -845,46 +933,57 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
           id: true,
           name: true,
           maxAttendees: true,
-          students: { select: { id: true } }
-        }
-      }
-    }
+          students: { select: { id: true } },
+        },
+      },
+    },
   });
 
   if (!sessionRequest) {
-    res.status(404).json({ message: 'Session request not found or you do not have permission to accept it' });
+    res
+      .status(404)
+      .json({ message: 'Session request not found or you do not have permission to accept it' });
     return;
   }
 
   // Allow accepting both PENDING and REJECTED requests
   if (sessionRequest.status !== 'PENDING' && sessionRequest.status !== 'REJECTED') {
-    res.status(400).json({ message: 'Session request cannot be accepted. Only pending or rejected requests can be accepted.' });
+    res.status(400).json({
+      message:
+        'Session request cannot be accepted. Only pending or rejected requests can be accepted.',
+    });
     return;
   }
 
   // Check if session is at maximum capacity (only for new students)
-  if (sessionRequest.status === 'PENDING' && sessionRequest.session.maxAttendees && 
-      sessionRequest.session.students.length >= sessionRequest.session.maxAttendees) {
+  if (
+    sessionRequest.status === 'PENDING' &&
+    sessionRequest.session.maxAttendees &&
+    sessionRequest.session.students.length >= sessionRequest.session.maxAttendees
+  ) {
     res.status(400).json({ message: 'Session is at maximum capacity' });
     return;
   }
 
   // Check if student is already in the session (only for new students)
-  if (sessionRequest.status === 'PENDING' && sessionRequest.session.students.some(student => student.id === sessionRequest.student.id)) {
+  if (
+    sessionRequest.status === 'PENDING' &&
+    sessionRequest.session.students.some(student => student.id === sessionRequest.student.id)
+  ) {
     res.status(400).json({ message: 'Student is already a member of this session' });
     return;
   }
 
   // Use a transaction to update request status and manage student enrollment
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async tx => {
     // Update session request status to accepted
     const updatedRequest = await tx.sessionRequest.update({
       where: { id: id },
       data: { status: 'ACCEPTED' },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, email: true } },
-        session: { select: { id: true, name: true } }
-      }
+        session: { select: { id: true, name: true } },
+      },
     });
 
     let updatedSession = null;
@@ -895,14 +994,14 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
         where: { id: sessionRequest.session.id },
         data: {
           students: {
-            connect: { id: sessionRequest.student.id }
-          }
+            connect: { id: sessionRequest.student.id },
+          },
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
           subjects: true,
-          students: { select: { id: true, firstName: true, lastName: true } }
-        }
+          students: { select: { id: true, firstName: true, lastName: true } },
+        },
       });
     } else if (sessionRequest.status === 'REJECTED') {
       // Re-add previously rejected student to session
@@ -910,26 +1009,27 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
         where: { id: sessionRequest.session.id },
         data: {
           students: {
-            connect: { id: sessionRequest.student.id }
-          }
+            connect: { id: sessionRequest.student.id },
+          },
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
           subjects: true,
-          students: { select: { id: true, firstName: true, lastName: true } }
-        }
+          students: { select: { id: true, firstName: true, lastName: true } },
+        },
       });
     }
 
     return { updatedRequest, updatedSession };
   });
 
-  res.status(200).json({ 
-    message: sessionRequest.status === 'PENDING' 
-      ? 'Session request accepted successfully'
-      : 'Student re-added to session successfully',
+  res.status(200).json({
+    message:
+      sessionRequest.status === 'PENDING'
+        ? 'Session request accepted successfully'
+        : 'Student re-added to session successfully',
     sessionRequest: result.updatedRequest,
-    session: result.updatedSession
+    session: result.updatedSession,
   });
 });
 
@@ -958,42 +1058,47 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
     where: {
       id: id,
       session: {
-        instructorId: userId
-      }
+        instructorId: userId,
+      },
     },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, email: true } },
-      session: { 
-        select: { 
-          id: true, 
+      session: {
+        select: {
+          id: true,
           name: true,
-          students: { select: { id: true } }
-        } 
-      }
-    }
+          students: { select: { id: true } },
+        },
+      },
+    },
   });
 
   if (!sessionRequest) {
-    res.status(404).json({ message: 'Session request not found or you do not have permission to reject it' });
+    res
+      .status(404)
+      .json({ message: 'Session request not found or you do not have permission to reject it' });
     return;
   }
 
   // Allow rejecting both PENDING and ACCEPTED requests
   if (sessionRequest.status !== 'PENDING' && sessionRequest.status !== 'ACCEPTED') {
-    res.status(400).json({ message: 'Session request cannot be rejected. Only pending or accepted requests can be rejected.' });
+    res.status(400).json({
+      message:
+        'Session request cannot be rejected. Only pending or accepted requests can be rejected.',
+    });
     return;
   }
 
   // Use a transaction to update request status and manage student enrollment
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async tx => {
     // Update session request status to rejected
     const updatedRequest = await tx.sessionRequest.update({
       where: { id: id },
       data: { status: 'REJECTED' },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, email: true } },
-        session: { select: { id: true, name: true } }
-      }
+        session: { select: { id: true, name: true } },
+      },
     });
 
     // If the request was previously accepted, remove the student from the session
@@ -1002,14 +1107,14 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
         where: { id: sessionRequest.session.id },
         data: {
           students: {
-            disconnect: { id: sessionRequest.student.id }
-          }
+            disconnect: { id: sessionRequest.student.id },
+          },
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
           subjects: true,
-          students: { select: { id: true, firstName: true, lastName: true } }
-        }
+          students: { select: { id: true, firstName: true, lastName: true } },
+        },
       });
 
       return { updatedRequest, updatedSession };
@@ -1018,12 +1123,13 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
     return { updatedRequest, updatedSession: null };
   });
 
-  res.status(200).json({ 
-    message: sessionRequest.status === 'ACCEPTED' 
-      ? 'Student removed from session and request rejected successfully'
-      : 'Session request rejected successfully',
+  res.status(200).json({
+    message:
+      sessionRequest.status === 'ACCEPTED'
+        ? 'Student removed from session and request rejected successfully'
+        : 'Session request rejected successfully',
     sessionRequest: result.updatedRequest,
-    session: result.updatedSession
+    session: result.updatedSession,
   });
 });
 
@@ -1056,23 +1162,27 @@ export const startSession = expressAsyncHandler(async (req: Request, res: Respon
   const session = await prisma.session.findFirst({
     where: {
       id: id,
-      instructorId: userId
+      instructorId: userId,
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true
-    }
+      subjects: true,
+    },
   });
 
   if (!session) {
-    res.status(404).json({ message: 'Session not found or you do not have permission to start it' });
+    res
+      .status(404)
+      .json({ message: 'Session not found or you do not have permission to start it' });
     return;
   }
 
   // Check if session is in SCHEDULED status
   if (session.status !== 'SCHEDULED') {
-    res.status(400).json({ message: 'Session cannot be started. Only scheduled sessions can be started.' });
+    res
+      .status(400)
+      .json({ message: 'Session cannot be started. Only scheduled sessions can be started.' });
     return;
   }
 
@@ -1085,20 +1195,20 @@ export const startSession = expressAsyncHandler(async (req: Request, res: Respon
   // Update session status to IN_PROGRESS
   const updatedSession = await prisma.session.update({
     where: { id: id },
-    data: { 
+    data: {
       status: 'IN_PROGRESS',
-      startTime: new Date() // Set actual start time when session begins
+      startTime: new Date(), // Set actual start time when session begins
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true
-    }
+      subjects: true,
+    },
   });
 
-  res.status(200).json({ 
+  res.status(200).json({
     message: 'Session started successfully',
-    session: updatedSession
+    session: updatedSession,
   });
 });
 
@@ -1132,13 +1242,13 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
   const session = await prisma.session.findFirst({
     where: {
       id: id,
-      instructorId: userId
+      instructorId: userId,
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true
-    }
+      subjects: true,
+    },
   });
 
   if (!session) {
@@ -1148,22 +1258,24 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
 
   // Check if session is in IN_PROGRESS status
   if (session.status !== 'IN_PROGRESS') {
-    res.status(400).json({ message: 'Session cannot be stopped. Only sessions in progress can be stopped.' });
+    res
+      .status(400)
+      .json({ message: 'Session cannot be stopped. Only sessions in progress can be stopped.' });
     return;
   }
 
   // Update session status to COMPLETED and set end time
   const updatedSession = await prisma.session.update({
     where: { id: id },
-    data: { 
+    data: {
       status: 'COMPLETED',
-      endTime: new Date() // Set actual end time when session ends
+      endTime: new Date(), // Set actual end time when session ends
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true
-    }
+      subjects: true,
+    },
   });
 
   // TODO: Store session notes in a separate table if needed
@@ -1172,8 +1284,86 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
     console.log(`Session ${id} notes: ${notes}`);
   }
 
-  res.status(200).json({ 
+  res.status(200).json({
     message: 'Session completed successfully',
-    session: updatedSession
+    session: updatedSession,
   });
 });
+
+/**
+ * Get Zoom SDK token for joining a session
+ * @route GET /sessions/:id/zoom-token
+ * @access Private
+ */
+export const getZoomToken = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.user as { sub: string })?.sub;
+    const { id } = req.params;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    // Get session details
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        instructor: { select: { id: true, firstName: true, lastName: true, email: true } },
+        students: { select: { id: true } },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ message: 'Session not found' });
+      return;
+    }
+
+    // Check if user is authorized to join (instructor or enrolled student)
+    const isInstructor = session.instructorId === userId;
+    const isStudent = session.students.some(student => student.id === userId);
+
+    if (!isInstructor && !isStudent) {
+      res.status(403).json({ message: 'You are not authorized to join this session' });
+      return;
+    }
+
+    // Check if session has a Zoom meeting ID
+    if (!session.zoomLink) {
+      res.status(400).json({ message: 'Session does not have a Zoom meeting' });
+      return;
+    }
+
+    try {
+      // Extract meeting ID from zoomLink (our created meeting)
+      const meetingId = session.zoomLink.includes('zoom.us')
+        ? session.zoomLink.split('/').pop()
+        : session.zoomLink;
+
+      if (!meetingId) {
+        res.status(400).json({ message: 'Invalid Zoom meeting ID' });
+        return;
+      }
+
+      // Determine user role for Zoom
+      const role = isInstructor ? 'host' : 'participant';
+
+      // Generate SDK token for embedded video
+      const sdkData = await zoomService.generateSDKToken(meetingId, role);
+
+      res.json({
+        success: true,
+        sdkData,
+        meetingId,
+        role,
+        sessionName: session.name,
+      });
+    } catch (error: any) {
+      console.error('Zoom SDK token error:', error);
+      res.status(500).json({
+        message: 'Failed to generate Zoom token',
+        error: error.message,
+      });
+    }
+  }
+);

@@ -12,6 +12,9 @@ export async function POST() {
 
     // Call the backend API to refresh the token
     const apiUrl = process.env.NODE_ENV === 'development' ? 'http://backend:8080' : process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl) {
+      return NextResponse.json({ error: 'API URL not configured' }, { status: 500 });
+    }
     const response = await fetch(`${apiUrl}/api/auth/refresh`, {
       method: 'POST',
       headers: {

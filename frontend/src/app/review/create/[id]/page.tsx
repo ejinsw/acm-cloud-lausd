@@ -67,7 +67,7 @@ export default function CreateReviewPage() {
           return;
         }
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/session-history/${sessionHistoryItemId}`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/session-history/${sessionHistoryItemId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ export default function CreateReviewPage() {
         throw new Error("Authentication required");
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'}/api/reviews`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

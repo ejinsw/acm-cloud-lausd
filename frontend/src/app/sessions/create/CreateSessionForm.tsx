@@ -47,7 +47,6 @@ interface SessionData {
   materials: string[];
   topics: string[];
   tags: string[];
-  zoomLink: string;
 }
 
 interface Block {
@@ -79,7 +78,6 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
     materials: [],
     topics: [],
     tags: [],
-    zoomLink: "",
   });
 
   const [blocks, setBlocks] = useState<Block[]>([
@@ -118,7 +116,6 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
         materials: existingSession.materials || [],
         topics: [], // Not in session model
         tags: [], // Not in session model
-        zoomLink: existingSession.zoomLink || "",
       });
     }
   }, [mode, existingSession]);
@@ -324,7 +321,6 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
         description: sessionData.description,
         startTime: sessionTimes.startTime.toISOString(),
         endTime: sessionTimes.endTime.toISOString(),
-        zoomLink: sessionData.zoomLink || 'https://zoom.us/j/placeholder',
         maxAttendees: sessionData.maxAttendees,
         materials: sessionData.materials,
         objectives: sessionData.objectives,
@@ -568,21 +564,16 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
               </div>
             ))}
             
-            {/* Zoom Link Input */}
+            {/* Zoom Integration Info */}
             <Paper p="lg" radius="md" withBorder>
               <Stack gap="md">
                 <Group gap="xs">
                   <Video size={18} color="#228BE6" />
-                  <Text size="sm" fw={500}>Meeting Link</Text>
+                  <Text size="sm" fw={500}>Video Meeting</Text>
                 </Group>
-                <TextInput
-                  placeholder="https://zoom.us/j/..."
-                  value={sessionData.zoomLink}
-                  onChange={(e) => updateSessionData({ zoomLink: e.target.value })}
-                  leftSection={<Video size={16} />}
-                />
                 <Text size="xs" c="dimmed">
-                  Add your Zoom, Google Meet, or other meeting link
+                  Zoom meetings will be automatically created for your sessions. 
+                  Make sure you have connected your Zoom account in the dashboard.
                 </Text>
               </Stack>
             </Paper>

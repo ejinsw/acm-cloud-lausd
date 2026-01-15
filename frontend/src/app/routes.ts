@@ -14,6 +14,7 @@ export const routes = {
   studentDashboard: "/dashboard/student",
   instructorDashboard: "/dashboard/instructor",
   adminDashboard: "/dashboard/admin",
+  dashboard: (role: string) => role === "admin" ? "/dashboard/admin" : role === "instructor" ? "/dashboard/instructor" : "/dashboard/student",
 
   // Session routes
   exploreSessions: "/sessions/explore",
@@ -42,6 +43,7 @@ export const routes = {
   // Legal
   terms: "/legal/terms",
   privacy: "/legal/privacy",
+  history: "/history",
 };
 
 // Type for the routes object

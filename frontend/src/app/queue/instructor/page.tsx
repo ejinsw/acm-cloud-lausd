@@ -18,7 +18,6 @@ import {
   ScrollArea,
   ActionIcon,
   Tooltip,
-  Notification,
 } from "@mantine/core";
 import {
   IconArrowLeft,

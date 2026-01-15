@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
 import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { spawn } from 'child_process';
 
 const prisma = new PrismaClient();
 
@@ -688,3 +689,128 @@ export const confirmUserAccount = expressAsyncHandler(
     }
   }
 );
+
+// Run database migrations
+export const runMigrations = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      console.log('Starting database migration...');
+      
+      // Run Prisma migrate deploy using spawn for better error handling
+      // Note: Prisma doesn't provide a migration API in the SDK,
+      // so we use the CLI command which is the recommended approach
+      const output: string[] = [];
+      const errors: string[] = [];
+
+      await new Promise<void>((resolve, reject) => {
+        // Use the prisma schema path explicitly
+        const schemaPath = process.env.PRISMA_SCHEMA_PATH || './prisma/schema.prisma';
+        const child = spawn('npx', ['prisma', 'migrate', 'deploy', '--schema', schemaPath], {
+          cwd: process.cwd(),
+          env: process.env,
+          shell: true,
+        });
+
+        child.stdout?.on('data', (data) => {
+          const text = data.toString();
+          output.push(text);
+          console.log(text);
+        });
+
+        child.stderr?.on('data', (data) => {
+          const text = data.toString();
+          errors.push(text);
+          console.error(text);
+        });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Migration failed with exit code ${code}`));
+          }
+        });
+
+        child.on('error', (error) => {
+          reject(error);
+        });
+      });
+
+      const outputText = output.join('');
+      const errorText = errors.join('');
+
+      console.log('Migration completed successfully');
+
+      res.status(200).json({ 
+        message: 'Database migrations completed successfully',
+        output: outputText,
+        errors: errorText || undefined,
+      });
+    } catch (error: any) {
+      console.error('Error running migrations:', error);
+      res.status(500).json({ 
+        message: 'Failed to run migrations', 
+        error: error.message || String(error)
+      });
+    }
+  }
+);
+
+export const initializeDB = expressAsyncHandler(async (req, res) => {
+  try {
+    // Subjects to seed if they don't exist
+    const defaultSubjects = [
+      {
+        name: "Mathematics",
+        description: "The study of quantities, structures, space, and change.",
+        category: "Science",
+        level: "Beginner"
+      },
+      {
+        name: "Physics",
+        description: "The fundamental science of matter, energy, and their interactions.",
+        category: "Science",
+        level: "Intermediate"
+      },
+      {
+        name: "Chemistry",
+        description: "Composition, structure, properties, and change of matter.",
+        category: "Science",
+        level: "Intermediate"
+      },
+      {
+        name: "Biology",
+        description: "The science of life and living organisms.",
+        category: "Science",
+        level: "Beginner"
+      },
+      {
+        name: "English",
+        description: "Study of the English language and literature.",
+        category: "Language",
+        level: "Beginner"
+      }
+    ];
+
+    // For each subject, check if it exists — if not, create it
+    for (const subj of defaultSubjects) {
+      const exists = await prisma.subject.findFirst({
+        where: { name: subj.name }
+      });
+
+      if (!exists) {
+        await prisma.subject.create({ data: subj });
+      }
+    }
+
+    res.status(200).json({
+      message: "Subjects initialized (created if they did not already exist)"
+    });
+  } catch (error: any) {
+    console.error("Error initializing DB subjects:", error);
+    res.status(500).json({
+      message: "Failed to initialize database subjects",
+      error: error.message || String(error)
+    });
+  }
+});

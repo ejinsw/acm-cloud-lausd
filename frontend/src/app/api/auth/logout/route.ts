@@ -10,13 +10,15 @@ export async function POST() {
     if (accessToken) {
       try {
         const apiUrl = process.env.NODE_ENV === 'development' ? 'http://backend:8080' : process.env.NEXT_PUBLIC_API_URL;
-        await fetch(`${apiUrl}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        if (apiUrl) {
+          await fetch(`${apiUrl}/api/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+        }
       } catch (error) {
         // Ignore backend logout errors, we still want to clear local tokens
         console.warn('Backend logout failed:', error);

@@ -13,7 +13,6 @@ variable "execution_role_arn" {}
 variable "task_role_arn" {}
 variable "public_subnet_ids" { type = list(string) }
 variable "fargate_sg_id" {}
-variable "alb_sg_id" {}
 variable "api_desired_count" { default = 0 }
 variable "websocket_desired_count" { default = 0 }
 variable "vpc_id" {} 

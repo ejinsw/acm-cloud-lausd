@@ -12,3 +12,24 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Responsive padding for bottom navigation */
+@media (min-width: 768px) {
+  .main-content {
+    padding-bottom: var(--mantine-spacing-md) !important;
+  }
+}
+
+/* Smooth sidebar transitions */
+[data-mantine-navbar] {
+  transition: width 0.3s ease !important;
+}
+
+/* Improved nav link hover effects */
+[data-mantine-navbar] [data-nav-link] {
+  transition: all 0.2s ease !important;
+}
+
+[data-mantine-navbar] [data-nav-link]:hover {
+  transform: translateX(2px);
+}

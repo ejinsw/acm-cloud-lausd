@@ -20,6 +20,9 @@ export async function GET() {
         // Token is expired, try to refresh
         if (refreshToken) {
           const apiUrl = process.env.NODE_ENV === 'development' ? 'http://backend:8080' : process.env.NEXT_PUBLIC_API_URL;
+          if (!apiUrl) {
+            throw new Error('NEXT_PUBLIC_API_URL is not set');
+          }
           const refreshResponse = await fetch(`${apiUrl}/api/auth/refresh`, {
             method: 'POST',
             headers: {

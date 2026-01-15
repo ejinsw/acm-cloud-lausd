@@ -1,6 +1,8 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { cognito } from '../lib/cognitoSDK';
 
 const prisma = new PrismaClient();
 
@@ -542,21 +544,105 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
  * @access Private
  */
 export const deleteUser = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement delete user
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401).json({ message: 'Unauthorized' });
     return;
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+  const existingUser = await prisma.user.findUnique({ 
+    where: { id: userId },
+    select: { id: true, email: true, role: true }
+  });
 
   if (!existingUser) {
     res.status(404).json({ message: 'User not found' });
     return;
   }
-  await prisma.user.delete({ where: { id: userId } });
-  res.status(200).json({ message: 'User deleted successfully' });
+
+  try {
+    // Use transaction to ensure all deletions succeed or rollback
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete reviews where user is owner
+      await tx.review.deleteMany({
+        where: { ownerId: userId }
+      });
+      
+      // 2. Delete reviews where user is recipient
+      await tx.review.deleteMany({
+        where: { recipientId: userId }
+      });
+
+      // 2. Handle sessions
+      if (existingUser.role === 'INSTRUCTOR') {
+        // If instructor, remove students from sessions and delete sessions
+        const instructorSessions = await tx.session.findMany({
+          where: { instructorId: userId },
+          select: { id: true }
+        });
+
+        // Remove all students from these sessions
+        for (const session of instructorSessions) {
+          await tx.session.update({
+            where: { id: session.id },
+            data: { students: { set: [] } }
+          });
+        }
+
+        // Delete the sessions (session requests will cascade)
+        await tx.session.deleteMany({
+          where: { instructorId: userId }
+        });
+      } else if (existingUser.role === 'STUDENT') {
+        // If student, remove from sessions they're enrolled in
+        const studentSessions = await tx.session.findMany({
+          where: {
+            students: {
+              some: { id: userId }
+            }
+          },
+          select: { id: true }
+        });
+
+        // Remove student from each session
+        for (const session of studentSessions) {
+          await tx.session.update({
+            where: { id: session.id },
+            data: {
+              students: {
+                disconnect: { id: userId }
+              }
+            }
+          });
+        }
+      }
+
+      // 3. Delete user from database (cascades will handle: SessionHistoryItems, SessionRequests, StudentQueues)
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    // 4. Delete from Cognito (outside transaction since it's external service)
+    try {
+      const deleteCommand = new AdminDeleteUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: existingUser.email,
+      });
+      await cognito.send(deleteCommand);
+      console.log('Successfully deleted user from Cognito');
+    } catch (cognitoError: any) {
+      console.error('Failed to delete user from Cognito:', cognitoError);
+      // Don't fail the request if Cognito deletion fails - user is already deleted from DB
+      // This can happen if user was already deleted or Cognito is unavailable
+    }
+
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ 
+      message: 'Failed to delete user account',
+      error: error.message 
+    });
+  }
 });
 
 /**

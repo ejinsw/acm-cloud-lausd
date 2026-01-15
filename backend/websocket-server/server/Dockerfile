@@ -23,6 +23,7 @@ RUN npm ci --only=production
 
 # Copy source code and node_modules
 COPY --from=builder /app/index.js ./
+COPY --from=builder /app/daxSTORE.js ./
 COPY --from=builder /app/node_modules ./node_modules
 
 # Expose the WebSocket port (will be overridden by environment variable)

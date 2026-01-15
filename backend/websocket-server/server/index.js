@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { Profanity, CensorType } = require('@2toad/profanity');
 const dotenv = require('dotenv');
-const store = require('./daxStore');
+const store = require('./daxSTORE');
 
 dotenv.config();
 
@@ -239,7 +239,9 @@ async function joinRoom(ws, roomId, user) {
     ws
   );
 
-  console.log(`${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type}) joined room: ${roomState.name}`);
+  console.log(
+    `${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type}) joined room: ${roomState.name}`
+  );
   await pushRoomListUpdate();
 }
 
@@ -282,11 +284,7 @@ async function leaveRoom(ws, roomId, userId, sendYouLeftNotification = true) {
     currentEntry.currentRoomId = null;
   }
 
-  if (
-    sendYouLeftNotification &&
-    targetSocket &&
-    targetSocket.readyState === WebSocket.OPEN
-  ) {
+  if (sendYouLeftNotification && targetSocket && targetSocket.readyState === WebSocket.OPEN) {
     targetSocket.send(JSON.stringify({ type: 'YOU_LEFT_ROOM', payload: { roomId } }));
   }
 
@@ -295,7 +293,9 @@ async function leaveRoom(ws, roomId, userId, sendYouLeftNotification = true) {
       type: 'USER_LEFT',
       payload: { roomId, userId: departingInfo.id, username: departingInfo.username },
     });
-    console.log(`${departingInfo.username} (ID: ${departingInfo.id}) left room: ${roomState?.name || roomId}`);
+    console.log(
+      `${departingInfo.username} (ID: ${departingInfo.id}) left room: ${roomState?.name || roomId}`
+    );
   }
 
   const updatedRoom = await store.getRoom(roomId);
@@ -463,7 +463,9 @@ async function kickUser(ws, roomId, userIdToKick) {
     },
     kickedUserSocket
   );
-  console.log(`${kickedUserInfo.username} kicked from ${roomState.name} by ${requesterInfo.username}`);
+  console.log(
+    `${kickedUserInfo.username} kicked from ${roomState.name} by ${requesterInfo.username}`
+  );
 }
 
 async function handleIdentify(ws, payload) {
@@ -497,7 +499,8 @@ async function handleIdentify(ws, payload) {
         JSON.stringify({
           type: 'ERROR',
           payload: {
-            message: 'You have logged in from another location. This session is being disconnected.',
+            message:
+              'You have logged in from another location. This session is being disconnected.',
           },
         })
       );

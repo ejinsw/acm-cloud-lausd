@@ -1,11 +1,78 @@
 const AWS = require('aws-sdk');
-const AmazonDaxClient = require('amazon-dax-client');
 
 const region = process.env.AWS_REGION || 'us-west-1';
-const daxEndpoint = process.env.DAX_ENDPOINT;
+const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT || process.env.DYNAMODB_LOCAL_ENDPOINT;
+const disableDax =
+  typeof process.env.DISABLE_DAX === 'string' &&
+  ['1', 'true', 'yes'].includes(process.env.DISABLE_DAX.toLowerCase());
+const daxEndpoint = !disableDax && !dynamodbEndpoint ? process.env.DAX_ENDPOINT : undefined;
 
-const daxService = daxEndpoint ? new AmazonDaxClient({ region, endpoints: [daxEndpoint] }) : null;
-const docClient = new AWS.DynamoDB.DocumentClient(daxService ? { service: daxService } : { region });
+let daxService = null;
+if (daxEndpoint) {
+  try {
+    const AmazonDaxClient = require('amazon-dax-client');
+    daxService = new AmazonDaxClient({ region, endpoints: [daxEndpoint] });
+  } catch (error) {
+    console.warn('amazon-dax-client not installed; continuing without DAX');
+  }
+}
+
+const dynamoDocClient = new AWS.DynamoDB.DocumentClient({
+  region,
+  ...(dynamodbEndpoint ? { endpoint: dynamodbEndpoint } : {}),
+});
+const daxDocClient = daxService ? new AWS.DynamoDB.DocumentClient({ service: daxService }) : null;
+
+let daxHealthy = Boolean(daxDocClient);
+let daxFallbackLogged = false;
+
+function isDaxConnectivityError(error) {
+  const code = error?.code || error?.name;
+  const message = String(error?.message || '').toLowerCase();
+  const errno = error?.errno;
+
+  const retryableCodes = new Set(['NetworkingError', 'TimeoutError', 'UnknownEndpoint']);
+  const retryableErrnos = new Set([
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'ENOTFOUND',
+    'ETIMEDOUT',
+    'ECONNRESET',
+  ]);
+
+  if (typeof code === 'string' && retryableCodes.has(code)) return true;
+  if (typeof errno === 'string' && retryableErrnos.has(errno)) return true;
+  if (typeof code === 'string' && retryableErrnos.has(code)) return true;
+  if (
+    message.includes('econnrefused') ||
+    message.includes('enotfound') ||
+    message.includes('timed out')
+  )
+    return true;
+
+  return false;
+}
+
+async function docCall(operation, params) {
+  if (daxHealthy && daxDocClient) {
+    try {
+      return await daxDocClient[operation](params).promise();
+    } catch (error) {
+      if (!isDaxConnectivityError(error)) {
+        throw error;
+      }
+
+      daxHealthy = false;
+      if (!daxFallbackLogged) {
+        daxFallbackLogged = true;
+        console.warn('DAX request failed; falling back to DynamoDB');
+      }
+    }
+  }
+
+  return dynamoDocClient[operation](params).promise();
+}
 
 const tables = {
   rooms: process.env.ROOMS_TABLE_NAME,
@@ -40,28 +107,24 @@ async function batchWriteChunks(tableName, requests) {
   const queue = [...requests];
   while (queue.length) {
     const batch = queue.splice(0, 25);
-    await docClient
-      .batchWrite({
-        RequestItems: {
-          [tableName]: batch,
-        },
-      })
-      .promise();
+    await docCall('batchWrite', {
+      RequestItems: {
+        [tableName]: batch,
+      },
+    });
   }
 }
 
 async function deleteAllRoomItems(tableName, sortKeyName, roomId) {
   let lastKey = null;
   do {
-    const response = await docClient
-      .query({
-        TableName: tableName,
-        KeyConditionExpression: 'roomId = :roomId',
-        ExpressionAttributeValues: { ':roomId': roomId },
-        ProjectionExpression: `roomId, ${sortKeyName}`,
-        ExclusiveStartKey: lastKey || undefined,
-      })
-      .promise();
+    const response = await docCall('query', {
+      TableName: tableName,
+      KeyConditionExpression: 'roomId = :roomId',
+      ExpressionAttributeValues: { ':roomId': roomId },
+      ProjectionExpression: `roomId, ${sortKeyName}`,
+      ExclusiveStartKey: lastKey || undefined,
+    });
     const deleteRequests =
       response.Items?.map(item => ({
         DeleteRequest: {
@@ -80,39 +143,35 @@ async function deleteAllRoomItems(tableName, sortKeyName, roomId) {
 
 async function createRoom({ id, name, ownerId, settings }) {
   const now = Date.now();
-  await docClient
-    .put({
-      TableName: tables.rooms,
-      Item: {
-        roomId: id,
-        name,
-        ownerId,
-        settings,
-        createdAt: now,
-        lastActivity: now,
-        participantCount: 0,
-        messageCount: 0,
-        expiresAt: defaultExpiry(),
-      },
-      ConditionExpression: 'attribute_not_exists(roomId)',
-    })
-    .promise();
+  await docCall('put', {
+    TableName: tables.rooms,
+    Item: {
+      roomId: id,
+      name,
+      ownerId,
+      settings,
+      createdAt: now,
+      lastActivity: now,
+      participantCount: 0,
+      messageCount: 0,
+      expiresAt: defaultExpiry(),
+    },
+    ConditionExpression: 'attribute_not_exists(roomId)',
+  });
   return { roomId: id, name };
 }
 
 async function getRoom(roomId) {
-  const { Item } = await docClient.get({ TableName: tables.rooms, Key: { roomId } }).promise();
+  const { Item } = await docCall('get', { TableName: tables.rooms, Key: { roomId } });
   return Item || null;
 }
 
 async function listRooms() {
-  const results = await docClient
-    .scan({
-      TableName: tables.rooms,
-      ProjectionExpression: 'roomId, #name, participantCount, lastActivity',
-      ExpressionAttributeNames: { '#name': 'name' },
-    })
-    .promise();
+  const results = await docCall('scan', {
+    TableName: tables.rooms,
+    ProjectionExpression: 'roomId, #name, participantCount, lastActivity',
+    ExpressionAttributeNames: { '#name': 'name' },
+  });
   return (results.Items || [])
     .map(item => ({
       id: item.roomId,
@@ -125,62 +184,52 @@ async function listRooms() {
 
 async function addMember(roomId, user) {
   const now = Date.now();
-  await docClient
-    .put({
-      TableName: tables.members,
-      Item: {
-        roomId,
-        userId: user.id,
-        username: user.username,
-        type: user.type,
-        joinedAt: now,
-        expiresAt: defaultExpiry(),
-      },
-      ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(userId)',
-    })
-    .promise()
-    .catch(err => {
-      if (err.code !== 'ConditionalCheckFailedException') throw err;
-    });
+  await docCall('put', {
+    TableName: tables.members,
+    Item: {
+      roomId,
+      userId: user.id,
+      username: user.username,
+      type: user.type,
+      joinedAt: now,
+      expiresAt: defaultExpiry(),
+    },
+    ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(userId)',
+  }).catch(err => {
+    if (err.code !== 'ConditionalCheckFailedException') throw err;
+  });
 
-  await docClient
-    .update({
-      TableName: tables.rooms,
-      Key: { roomId },
-      UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD participantCount :inc',
-      ExpressionAttributeValues: {
-        ':now': now,
-        ':expiresAt': defaultExpiry(),
-        ':inc': 1,
-      },
-    })
-    .promise();
+  await docCall('update', {
+    TableName: tables.rooms,
+    Key: { roomId },
+    UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD participantCount :inc',
+    ExpressionAttributeValues: {
+      ':now': now,
+      ':expiresAt': defaultExpiry(),
+      ':inc': 1,
+    },
+  });
 }
 
 async function removeMember(roomId, userId) {
   const now = Date.now();
-  await docClient
-    .delete({
-      TableName: tables.members,
-      Key: { roomId, userId },
-    })
-    .promise();
+  await docCall('delete', {
+    TableName: tables.members,
+    Key: { roomId, userId },
+  });
 
   try {
-    const result = await docClient
-      .update({
-        TableName: tables.rooms,
-        Key: { roomId },
-        UpdateExpression:
-          'SET lastActivity = :now, expiresAt = :expiresAt ADD participantCount :dec',
-        ExpressionAttributeValues: {
-          ':now': now,
-          ':expiresAt': defaultExpiry(),
-          ':dec': -1,
-        },
-        ReturnValues: 'UPDATED_NEW',
-      })
-      .promise();
+    const result = await docCall('update', {
+      TableName: tables.rooms,
+      Key: { roomId },
+      UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD participantCount :dec',
+      ExpressionAttributeValues: {
+        ':now': now,
+        ':expiresAt': defaultExpiry(),
+        ':dec': -1,
+      },
+      ReturnValues: 'UPDATED_NEW',
+    });
     return Math.max(0, result.Attributes?.participantCount ?? 0);
   } catch (err) {
     if (
@@ -195,13 +244,11 @@ async function removeMember(roomId, userId) {
 }
 
 async function listMembers(roomId) {
-  const results = await docClient
-    .query({
-      TableName: tables.members,
-      KeyConditionExpression: 'roomId = :roomId',
-      ExpressionAttributeValues: { ':roomId': roomId },
-    })
-    .promise();
+  const results = await docCall('query', {
+    TableName: tables.members,
+    KeyConditionExpression: 'roomId = :roomId',
+    ExpressionAttributeValues: { ':roomId': roomId },
+  });
   return (results.Items || []).map(item => ({
     id: item.userId,
     username: item.username,
@@ -213,21 +260,19 @@ async function saveMessage(roomId, message) {
   let sentAt = Date.now();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      await docClient
-        .put({
-          TableName: tables.messages,
-          Item: {
-            roomId,
-            sentAt,
-            messageId: message.id,
-            text: message.text,
-            sender: message.sender,
-            timestamp: sentAt,
-            expiresAt: defaultExpiry(),
-          },
-          ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(sentAt)',
-        })
-        .promise();
+      await docCall('put', {
+        TableName: tables.messages,
+        Item: {
+          roomId,
+          sentAt,
+          messageId: message.id,
+          text: message.text,
+          sender: message.sender,
+          timestamp: sentAt,
+          expiresAt: defaultExpiry(),
+        },
+        ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(sentAt)',
+      });
       break;
     } catch (err) {
       if (err.code === 'ConditionalCheckFailedException') {
@@ -238,32 +283,28 @@ async function saveMessage(roomId, message) {
     }
   }
 
-  const updateResult = await docClient
-    .update({
-      TableName: tables.rooms,
-      Key: { roomId },
-      UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD messageCount :inc',
-      ExpressionAttributeValues: {
-        ':now': sentAt,
-        ':expiresAt': defaultExpiry(),
-        ':inc': 1,
-      },
-      ReturnValues: 'UPDATED_NEW',
-    })
-    .promise();
+  const updateResult = await docCall('update', {
+    TableName: tables.rooms,
+    Key: { roomId },
+    UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD messageCount :inc',
+    ExpressionAttributeValues: {
+      ':now': sentAt,
+      ':expiresAt': defaultExpiry(),
+      ':inc': 1,
+    },
+    ReturnValues: 'UPDATED_NEW',
+  });
 
   const messageCount = updateResult.Attributes?.messageCount || 0;
   if (messageCount > 200) {
-    const oldest = await docClient
-      .query({
-        TableName: tables.messages,
-        KeyConditionExpression: 'roomId = :roomId',
-        ExpressionAttributeValues: { ':roomId': roomId },
-        Limit: messageCount - 200,
-        ScanIndexForward: true,
-        ProjectionExpression: 'roomId, sentAt',
-      })
-      .promise();
+    const oldest = await docCall('query', {
+      TableName: tables.messages,
+      KeyConditionExpression: 'roomId = :roomId',
+      ExpressionAttributeValues: { ':roomId': roomId },
+      Limit: messageCount - 200,
+      ScanIndexForward: true,
+      ProjectionExpression: 'roomId, sentAt',
+    });
     if (oldest.Items?.length) {
       const deleteRequests = oldest.Items.map(item => ({
         DeleteRequest: {
@@ -271,29 +312,25 @@ async function saveMessage(roomId, message) {
         },
       }));
       await batchWriteChunks(tables.messages, deleteRequests);
-      await docClient
-        .update({
-          TableName: tables.rooms,
-          Key: { roomId },
-          UpdateExpression: 'SET messageCount = :target',
-          ExpressionAttributeValues: { ':target': 200 },
-        })
-        .promise();
+      await docCall('update', {
+        TableName: tables.rooms,
+        Key: { roomId },
+        UpdateExpression: 'SET messageCount = :target',
+        ExpressionAttributeValues: { ':target': 200 },
+      });
     }
   }
   return { ...message, timestamp: sentAt };
 }
 
 async function fetchMessages(roomId, limit = 50) {
-  const results = await docClient
-    .query({
-      TableName: tables.messages,
-      KeyConditionExpression: 'roomId = :roomId',
-      ExpressionAttributeValues: { ':roomId': roomId },
-      Limit: limit,
-      ScanIndexForward: false,
-    })
-    .promise();
+  const results = await docCall('query', {
+    TableName: tables.messages,
+    KeyConditionExpression: 'roomId = :roomId',
+    ExpressionAttributeValues: { ':roomId': roomId },
+    Limit: limit,
+    ScanIndexForward: false,
+  });
   return (results.Items || [])
     .map(item => ({
       id: item.messageId,
@@ -306,83 +343,72 @@ async function fetchMessages(roomId, limit = 50) {
 }
 
 async function deleteMessage(roomId, messageId) {
-  const lookup = await docClient
-    .query({
-      TableName: tables.messages,
-      IndexName: 'messageId',
-      KeyConditionExpression: 'messageId = :messageId',
-      ExpressionAttributeValues: { ':messageId': messageId },
-      Limit: 1,
-    })
-    .promise();
+  const lookup = await docCall('query', {
+    TableName: tables.messages,
+    IndexName: 'messageId',
+    KeyConditionExpression: 'messageId = :messageId',
+    ExpressionAttributeValues: { ':messageId': messageId },
+    Limit: 1,
+  });
 
   const match = lookup.Items?.find(item => item.roomId === roomId);
   if (!match) return false;
 
-  await docClient
-    .delete({
-      TableName: tables.messages,
-      Key: { roomId, sentAt: match.sentAt },
-    })
-    .promise();
+  await docCall('delete', {
+    TableName: tables.messages,
+    Key: { roomId, sentAt: match.sentAt },
+  });
 
-  await docClient
-    .update({
-      TableName: tables.rooms,
-      Key: { roomId },
-      UpdateExpression:
-        'SET lastActivity = :now, expiresAt = :expiresAt ADD messageCount :dec',
-      ExpressionAttributeValues: {
-        ':now': Date.now(),
-        ':expiresAt': defaultExpiry(),
-        ':dec': -1,
-      },
-    })
-    .promise();
+  await docCall('update', {
+    TableName: tables.rooms,
+    Key: { roomId },
+    UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt ADD messageCount :dec',
+    ExpressionAttributeValues: {
+      ':now': Date.now(),
+      ':expiresAt': defaultExpiry(),
+      ':dec': -1,
+    },
+  });
 
   return true;
 }
 
 async function setUserSession(user) {
-  await docClient
-    .put({
-      TableName: tables.sessions,
-      Item: {
-        userId: user.id,
-        username: user.username,
-        type: user.type,
-        currentRoomId:
-          Object.prototype.hasOwnProperty.call(user, 'currentRoomId') && user.currentRoomId
-            ? user.currentRoomId
-            : null,
-        lastSeen: Date.now(),
-        expiresAt: sessionExpiry(),
-      },
-    })
-    .promise();
+  await docCall('put', {
+    TableName: tables.sessions,
+    Item: {
+      userId: user.id,
+      username: user.username,
+      type: user.type,
+      currentRoomId:
+        Object.prototype.hasOwnProperty.call(user, 'currentRoomId') && user.currentRoomId
+          ? user.currentRoomId
+          : null,
+      lastSeen: Date.now(),
+      expiresAt: sessionExpiry(),
+    },
+  });
 }
 
 async function removeUserSession(userId) {
-  await docClient
-    .delete({
-      TableName: tables.sessions,
-      Key: { userId },
-    })
-    .promise();
+  await docCall('delete', {
+    TableName: tables.sessions,
+    Key: { userId },
+  });
 }
 
 async function expireRoom(roomId) {
-  await docClient
-    .delete({
-      TableName: tables.rooms,
-      Key: { roomId },
-    })
-    .promise()
-    .catch(err => {
-      if (err.code !== 'ResourceNotFoundException' && err.code !== 'ConditionalCheckFailedException') {
-        throw err;
-      }
-    });
+  await docCall('delete', {
+    TableName: tables.rooms,
+    Key: { roomId },
+  }).catch(err => {
+    if (
+      err.code !== 'ResourceNotFoundException' &&
+      err.code !== 'ConditionalCheckFailedException'
+    ) {
+      throw err;
+    }
+  });
 
   await Promise.all([
     deleteAllRoomItems(tables.members, 'userId', roomId),

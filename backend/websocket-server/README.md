@@ -21,6 +21,8 @@ This is a WebSocket-based chat server. It supports real-time messaging between u
 ### Backend
 - **Node.js**: Server runtime
 - **ws**: WebSocket library for real-time bidirectional communication
+- **DynamoDB**: Persistence layer (via `aws-sdk`)
+- **DAX (optional)**: DynamoDB Accelerator (via `amazon-dax-client`)
 
 ### Frontend
 - **HTML / CSS**: Structured UI with responsive layout
@@ -47,19 +49,33 @@ websocket-server/
 
 ### Local Development
 
-1. Install dependencies:
+1. Configure environment:
+   - Copy `server/.env.example` to `server/.env` and fill in the required table names.
+   - Provide AWS credentials for DynamoDB (e.g. `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`).
+
+2. Install dependencies:
    ```bash
+   cd server
    npm install
    ```
 
-2. Start the WebSocket server:
+3. Start the WebSocket server:
    ```bash
    node index.js
    ```
 
-3. Open `index.html` in a browser.
+4. Open `client/index.html` in a browser.
 
-The server will listen on `ws://localhost:3000` by default.
+The server will listen on `ws://localhost:9999` by default (or `PORT`).
+
+### Running without DAX
+
+- Do not set `DAX_ENDPOINT`, or set `DISABLE_DAX=1`.
+- If `DAX_ENDPOINT` is set but DAX is unreachable, the server will automatically fall back to DynamoDB.
+
+### DynamoDB Local (optional)
+
+- Set `DYNAMODB_ENDPOINT` (e.g. `http://localhost:8000`). This disables DAX automatically.
 
 ---
 
@@ -82,4 +98,3 @@ The server will listen on `ws://localhost:3000` by default.
 - UI improvements and accessibility
 - Admin panel for instructors
 - Logging and moderation dashboard
-

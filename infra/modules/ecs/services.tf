@@ -39,6 +39,16 @@ resource "aws_ecs_service" "websocket" {
     security_groups  = [var.fargate_sg_id]
   }
 
+  # Attach to ALB target group (if provided)
+  dynamic "load_balancer" {
+    for_each = var.websocket_target_group_arn != "" ? [1] : []
+    content {
+      target_group_arn = var.websocket_target_group_arn
+      container_name   = "websocket"
+      container_port   = var.websocket_container_port
+    }
+  }
+
   # Register with Cloud Map for service discovery
   service_registries {
     registry_arn = aws_service_discovery_service.websocket.arn

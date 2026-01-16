@@ -15,7 +15,7 @@ import {
 } from "@mantine/core";
 import { IconInfoCircle, IconArrowLeft } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
-import { useQueueSSE } from "../../../hooks/useQueueSSE";
+import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 
 interface Subject {
   id: string;
@@ -47,16 +47,17 @@ export default function JoinQueuePage() {
     description: "",
   });
 
-  // Use SSE hook for real-time updates
-  const { myQueueStatus, sessionCreated } = useQueueSSE("STUDENT");
+  // Use WebSocket hook for real-time updates
+  const { isConnected, connectionError, queueItems, reconnect } = useQueueWebSocket("STUDENT");
 
-  // Derived state from SSE
-  const isInQueue = myQueueStatus?.inQueue || false;
-  const queueData = myQueueStatus?.queue
+  // Find the current user's queue item from the queue items
+  const myQueueItem = queueItems.find(item => item.student.id === user?.id && item.status === 'PENDING');
+  const isInQueue = !!myQueueItem;
+  const queueData = myQueueItem
     ? {
-        subject: myQueueStatus.queue.subject.name,
-        description: myQueueStatus.queue.description,
-        position: myQueueStatus.position || 0,
+        subject: myQueueItem.subject.name,
+        description: myQueueItem.description,
+        position: queueItems.filter(item => item.status === 'PENDING').findIndex(item => item.id === myQueueItem.id) + 1,
         estimatedWait: "15-20 minutes", // Could be calculated based on position
       }
     : null;
@@ -135,13 +136,9 @@ export default function JoinQueuePage() {
     checkExistingQueue();
   }, []);
 
-  // Handle session creation redirect
-  useEffect(() => {
-    if (sessionCreated?.redirectUrl) {
-      console.log("Session created, redirecting to:", sessionCreated.redirectUrl);
-      router.push(sessionCreated.redirectUrl);
-    }
-  }, [sessionCreated, router]);
+  // Note: Session creation redirect is handled by the accept queue API response
+  // When an instructor accepts a queue item, the API creates a session and returns the session ID
+  // The student will be redirected when they receive the QUEUE_UPDATE message
 
   const handleJoinQueue = async () => {
     if (!formData.subjectId || !formData.description.trim()) {

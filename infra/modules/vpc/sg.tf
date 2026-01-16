@@ -49,13 +49,22 @@ resource "aws_security_group" "fargate" {
     description     = "Allow VPC Link to reach API on port 8080"
   }
 
-  # Allow VPC Link to reach Fargate tasks on port 8081 (WebSocket)
+  # Allow VPC Link to reach Fargate tasks on port 8081 (WebSocket - legacy)
   ingress {
     from_port       = 8081
     to_port         = 8081
     protocol        = "tcp"
     security_groups = [aws_security_group.vpc_link.id]
     description     = "Allow VPC Link to reach WebSocket on port 8081"
+  }
+
+  # Allow VPC Link to reach Fargate tasks on port 9999 (WebSocket)
+  ingress {
+    from_port       = 9999
+    to_port         = 9999
+    protocol        = "tcp"
+    security_groups = [aws_security_group.vpc_link.id]
+    description     = "Allow VPC Link to reach WebSocket on port 9999"
   }
 
   # Also allow ALB for backward compatibility (if still using ALB for direct access)
@@ -73,6 +82,15 @@ resource "aws_security_group" "fargate" {
     protocol    = "tcp"
     cidr_blocks = [var.cidr_block]
     description = "Allow ALB to reach WebSocket on port 8081"
+  }
+
+  # Allow ALB to reach WebSocket on port 9999
+  ingress {
+    from_port   = 9999
+    to_port     = 9999
+    protocol    = "tcp"
+    cidr_blocks = [var.cidr_block]
+    description = "Allow ALB to reach WebSocket on port 9999"
   }
 
   # Outbound HTTPS (Cognito, etc)
@@ -147,6 +165,14 @@ resource "aws_security_group" "vpc_link" {
     protocol    = "tcp"
     cidr_blocks = [var.cidr_block]
     description = "Allow outbound HTTP to WebSocket tasks on port 8081"
+  }
+
+  egress {
+    from_port   = 9999
+    to_port     = 9999
+    protocol    = "tcp"
+    cidr_blocks = [var.cidr_block]
+    description = "Allow outbound HTTP to WebSocket tasks on port 9999"
   }
 
   # Allow outbound HTTPS (for future use)

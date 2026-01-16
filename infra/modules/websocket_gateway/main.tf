@@ -61,19 +61,8 @@ resource "aws_lb_listener" "websocket" {
   }
 }
 
-# Data source to discover WebSocket service instances via Cloud Map
-data "aws_ecs_cluster" "main" {
-  cluster_name = var.ecs_cluster_name
-}
-
-data "aws_ecs_service" "websocket" {
-  service_name = var.ecs_service_name
-  cluster_arn  = data.aws_ecs_cluster.main.arn
-}
-
 # Note: ECS tasks will automatically register with the target group
-# when the ECS service is updated to include the load_balancer block
-# This needs to be done separately to avoid circular dependency
+# when the ECS service is created with the load_balancer block
 
 # WebSocket API Gateway
 resource "aws_apigatewayv2_api" "websocket" {
@@ -100,12 +89,21 @@ resource "aws_apigatewayv2_stage" "websocket" {
 }
 
 # WebSocket Integration to public ALB
+# Note: For WebSocket API Gateway, we need HTTP_PROXY with proper WebSocket upgrade support
 resource "aws_apigatewayv2_integration" "websocket" {
-  api_id           = aws_apigatewayv2_api.websocket.id
-  integration_type = "HTTP_PROXY"
-  integration_uri  = "http://${aws_lb.websocket.dns_name}"
-  
+  api_id             = aws_apigatewayv2_api.websocket.id
+  integration_type   = "HTTP_PROXY"
+  integration_uri    = "http://${aws_lb.websocket.dns_name}"
   integration_method = "ANY"
+  
+  # Required for WebSocket connections
+  connection_type = "INTERNET"
+  
+  # Pass through the request as-is to support WebSocket upgrade
+  passthrough_behavior = "WHEN_NO_MATCH"
+  
+  # Increase timeout for WebSocket connections (max 29 seconds for integration timeout)
+  timeout_milliseconds = 29000
 
   depends_on = [aws_lb.websocket]
 }

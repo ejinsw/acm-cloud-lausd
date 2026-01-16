@@ -4,8 +4,8 @@ output "websocket_api_id" {
 }
 
 output "websocket_api_endpoint" {
-  description = "The WebSocket API Gateway endpoint URL (wss://) - flat URL without path"
-  value       = "${replace(aws_apigatewayv2_stage.websocket.invoke_url, "/$default", "")}"
+  description = "The WebSocket API Gateway endpoint URL (wss://) - includes /$default stage"
+  value       = aws_apigatewayv2_stage.websocket.invoke_url
 }
 
 output "websocket_api_arn" {

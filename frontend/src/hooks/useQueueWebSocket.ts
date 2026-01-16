@@ -77,33 +77,42 @@ export function useQueueWebSocket(
     try {
       // Close existing connection
       if (wsRef.current) {
+        console.log("[WS] Closing existing connection");
         wsRef.current.close();
       }
 
       // Get authentication token
       const token = await getToken();
       if (!token) {
+        console.error("[WS] No authentication token available");
         setConnectionError("No authentication token available");
         return;
       }
 
-      // Get WebSocket URL
+      // Use the WebSocket API Gateway endpoint (provides wss:// for HTTPS compatibility)
+      // The server handles both chat and queue messages on the same connection
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:9999";
-      const wsEndpoint = wsUrl.replace(/^http/, "ws");
+      
+      console.log("[WS] Connecting to WebSocket for queue updates");
+      console.log("[WS] URL:", wsUrl);
+      console.log("[WS] Environment:", {
+        NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      });
 
-      console.log("Connecting to WebSocket for queue updates:", wsEndpoint);
-
-      const ws = new WebSocket(wsEndpoint);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       isSubscribed.current = false;
 
       ws.onopen = () => {
-        console.log("WebSocket connected for queue updates");
+        console.log("[WS] ✅ WebSocket connected successfully");
+        console.log("[WS] ReadyState:", ws.readyState, "(1 = OPEN)");
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
 
         // Identify user with token
+        console.log("[WS] Sending IDENTIFY_USER message");
         ws.send(
           JSON.stringify({
             type: "IDENTIFY_USER",
@@ -114,50 +123,64 @@ export function useQueueWebSocket(
 
       ws.onmessage = (event) => {
         try {
+          console.log("[WS] 📨 Raw message received:", event.data);
           const message: QueueWebSocketMessage = JSON.parse(event.data);
-          console.log("Queue WebSocket message received:", message);
+          console.log("[WS] 📨 Parsed message:", message);
 
           switch (message.type) {
             case "USER_IDENTIFIED":
+              console.log("[WS] ✅ User identified successfully");
               // Once identified, subscribe to queue updates
               if (!isSubscribed.current) {
+                console.log("[WS] Sending SUBSCRIBE_QUEUE message");
                 ws.send(JSON.stringify({ type: "SUBSCRIBE_QUEUE" }));
                 isSubscribed.current = true;
               }
               break;
 
             case "QUEUE_SUBSCRIBED":
-              console.log("Successfully subscribed to queue updates");
+              console.log("[WS] ✅ Successfully subscribed to queue updates");
               // Fetch initial queue data
               fetchQueueData();
               break;
 
             case "QUEUE_UPDATE":
-              console.log("Queue update received:", message.payload);
+              console.log("[WS] 🔄 Queue update received:", message.payload);
               // Refresh queue data when update is received
               fetchQueueData();
               break;
 
             case "ERROR":
-              console.error("Queue WebSocket error:", message.payload?.message);
+              console.error("[WS] ❌ Server error:", message.payload?.message);
               setConnectionError(message.payload?.message || "WebSocket error");
               break;
 
             default:
-              console.log("Unknown queue WebSocket message type:", message.type);
+              console.log("[WS] ⚠️  Unknown message type:", message.type);
           }
         } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
+          console.error("[WS] ❌ Error parsing message:", error);
+          console.error("[WS] Raw data:", event.data);
         }
       };
 
       ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        console.error("[WS] ❌ WebSocket error event:", error);
+        console.error("[WS] Error details:", {
+          type: error.type,
+          target: error.target,
+          readyState: wsRef.current?.readyState,
+        });
         setConnectionError("WebSocket connection error");
       };
 
-      ws.onclose = () => {
-        console.log("WebSocket closed");
+      ws.onclose = (event) => {
+        console.log("[WS] 🔌 WebSocket closed");
+        console.log("[WS] Close details:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+        });
         setIsConnected(false);
         isSubscribed.current = false;
 
@@ -168,7 +191,7 @@ export function useQueueWebSocket(
             30000
           );
           console.log(
-            `Attempting to reconnect in ${delay}ms (attempt ${
+            `[WS] 🔄 Attempting to reconnect in ${delay}ms (attempt ${
               reconnectAttempts.current + 1
             }/${maxReconnectAttempts})`
           );
@@ -178,11 +201,13 @@ export function useQueueWebSocket(
             connect();
           }, delay);
         } else {
+          console.error("[WS] ❌ Failed to reconnect after maximum attempts");
           setConnectionError("Failed to reconnect after multiple attempts");
         }
       };
     } catch (error) {
-      console.error("Failed to establish WebSocket connection:", error);
+      console.error("[WS] ❌ Failed to establish WebSocket connection:", error);
+      console.error("[WS] Error stack:", error instanceof Error ? error.stack : "No stack trace");
       setIsConnected(false);
       setConnectionError("Failed to connect to server");
     }

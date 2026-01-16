@@ -1,11 +1,7 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
-import {
-  notifyStudentJoinedQueue,
-  notifyQueueAccepted,
-  notifyStudentLeftQueue,
-} from './sseController';
+import { notifyQueueChange } from '../services/queueNotifier';
 
 export const getQueueList = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -120,9 +116,9 @@ export const createStudentQueue = expressAsyncHandler(
       data: { description, subjectId, studentId: userId },
     });
 
-    // Trigger SSE notification for queue update
-    notifyStudentJoinedQueue(userId).catch(err => {
-      console.error('SSE notification failed:', err);
+    // Notify WebSocket server of queue change
+    notifyQueueChange({ type: 'student_joined', studentId: userId }).catch(err => {
+      console.error('Queue notification failed:', err);
     });
 
     res.status(201).json({ queue: newQueue });
@@ -208,9 +204,9 @@ export const acceptQueue = expressAsyncHandler(
       },
     });
 
-    // Trigger SSE notification for queue update
-    notifyQueueAccepted(queue.studentId, session.id).catch(err => {
-      console.error('SSE notification failed:', err);
+    // Notify WebSocket server of queue change
+    notifyQueueChange({ type: 'queue_accepted', studentId: queue.studentId, sessionId: session.id }).catch(err => {
+      console.error('Queue notification failed:', err);
     });
 
     res.status(200).json({ 
@@ -301,9 +297,9 @@ export const deleteQueue = expressAsyncHandler(
     await prisma.studentQueue.delete({ where: { id: Number(id) } });
     console.log(`Queue ${id} deleted successfully`);
 
-    // Trigger SSE notification for queue update
-    notifyStudentLeftQueue(studentId).catch(err => {
-      console.error('SSE notification failed:', err);
+    // Notify WebSocket server of queue change
+    notifyQueueChange({ type: 'student_left', studentId }).catch(err => {
+      console.error('Queue notification failed:', err);
     });
 
     res.status(200).json({ message: 'Queue deleted successfully' });

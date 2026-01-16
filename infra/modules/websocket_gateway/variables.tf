@@ -11,22 +11,32 @@ variable "environment" {
 }
 
 variable "vpc_id" {
-  description = "VPC ID for VPC Link"
+  description = "VPC ID for the ALB"
   type        = string
 }
 
-variable "cloudmap_websocket_service_arn" {
-  description = "ARN of the Cloud Map service for WebSocket"
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for the ALB"
+  type        = list(string)
+}
+
+variable "alb_security_group_ids" {
+  description = "Security group IDs for the ALB"
+  type        = list(string)
+}
+
+variable "websocket_port" {
+  description = "Port for WebSocket service"
+  type        = number
+  default     = 9999
+}
+
+variable "ecs_service_name" {
+  description = "Name of the ECS service for WebSocket"
   type        = string
 }
 
-variable "subnet_ids" {
-  description = "Subnet IDs for VPC Link (should be private subnets)"
-  type        = list(string)
-}
-
-variable "vpc_link_security_group_ids" {
-  description = "Security group IDs for VPC Link"
-  type        = list(string)
-  default     = []
+variable "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  type        = string
 } 

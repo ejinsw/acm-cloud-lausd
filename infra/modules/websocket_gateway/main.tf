@@ -1,3 +1,80 @@
+# Application Load Balancer for WebSocket service (public-facing)
+resource "aws_lb" "websocket" {
+  name               = "${var.project_name}-ws-alb"
+  internal           = false  # Public ALB
+  load_balancer_type = "application"
+  security_groups    = var.alb_security_group_ids
+  subnets            = var.public_subnet_ids
+
+  enable_deletion_protection = false
+  enable_http2              = true
+
+  tags = {
+    Name        = "${var.project_name}-websocket-alb"
+    Environment = var.environment
+  }
+}
+
+# Target Group for WebSocket service
+resource "aws_lb_target_group" "websocket" {
+  name        = "${var.project_name}-ws-tg"
+  port        = var.websocket_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200-499"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 3
+  }
+
+  stickiness {
+    enabled         = true
+    type            = "lb_cookie"
+    cookie_duration = 86400
+  }
+
+  deregistration_delay = 30
+
+  tags = {
+    Name        = "${var.project_name}-websocket-tg"
+    Environment = var.environment
+  }
+}
+
+# ALB Listener for WebSocket
+resource "aws_lb_listener" "websocket" {
+  load_balancer_arn = aws_lb.websocket.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.websocket.arn
+  }
+}
+
+# Data source to discover WebSocket service instances via Cloud Map
+data "aws_ecs_cluster" "main" {
+  cluster_name = var.ecs_cluster_name
+}
+
+data "aws_ecs_service" "websocket" {
+  service_name = var.ecs_service_name
+  cluster_arn  = data.aws_ecs_cluster.main.arn
+}
+
+# Note: ECS tasks will automatically register with the target group
+# when the ECS service is updated to include the load_balancer block
+# This needs to be done separately to avoid circular dependency
+
 # WebSocket API Gateway
 resource "aws_apigatewayv2_api" "websocket" {
   name                       = "${var.project_name}-websocket-api"
@@ -10,14 +87,11 @@ resource "aws_apigatewayv2_api" "websocket" {
   }
 }
 
-# WebSocket Stage
+# WebSocket Stage (no path, flat URL)
 resource "aws_apigatewayv2_stage" "websocket" {
   api_id      = aws_apigatewayv2_api.websocket.id
   name        = "$default"
   auto_deploy = true
-
-  # Note: CloudWatch logging requires account-level role setup
-  # Removing access_log_settings to avoid the error
 
   tags = {
     Name        = "${var.project_name}-websocket-stage"
@@ -25,29 +99,15 @@ resource "aws_apigatewayv2_stage" "websocket" {
   }
 }
 
-# VPC Link to connect WebSocket API Gateway to Cloud Map
-resource "aws_apigatewayv2_vpc_link" "websocket" {
-  name               = "${var.project_name}-websocket-vpc-link"
-  security_group_ids = var.vpc_link_security_group_ids
-  subnet_ids         = var.subnet_ids
-
-  tags = {
-    Name        = "${var.project_name}-websocket-vpc-link"
-    Environment = var.environment
-  }
-}
-
-# WebSocket Integration via VPC Link to Cloud Map
+# WebSocket Integration to public ALB
 resource "aws_apigatewayv2_integration" "websocket" {
   api_id           = aws_apigatewayv2_api.websocket.id
   integration_type = "HTTP_PROXY"
+  integration_uri  = "http://${aws_lb.websocket.dns_name}"
+  
+  integration_method = "ANY"
 
-  connection_type        = "VPC_LINK"
-  connection_id         = aws_apigatewayv2_vpc_link.websocket.id
-  description           = "VPC Link integration to Cloud Map for WebSocket service"
-  integration_method    = "POST"
-  integration_uri       = var.cloudmap_websocket_service_arn
-  payload_format_version = "1.0"
+  depends_on = [aws_lb.websocket]
 }
 
 # WebSocket Routes
@@ -66,25 +126,6 @@ resource "aws_apigatewayv2_route" "disconnect" {
 resource "aws_apigatewayv2_route" "default" {
   api_id    = aws_apigatewayv2_api.websocket.id
   route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
-}
-
-# Custom WebSocket Routes
-resource "aws_apigatewayv2_route" "message" {
-  api_id    = aws_apigatewayv2_api.websocket.id
-  route_key = "message"
-  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
-}
-
-resource "aws_apigatewayv2_route" "join_room" {
-  api_id    = aws_apigatewayv2_api.websocket.id
-  route_key = "join_room"
-  target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
-}
-
-resource "aws_apigatewayv2_route" "leave_room" {
-  api_id    = aws_apigatewayv2_api.websocket.id
-  route_key = "leave_room"
   target    = "integrations/${aws_apigatewayv2_integration.websocket.id}"
 }
 

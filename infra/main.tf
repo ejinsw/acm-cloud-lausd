@@ -110,6 +110,7 @@ module "ecs" {
   api_environment       = [
     { name = "NODE_ENV", value = var.environment },
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
+    { name = "FRONTEND_URL", value = "https://acm-cloud-lausd.vercel.app" },
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },
@@ -155,6 +156,25 @@ module "api_gateway" {
   # VPC Link should be in private subnets (AWS best practice)
   subnet_ids      = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   vpc_link_security_group_ids = [module.vpc.vpc_link_sg_id]
+
+  depends_on = [module.ecs]
+}
+
+# WebSocket API Gateway
+module "websocket_gateway" {
+  source = "./modules/websocket_gateway"
+
+  # Standard variables
+  project_name = var.project_name
+  environment  = var.environment
+
+  # WebSocket Gateway variables
+  vpc_id                 = module.vpc.vpc_id
+  public_subnet_ids      = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
+  alb_security_group_ids = [module.vpc.fargate_sg_id]
+  websocket_port         = 9999
+  ecs_service_name       = module.ecs.websocket_service_name
+  ecs_cluster_name       = module.ecs.cluster_name
 
   depends_on = [module.ecs]
 }

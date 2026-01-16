@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const { Profanity, CensorType } = require('@2toad/profanity');
 const dotenv = require('dotenv');
@@ -6,7 +7,50 @@ const store = require('./daxSTORE');
 
 dotenv.config();
 
-const server = new WebSocket.Server({ port: process.env.PORT || 9999 });
+const PORT = process.env.PORT || 9999;
+
+// Create HTTP server for health checks and internal queue notifications
+const httpServer = http.createServer((req, res) => {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.url === '/' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'websocket-server' }));
+    return;
+  }
+
+  if (req.url === '/notify-queue' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const queueData = JSON.parse(body);
+        broadcastQueueUpdate(queueData);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, subscribers: queueSubscribers.size }));
+      } catch (err) {
+        console.error('Error processing queue notification:', err);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request body' }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+const server = new WebSocket.Server({ server: httpServer });
 
 const profanity = new Profanity({
   censorType: CensorType.FirstChar,
@@ -16,11 +60,14 @@ const profanity = new Profanity({
 // Active socket bookkeeping only. All persistence lives in DynamoDB/DAX.
 const liveRooms = new Map(); // roomId -> { name, clients: Map<WebSocket, User>, lastActivity }
 const connectedUsers = new Map(); // userId -> { id, username, type, ws, currentRoomId }
+const queueSubscribers = new Map(); // userId -> { ws, role }
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
 
-console.log(`WebSocket chat server started on port ${process.env.PORT || 9999}`);
+httpServer.listen(PORT, () => {
+  console.log(`WebSocket server with HTTP endpoint started on port ${PORT}`);
+});
 
 // --- Helper Functions ---
 function sanitizeInput(text) {
@@ -80,6 +127,17 @@ async function pushRoomListUpdate(targetWs = null) {
   } catch (err) {
     console.error('Failed to fetch room list:', err);
   }
+}
+
+function broadcastQueueUpdate(queueData) {
+  queueSubscribers.forEach(({ ws, role }, userId) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'QUEUE_UPDATE',
+        payload: queueData
+      }));
+    }
+  });
 }
 
 function verifyToken(token) {
@@ -636,6 +694,28 @@ server.on('connection', ws => {
             );
           }
           break;
+        case 'SUBSCRIBE_QUEUE':
+          if (ws.userId && actingUser) {
+            queueSubscribers.set(ws.userId, { ws, role: actingUser.type });
+            console.log(`${actingUser.username} subscribed to queue updates`);
+            ws.send(JSON.stringify({ type: 'QUEUE_SUBSCRIBED' }));
+          } else {
+            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } }));
+          }
+          break;
+        case 'UNSUBSCRIBE_QUEUE':
+          if (ws.userId) {
+            queueSubscribers.delete(ws.userId);
+            console.log(`User ${ws.userId} unsubscribed from queue updates`);
+            ws.send(JSON.stringify({ type: 'QUEUE_UNSUBSCRIBED' }));
+          }
+          break;
+        case 'QUEUE_UPDATED':
+          // This message comes from the API server when queue changes
+          if (payload?.queueData) {
+            broadcastQueueUpdate(payload.queueData);
+          }
+          break;
         default:
           console.log('Unknown message type:', type);
           ws.send(
@@ -663,6 +743,7 @@ server.on('connection', ws => {
         if (user.currentRoomId) {
           await leaveRoom(ws, user.currentRoomId, userId, false);
         }
+        queueSubscribers.delete(userId);
         connectedUsers.delete(userId);
         await store.removeUserSession(userId);
         await pushRoomListUpdate();
@@ -693,8 +774,8 @@ process.on('SIGINT', () => {
       client.close();
     }
   });
-  server.close(() => {
-    console.log('WebSocket server closed.');
+  httpServer.close(() => {
+    console.log('HTTP and WebSocket server closed.');
     process.exit(0);
   });
 });

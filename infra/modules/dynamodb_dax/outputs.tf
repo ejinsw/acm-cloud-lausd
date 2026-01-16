@@ -38,6 +38,17 @@ output "user_sessions_table_arn" {
   value       = aws_dynamodb_table.chat_user_sessions.arn
 }
 
+# DynamoDB endpoints for direct access (DAX disabled)
+output "dynamodb_endpoint" {
+  description = "DynamoDB service endpoint for the region"
+  value       = "https://dynamodb.${data.aws_region.current.name}.amazonaws.com"
+}
+
+output "dynamodb_region" {
+  description = "AWS region where DynamoDB tables are deployed"
+  value       = data.aws_region.current.name
+}
+
 # DAX outputs - commented out to reduce costs (using direct DynamoDB access)
 # output "dax_configuration_endpoint" {
 #   description = "Endpoint used by clients to configure their DAX connections."

@@ -2,76 +2,91 @@ const AWS = require('aws-sdk');
 
 const region = process.env.AWS_REGION || 'us-west-1';
 const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT || process.env.DYNAMODB_LOCAL_ENDPOINT;
-const disableDax =
-  typeof process.env.DISABLE_DAX === 'string' &&
-  ['1', 'true', 'yes'].includes(process.env.DISABLE_DAX.toLowerCase());
-const daxEndpoint = !disableDax && !dynamodbEndpoint ? process.env.DAX_ENDPOINT : undefined;
 
-let daxService = null;
-if (daxEndpoint) {
-  try {
-    const AmazonDaxClient = require('amazon-dax-client');
-    daxService = new AmazonDaxClient({ region, endpoints: [daxEndpoint] });
-  } catch (error) {
-    console.warn('amazon-dax-client not installed; continuing without DAX');
-  }
-}
+// CHANGED: DAX disabled - using direct DynamoDB connection only
+// const disableDax =
+//   typeof process.env.DISABLE_DAX === 'string' &&
+//   ['1', 'true', 'yes'].includes(process.env.DISABLE_DAX.toLowerCase());
+// const daxEndpoint = !disableDax && !dynamodbEndpoint ? process.env.DAX_ENDPOINT : undefined;
+
+// CHANGED: DAX client initialization commented out
+// let daxService = null;
+// if (daxEndpoint) {
+//   try {
+//     const AmazonDaxClient = require('amazon-dax-client');
+//     daxService = new AmazonDaxClient({ region, endpoints: [daxEndpoint] });
+//   } catch (error) {
+//     console.warn('amazon-dax-client not installed; continuing without DAX');
+//   }
+// }
 
 const dynamoDocClient = new AWS.DynamoDB.DocumentClient({
   region,
   ...(dynamodbEndpoint ? { endpoint: dynamodbEndpoint } : {}),
 });
-const daxDocClient = daxService ? new AWS.DynamoDB.DocumentClient({ service: daxService }) : null;
 
-let daxHealthy = Boolean(daxDocClient);
+// CHANGED: DAX client disabled - using only DynamoDB
+// const daxDocClient = daxService ? new AWS.DynamoDB.DocumentClient({ service: daxService }) : null;
+const daxDocClient = null;
+
+// CHANGED: DAX health tracking disabled
+// let daxHealthy = Boolean(daxDocClient);
+// let daxFallbackLogged = false;
+let daxHealthy = false;
 let daxFallbackLogged = false;
 
-function isDaxConnectivityError(error) {
-  const code = error?.code || error?.name;
-  const message = String(error?.message || '').toLowerCase();
-  const errno = error?.errno;
+// CHANGED: DAX connectivity error detection no longer needed
+// function isDaxConnectivityError(error) {
+//   const code = error?.code || error?.name;
+//   const message = String(error?.message || '').toLowerCase();
+//   const errno = error?.errno;
+//
+//   const retryableCodes = new Set(['NetworkingError', 'TimeoutError', 'UnknownEndpoint']);
+//   const retryableErrnos = new Set([
+//     'ECONNREFUSED',
+//     'EHOSTUNREACH',
+//     'ENETUNREACH',
+//     'ENOTFOUND',
+//     'ETIMEDOUT',
+//     'ECONNRESET',
+//   ]);
+//
+//   if (typeof code === 'string' && retryableCodes.has(code)) return true;
+//   if (typeof errno === 'string' && retryableErrnos.has(errno)) return true;
+//   if (typeof code === 'string' && retryableErrnos.has(code)) return true;
+//   if (
+//     message.includes('econnrefused') ||
+//     message.includes('enotfound') ||
+//     message.includes('timed out')
+//   )
+//     return true;
+//
+//   return false;
+// }
 
-  const retryableCodes = new Set(['NetworkingError', 'TimeoutError', 'UnknownEndpoint']);
-  const retryableErrnos = new Set([
-    'ECONNREFUSED',
-    'EHOSTUNREACH',
-    'ENETUNREACH',
-    'ENOTFOUND',
-    'ETIMEDOUT',
-    'ECONNRESET',
-  ]);
-
-  if (typeof code === 'string' && retryableCodes.has(code)) return true;
-  if (typeof errno === 'string' && retryableErrnos.has(errno)) return true;
-  if (typeof code === 'string' && retryableErrnos.has(code)) return true;
-  if (
-    message.includes('econnrefused') ||
-    message.includes('enotfound') ||
-    message.includes('timed out')
-  )
-    return true;
-
-  return false;
-}
-
+// CHANGED: Simplified to use only DynamoDB (no DAX fallback logic)
 async function docCall(operation, params) {
-  if (daxHealthy && daxDocClient) {
-    try {
-      return await daxDocClient[operation](params).promise();
-    } catch (error) {
-      if (!isDaxConnectivityError(error)) {
-        throw error;
-      }
-
-      daxHealthy = false;
-      if (!daxFallbackLogged) {
-        daxFallbackLogged = true;
-        console.warn('DAX request failed; falling back to DynamoDB');
-      }
-    }
-  }
-
+  // Direct DynamoDB call only
   return dynamoDocClient[operation](params).promise();
+  
+  // CHANGED: DAX fallback logic commented out
+  // if (daxHealthy && daxDocClient) {
+  //   try {
+  //     return await daxDocClient[operation](params).promise();
+  //   } catch (error) {
+  //     if (!isDaxConnectivityError(error)) {
+  //       throw error;
+  //     }
+  //
+  //     daxHealthy = false;
+  //     if (!daxFallbackLogged) {
+  //       daxFallbackLogged = true;
+  //       console.warn('DAX request failed; falling back to DynamoDB');
+  //     }
+  //   }
+  // }
+  //
+  // return dynamoDocClient[operation](params).promise();
 }
 
 const tables = {

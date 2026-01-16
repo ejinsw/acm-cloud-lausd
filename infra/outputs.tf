@@ -110,6 +110,17 @@ output "user_sessions_table_name" {
   value       = module.dynamodb_dax.user_sessions_table_name
 }
 
+# DynamoDB direct access endpoints (DAX disabled)
+output "dynamodb_endpoint" {
+  description = "DynamoDB service endpoint for direct access"
+  value       = module.dynamodb_dax.dynamodb_endpoint
+}
+
+output "dynamodb_region" {
+  description = "AWS region where DynamoDB tables are deployed"
+  value       = module.dynamodb_dax.dynamodb_region
+}
+
 # DAX outputs - commented out to reduce costs (using direct DynamoDB access)
 # output "dax_configuration_endpoint" {
 #   description = "DAX cluster configuration endpoint for clients."

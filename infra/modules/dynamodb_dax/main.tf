@@ -3,6 +3,9 @@ locals {
   # use_custom_networking = var.dax_vpc_id != "" && length(var.dax_subnet_ids) > 0
 }
 
+# Data source to get current AWS region
+data "aws_region" "current" {}
+
 # resource "aws_iam_role" "dax_service" {
 #   name = "lausd-dax-${var.environment}-role"
 

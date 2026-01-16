@@ -111,6 +111,7 @@ module "ecs" {
     { name = "NODE_ENV", value = var.environment },
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
     { name = "FRONTEND_URL", value = "https://acm-cloud-lausd.vercel.app" },
+    { name = "NEXT_PUBLIC_WEBSOCKET_URL", value = "http://websocket.acmcloud.local:9999" },
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },
@@ -128,6 +129,8 @@ module "ecs" {
     { name = "ROOM_MEMBERS_TABLE_NAME", value = module.dynamodb_dax.room_members_table_name },
     { name = "ROOM_MESSAGES_TABLE_NAME", value = module.dynamodb_dax.room_messages_table_name },
     { name = "USER_SESSIONS_TABLE_NAME", value = module.dynamodb_dax.user_sessions_table_name },
+    { name = "DYNAMODB_ENDPOINT", value = module.dynamodb_dax.dynamodb_endpoint },
+    # CHANGED: DAX endpoint disabled - using direct DynamoDB connection
     # { name = "DAX_ENDPOINT", value = module.dynamodb_dax.dax_configuration_endpoint },
     { name = "SESSION_IDLE_TIMEOUT_MS", value = tostring(local.session_idle_timeout_ms) },
     { name = "MAX_SESSION_TTL_MS", value = tostring(local.max_session_ttl_ms) }

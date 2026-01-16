@@ -29,7 +29,7 @@ import {
   IconRefresh,
 } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
-import { useQueueSSE } from "../../../hooks/useQueueSSE";
+import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 
 export default function InstructorQueuePage() {
   const { user } = useAuth();
@@ -38,28 +38,22 @@ export default function InstructorQueuePage() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [fallbackQueueItems, setFallbackQueueItems] = useState<any[]>([]);
 
-  // Use SSE hook for real-time updates
-  const { isConnected, connectionError, queueItems, sessionCreated, reconnect } =
-    useQueueSSE("INSTRUCTOR");
+  // Use WebSocket hook for real-time updates
+  const { isConnected, connectionError, queueItems, reconnect } =
+    useQueueWebSocket("INSTRUCTOR");
 
-  // Use SSE queue items if available, otherwise fall back to API-loaded items
+  // Use WebSocket queue items if available, otherwise fall back to API-loaded items
   const displayQueueItems = queueItems.length > 0 ? queueItems : fallbackQueueItems;
 
-  // Log SSE queue updates
+  // Log WebSocket queue updates
   useEffect(() => {
-    console.log("Queue items updated via SSE:", queueItems.length, "items");
+    console.log("Queue items updated via WebSocket:", queueItems.length, "items");
     if (queueItems.length > 0) {
       console.log("Current queue items:", queueItems);
     }
   }, [queueItems]);
 
-  // Handle session creation redirect
-  useEffect(() => {
-    if (sessionCreated?.redirectUrl) {
-      console.log("Session created, redirecting to:", sessionCreated.redirectUrl);
-      router.push(sessionCreated.redirectUrl);
-    }
-  }, [sessionCreated, router]);
+  // Session creation redirect is handled by the accept queue API response
 
   // Load initial queue items on component mount
   useEffect(() => {

@@ -51,12 +51,16 @@ export default function JoinQueuePage() {
   const { isConnected, connectionError, queueItems, reconnect, refreshQueue } = useQueueWebSocket("STUDENT");
 
   // Find the current user's queue item from the queue items
-  const myQueueItem = queueItems.find(item => item.student.id === user?.id && item.status === 'PENDING');
+  const myQueueItem = queueItems.find(item => {
+    // Handle both formats: item.student.id (from instructor endpoint) and item.studentId (from student endpoint)
+    const studentId = item.student?.id || item.studentId;
+    return studentId === user?.id && item.status === 'PENDING';
+  });
   const isInQueue = !!myQueueItem;
   const queueData = myQueueItem
     ? {
-        subject: myQueueItem.subject.name,
-        description: myQueueItem.description,
+        subject: myQueueItem.subject?.name || 'Unknown Subject',
+        description: myQueueItem.description || '',
         position: queueItems.filter(item => item.status === 'PENDING').findIndex(item => item.id === myQueueItem.id) + 1,
         estimatedWait: "15-20 minutes", // Could be calculated based on position
       }

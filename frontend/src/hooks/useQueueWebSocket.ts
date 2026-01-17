@@ -6,13 +6,15 @@ interface QueueItem {
   description: string;
   status: string;
   createdAt: string;
-  student: {
+  studentId?: string; // Direct field from student endpoint
+  subjectId?: string; // Direct field from student endpoint
+  student?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
   };
-  subject: {
+  subject?: {
     id: string;
     name: string;
     level: string | null;
@@ -73,12 +75,15 @@ export function useQueueWebSocket(
 
       if (response.ok) {
         const data = await response.json();
+        console.log("[Queue Hook] Fetched queue data:", data);
+        
         // Handle different response formats
         if (userRole === "INSTRUCTOR") {
           setQueueItems(data.queueItems || []);
         } else {
-          // For students, convert their queues to the same format
+          // For students, the backend should return queues with student and subject included
           const queues = data.queues || [];
+          console.log("[Queue Hook] Student queues:", queues);
           setQueueItems(queues);
         }
       } else {

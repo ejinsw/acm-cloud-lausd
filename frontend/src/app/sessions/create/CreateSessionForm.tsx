@@ -344,6 +344,14 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Handle Zoom connection error specifically
+        if (errorData.needsZoomConnection) {
+          alert(`${errorData.message}\n\nYou will be redirected to connect your Zoom account.`);
+          window.location.href = '/dashboard/instructor?tab=zoom';
+          return;
+        }
+        
         throw new Error(errorData.message || `Failed to ${mode} session`);
       }
 

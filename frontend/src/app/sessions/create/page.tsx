@@ -4,6 +4,7 @@ import { Container, Title, Text, Paper, Group, Button } from "@mantine/core";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import CreateSessionForm from "./CreateSessionForm";
+import { ZoomRequiredGuard } from "@/components/sessions/ZoomRequiredGuard";
 
 export default function CreateSessionPage() {
   const router = useRouter();
@@ -35,11 +36,16 @@ export default function CreateSessionPage() {
         </Group>
       </Paper>
 
-      {/* Session Creation Form */}
-      <CreateSessionForm 
-        mode="create"
-        onSuccess={() => router.push("/dashboard/instructor")}
-      />
+      {/* Session Creation Form - Protected by Zoom Guard */}
+      <ZoomRequiredGuard 
+        message="You must connect your Zoom account before creating sessions."
+        redirectToDashboard={true}
+      >
+        <CreateSessionForm 
+          mode="create"
+          onSuccess={() => router.push("/dashboard/instructor")}
+        />
+      </ZoomRequiredGuard>
     </Container>
   );
 } 

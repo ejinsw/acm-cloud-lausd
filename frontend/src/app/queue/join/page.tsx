@@ -48,7 +48,7 @@ export default function JoinQueuePage() {
   });
 
   // Use WebSocket hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect } = useQueueWebSocket("STUDENT");
+  const { isConnected, connectionError, queueItems, reconnect, refreshQueue } = useQueueWebSocket("STUDENT");
 
   // Find the current user's queue item from the queue items
   const myQueueItem = queueItems.find(item => item.student.id === user?.id && item.status === 'PENDING');
@@ -101,6 +101,62 @@ export default function JoinQueuePage() {
       console.error("Failed to check existing queues:", error);
     }
   };
+
+  // Check if student's queue was accepted and redirect to session
+  useEffect(() => {
+    const checkQueueAccepted = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/queue/student`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const queues = data.queues || [];
+          
+          // Find accepted queue
+          const acceptedQueue = queues.find((q: ExistingQueue) => q.status === 'ACCEPTED');
+          
+          if (acceptedQueue) {
+            // Fetch the session associated with this queue
+            const sessionsResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+
+            if (sessionsResponse.ok) {
+              const sessionsData = await sessionsResponse.json();
+              const sessions = sessionsData.sessions || [];
+              
+              // Find the most recent session (assuming it's the one from the accepted queue)
+              const recentSession = sessions[0];
+              
+              if (recentSession) {
+                console.log("Queue accepted! Redirecting to session:", recentSession.id);
+                router.push(`/sessions/${recentSession.id}`);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check queue status:", error);
+      }
+    };
+
+    // Check immediately and then every 2 seconds
+    checkQueueAccepted();
+    const interval = setInterval(checkQueueAccepted, 2000);
+
+    return () => clearInterval(interval);
+  }, [router]);
 
   // Load subjects and check for existing queues on component mount
   useEffect(() => {
@@ -187,8 +243,8 @@ export default function JoinQueuePage() {
       const result = await response.json();
       console.log("Queue request successful:", result);
 
-      // The SSE hook will automatically update the state when the queue status changes
-      // No need to manually set local state here
+      // Refresh the queue data to show the new queue item
+      await refreshQueue();
     } catch (error) {
       console.error("Failed to join queue:", error);
       // TODO: Show error notification or alert to user

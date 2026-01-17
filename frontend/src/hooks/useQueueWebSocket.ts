@@ -36,6 +36,7 @@ interface UseQueueWebSocketReturn {
   connectionError: string | null;
   queueItems: QueueItem[];
   reconnect: () => void;
+  refreshQueue: () => Promise<void>;
 }
 
 export function useQueueWebSocket(
@@ -147,18 +148,6 @@ export function useQueueWebSocket(
             case "QUEUE_UPDATE":
               console.log("[WS] 🔄 Queue update received:", message.payload);
               
-              // Handle queue_accepted event - redirect student to session
-              if (message.payload?.queueData?.type === 'queue_accepted' && 
-                  message.payload?.queueData?.sessionId) {
-                const sessionId = message.payload.queueData.sessionId;
-                console.log("[WS] 🎉 Queue accepted! Redirecting to session:", sessionId);
-                
-                // Redirect to session page
-                if (typeof window !== 'undefined') {
-                  window.location.href = `/sessions/${sessionId}`;
-                }
-              }
-              
               // Refresh queue data when update is received
               fetchQueueData();
               break;
@@ -166,6 +155,20 @@ export function useQueueWebSocket(
             case "ERROR":
               console.error("[WS] ❌ Server error:", message.payload?.message);
               setConnectionError(message.payload?.message || "WebSocket error");
+              break;
+
+            // Ignore chatroom-specific messages
+            case "ROOM_LIST_UPDATED":
+            case "REQUEST_USER_INFO":
+            case "ROOM_JOINED":
+            case "USER_JOINED":
+            case "USER_LEFT":
+            case "NEW_MESSAGE":
+            case "MESSAGE_DELETED":
+            case "USER_KICKED":
+            case "YOU_LEFT_ROOM":
+            case "YOU_WERE_KICKED":
+              // Silently ignore chatroom messages
               break;
 
             default:
@@ -255,5 +258,6 @@ export function useQueueWebSocket(
     connectionError,
     queueItems,
     reconnect,
+    refreshQueue: fetchQueueData,
   };
 }

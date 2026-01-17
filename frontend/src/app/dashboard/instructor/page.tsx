@@ -27,6 +27,7 @@ import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
 import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
+import { useZoomStatus } from "@/hooks/useZoomStatus";
 
 function InstructorDashboardContent() {
   const { user } = useAuth();
@@ -43,6 +44,9 @@ function InstructorDashboardContent() {
   // Get initial tab from URL or default to "overview"
   const initialTab = searchParams.get("tab") || "overview";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
+
+  // Check Zoom connection status
+  const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
 
   // Fetch instructor sessions
   const fetchInstructorSessions = async () => {
@@ -251,6 +255,33 @@ function InstructorDashboardContent() {
 
           <Tabs.Panel value="overview">
             <Box pt="md">
+              {/* Zoom Connection Warning */}
+              {!zoomLoading && (!zoomConnected || zoomExpired) && (
+                <Alert
+                  icon={<Video size={20} />}
+                  color="yellow"
+                  title="Action Required: Connect Your Zoom Account"
+                  mb="xl"
+                >
+                  <Stack gap="sm">
+                    <Text size="sm">
+                      {zoomExpired 
+                        ? "Your Zoom connection has expired. You must reconnect your Zoom account to create sessions and accept queue requests."
+                        : "You must connect your Zoom account before you can create sessions or accept queue requests. All tutoring sessions use Zoom for video meetings."
+                      }
+                    </Text>
+                    <Button
+                      leftSection={<Video size={16} />}
+                      onClick={() => setActiveTab('zoom')}
+                      size="sm"
+                      style={{ width: 'fit-content' }}
+                    >
+                      {zoomExpired ? 'Reconnect Zoom Now' : 'Connect Zoom Now'}
+                    </Button>
+                  </Stack>
+                </Alert>
+              )}
+              
               <StatsGrid {...statsData} />
             </Box>
           </Tabs.Panel>

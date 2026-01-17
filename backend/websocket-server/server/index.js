@@ -101,12 +101,17 @@ async function pushRoomListUpdate(targetWs = null) {
 }
 
 function broadcastQueueUpdate(queueData) {
+  console.log(`Broadcasting queue update to ${queueSubscribers.size} subscribers:`, queueData);
   queueSubscribers.forEach(({ ws, role }, userId) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'QUEUE_UPDATE',
-        payload: queueData
+        payload: { queueData }  // Wrap queueData in payload object
       }));
+      console.log(`Sent queue update to user ${userId} (${role})`);
+    } else {
+      console.log(`User ${userId} WebSocket not open, removing from subscribers`);
+      queueSubscribers.delete(userId);
     }
   });
 }

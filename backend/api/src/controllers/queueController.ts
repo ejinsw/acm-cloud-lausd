@@ -2,6 +2,7 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { notifyQueueChange } from '../services/queueNotifier';
+import { zoomService } from '../services/zoomService';
 
 export const getQueueList = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -135,7 +136,15 @@ export const acceptQueue = expressAsyncHandler(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, subjects: true, firstName: true, lastName: true },
+      select: { 
+        role: true, 
+        subjects: true, 
+        firstName: true, 
+        lastName: true,
+        email: true,
+        zoomAccessToken: true,
+        zoomTokenExpiresAt: true,
+      },
     });
     if (!user) {
       res.status(404).json({ message: 'User not found' });
@@ -143,6 +152,19 @@ export const acceptQueue = expressAsyncHandler(
     }
     if (user.role !== 'INSTRUCTOR') {
       res.status(403).json({ message: 'Only instructors can accept a queue' });
+      return;
+    }
+
+    // Check if instructor has Zoom connected - REQUIRED for queue acceptance
+    if (
+      !user.zoomAccessToken ||
+      !user.zoomTokenExpiresAt ||
+      new Date() >= user.zoomTokenExpiresAt
+    ) {
+      res.status(400).json({
+        message: 'Zoom account not connected. Please connect your Zoom account before accepting queue requests.',
+        needsZoomConnection: true,
+      });
       return;
     }
 
@@ -178,13 +200,31 @@ export const acceptQueue = expressAsyncHandler(
     const now = new Date();
     const sessionEndTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
 
+    // Create Zoom meeting for the session
+    let zoomMeeting;
+    try {
+      zoomMeeting = await zoomService.createMeeting({
+        topic: `Tutoring Session - ${queue.subject.name}`,
+        startTime: now.toISOString(),
+        duration: 60, // 1 hour
+        instructorEmail: user.email,
+      });
+    } catch (error: any) {
+      console.error('Failed to create Zoom meeting for queue acceptance:', error);
+      res.status(500).json({
+        message: 'Failed to create Zoom meeting. Please try again.',
+        error: error.message,
+      });
+      return;
+    }
+
     const session = await prisma.session.create({
       data: {
         name: `Tutoring Session - ${queue.subject.name}`,
         description: queue.description,
         startTime: now,
         endTime: sessionEndTime,
-        zoomLink: `https://zoom.us/j/${Math.random().toString(36).substr(2, 9)}`, // Generate a mock Zoom link
+        zoomLink: zoomMeeting.join_url, // Use real Zoom meeting link
         maxAttendees: 2, // Instructor + 1 student
         materials: [],
         objectives: [`Help student with ${queue.subject.name}`],

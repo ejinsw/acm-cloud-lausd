@@ -27,9 +27,11 @@ import {
   IconWifi,
   IconWifiOff,
   IconRefresh,
+  IconVideo,
 } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
+import { useZoomStatus } from "../../../hooks/useZoomStatus";
 
 export default function InstructorQueuePage() {
   const { user } = useAuth();
@@ -37,6 +39,9 @@ export default function InstructorQueuePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [fallbackQueueItems, setFallbackQueueItems] = useState<any[]>([]);
+  
+  // Check Zoom connection status
+  const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
 
   // Use WebSocket hook for real-time updates
   const { isConnected, connectionError, queueItems, reconnect } =
@@ -101,6 +106,13 @@ export default function InstructorQueuePage() {
   }, []);
 
   const handleAcceptStudent = async (queueItemId: number) => {
+    // Check Zoom connection before accepting
+    if (!zoomConnected || zoomExpired) {
+      alert("You must connect your Zoom account before accepting queue requests.\n\nYou will be redirected to connect your Zoom account.");
+      router.push('/dashboard/instructor?tab=zoom');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -129,6 +141,14 @@ export default function InstructorQueuePage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Accept request failed:", errorData);
+        
+        // Handle Zoom connection error specifically
+        if (errorData.needsZoomConnection) {
+          alert(`${errorData.message}\n\nYou will be redirected to connect your Zoom account.`);
+          router.push('/dashboard/instructor?tab=zoom');
+          return;
+        }
+        
         throw new Error(
           errorData.message || `Failed to accept student (${response.status})`
         );
@@ -219,6 +239,30 @@ export default function InstructorQueuePage() {
           }
         >
           {connectionError}
+        </Alert>
+      )}
+
+      {/* Zoom Connection Warning */}
+      {!zoomLoading && (!zoomConnected || zoomExpired) && (
+        <Alert
+          icon={<IconVideo size={16} />}
+          color="yellow"
+          title="Zoom Account Required"
+          mb="md"
+          action={
+            <Button 
+              size="xs" 
+              variant="light" 
+              onClick={() => router.push('/dashboard/instructor?tab=zoom')}
+            >
+              Connect Zoom
+            </Button>
+          }
+        >
+          {zoomExpired 
+            ? "Your Zoom connection has expired. Please reconnect to accept queue requests and create sessions."
+            : "You must connect your Zoom account before accepting queue requests. Zoom meetings are automatically created for all sessions."
+          }
         </Alert>
       )}
 

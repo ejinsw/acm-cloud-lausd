@@ -68,7 +68,27 @@ export const getStudentQueues = expressAsyncHandler(
       return;
     }
 
-    const queues = await prisma.studentQueue.findMany({ where: { studentId: userId } });
+    const queues = await prisma.studentQueue.findMany({ 
+      where: { studentId: userId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            level: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     res.status(200).json({ queues });
   }

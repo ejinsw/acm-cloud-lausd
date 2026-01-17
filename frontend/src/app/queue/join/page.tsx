@@ -272,8 +272,8 @@ export default function JoinQueuePage() {
   };
 
   const handleLeaveQueue = async () => {
-    // Get queue ID from either SSE data or existing queue data
-    const queueId = myQueueStatus?.queue?.id || existingQueue?.id;
+    // Get queue ID from either WebSocket data or existing queue data
+    const queueId = myQueueItem?.id || existingQueue?.id;
     
     if (!queueId) {
       console.error("No queue ID available to leave");

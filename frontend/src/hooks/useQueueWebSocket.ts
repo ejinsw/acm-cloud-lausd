@@ -59,7 +59,13 @@ export function useQueueWebSocket(
       if (!token) return;
 
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      const response = await fetch(`${baseUrl}/api/queue`, {
+      
+      // Use different endpoints based on user role
+      const endpoint = userRole === "INSTRUCTOR" 
+        ? `${baseUrl}/api/queue`           // Instructors get all pending queues
+        : `${baseUrl}/api/queue/student`;  // Students get their own queues
+      
+      const response = await fetch(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -67,12 +73,21 @@ export function useQueueWebSocket(
 
       if (response.ok) {
         const data = await response.json();
-        setQueueItems(data.queueItems || []);
+        // Handle different response formats
+        if (userRole === "INSTRUCTOR") {
+          setQueueItems(data.queueItems || []);
+        } else {
+          // For students, convert their queues to the same format
+          const queues = data.queues || [];
+          setQueueItems(queues);
+        }
+      } else {
+        console.error(`Failed to fetch queue data: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error("Failed to fetch initial queue data:", error);
     }
-  }, []);
+  }, [userRole]);
 
   const connect = useCallback(async () => {
     try {

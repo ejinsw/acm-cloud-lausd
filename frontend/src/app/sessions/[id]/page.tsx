@@ -84,6 +84,7 @@ const normalizeUserFromProfile = (user?: User | null): ChatUser | null => {
 };
 
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const [isConnected, setIsConnected] = useState(false);

@@ -3,6 +3,33 @@ import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { zoomService } from '../services/zoomService';
 
+// Helper function to check and expire old sessions (older than 6 hours)
+async function expireOldSessions() {
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  
+  try {
+    const result = await prisma.session.updateMany({
+      where: {
+        startTime: {
+          lt: sixHoursAgo,
+        },
+        status: {
+          in: ['IN_PROGRESS', 'SCHEDULED'],
+        },
+      },
+      data: {
+        status: 'COMPLETED',
+      },
+    });
+    
+    if (result.count > 0) {
+      console.log(`Expired ${result.count} old sessions`);
+    }
+  } catch (error) {
+    console.error('Failed to expire old sessions:', error);
+  }
+}
+
 // Types
 interface SessionData {
   name: string;
@@ -27,6 +54,9 @@ interface SessionData {
  */
 export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
+    // Expire old sessions before fetching
+    await expireOldSessions();
+    
     const { tutorName, name, subject, instructorId } = req.query;
 
     const where: any = {};
@@ -73,6 +103,9 @@ export const getAllSessions = expressAsyncHandler(
  */
 export const getSessionById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
+    // Expire old sessions before fetching
+    await expireOldSessions();
+    
     const { id } = req.params;
     const session = await prisma.session.findUnique({
       where: { id },

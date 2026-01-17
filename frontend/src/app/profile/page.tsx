@@ -23,11 +23,12 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
-import { User, Shield, CheckCircle2, XCircle } from "lucide-react";
+import { User, Shield, CheckCircle2, XCircle, Video } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
 import { routes } from "../routes";
 import { getToken } from "@/actions/authentication";
 import { User as UserType } from "@/lib/types";
+import ZoomConnection from "@/components/sessions/ZoomConnection";
 
 function ProfileContent() {
   const searchParams = useSearchParams();
@@ -496,7 +497,11 @@ function ProfileContent() {
             >
               Address
             </Tabs.Tab>
-
+            {user.role === "INSTRUCTOR" && (
+              <Tabs.Tab value="zoom" leftSection={<Video size={16} />}>
+                Zoom Integration
+              </Tabs.Tab>
+            )}
             <Tabs.Tab value="privacy" leftSection={<Shield size={16} />}>
               Privacy
             </Tabs.Tab>
@@ -800,6 +805,23 @@ function ProfileContent() {
               </Stack>
             </Box>
           </Tabs.Panel>
+
+          {/* Zoom Integration Tab - Only for Instructors */}
+          {user.role === "INSTRUCTOR" && (
+            <Tabs.Panel value="zoom">
+              <Box pt="md">
+                <Stack>
+                  <Text size="lg" fw={500} mb="md">
+                    Zoom Integration
+                  </Text>
+                  <Text size="sm" c="dimmed" mb="md">
+                    Connect your Zoom account to automatically create video meetings for your tutoring sessions.
+                  </Text>
+                  <ZoomConnection />
+                </Stack>
+              </Box>
+            </Tabs.Panel>
+          )}
 
           <Tabs.Panel value="privacy">
             <Box pt="md">

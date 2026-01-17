@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Title, Grid, Text, Group, Button, Box, Tabs, Modal, Paper, Badge } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import Link from "next/link";
 import { Session } from "@/lib/types";
 import { SessionCard } from "./SessionCard";
+import { ZoomProtectedLink } from "@/components/sessions/ZoomProtectedLink";
 
 interface SessionManagementTabProps {
   sessions: Session[];
@@ -86,15 +86,15 @@ export function SessionManagementTab({ sessions, onSessionUpdate }: SessionManag
               <Grid.Col span={12}>
                 <Paper p="xl" ta="center">
                   <Text c="dimmed">No active sessions. 
-                    <Button 
-                      component={Link} 
+                    <ZoomProtectedLink
                       href="/sessions/create" 
                       variant="subtle" 
                       size="sm" 
                       ml="xs"
+                      requireZoom={true}
                     >
                       Create your first session
-                    </Button>
+                    </ZoomProtectedLink>
                   </Text>
                 </Paper>
               </Grid.Col>

@@ -24,7 +24,16 @@ export function useZoomStatus() {
       
       const token = await getToken();
       if (!token) {
-        throw new Error('No authentication token found');
+        // Don't throw error, just set status as not connected
+        console.warn('No authentication token found for Zoom status check');
+        setZoomStatus({
+          connected: false,
+          expired: false,
+          needsReconnect: false,
+          isLoading: false,
+          error: null,
+        });
+        return;
       }
 
       const response = await fetch(
@@ -39,6 +48,17 @@ export function useZoomStatus() {
       );
 
       if (!response.ok) {
+        // If it's a 403, user is not an instructor - not an error
+        if (response.status === 403) {
+          setZoomStatus({
+            connected: false,
+            expired: false,
+            needsReconnect: false,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        }
         throw new Error('Failed to check Zoom status');
       }
 

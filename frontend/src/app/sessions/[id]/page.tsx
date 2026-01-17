@@ -477,6 +477,42 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     return request?.status === "ACCEPTED";
   };
 
+  const handleLeaveSession = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions/${session.id}/leave`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        notifications.show({
+          title: "Left Session",
+          message: "You have been removed from this session",
+          color: "green",
+        });
+        router.push("/queue/join");
+      } else {
+        throw new Error("Failed to leave session");
+      }
+    } catch (error) {
+      console.error("Failed to leave session:", error);
+      notifications.show({
+        title: "Error",
+        message: "Failed to leave session",
+        color: "red",
+      });
+    }
+  };
+
   if (!canJoinSession()) {
     return (
       <PageWrapper>
@@ -490,9 +526,14 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   You do not have permission to join this session. Please request
                   to join the session first.
                 </Text>
-                <Button variant="outline" onClick={() => window.history.back()}>
-                  Go Back
-                </Button>
+                <Group>
+                  <Button variant="outline" onClick={() => window.history.back()}>
+                    Go Back
+                  </Button>
+                  <Button color="red" onClick={handleLeaveSession}>
+                    Leave Session
+                  </Button>
+                </Group>
               </Stack>
             </Center>
           </Paper>

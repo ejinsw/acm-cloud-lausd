@@ -120,8 +120,17 @@ export default function JoinQueuePage() {
           const data = await response.json();
           const queues = data.queues || [];
           
-          // Find accepted queue
-          const acceptedQueue = queues.find((q: ExistingQueue) => q.status === 'ACCEPTED');
+          // Find recently accepted queue (within last 30 seconds)
+          const now = new Date();
+          const acceptedQueue = queues.find((q: ExistingQueue) => {
+            if (q.status !== 'ACCEPTED') return false;
+            
+            const updatedAt = new Date(q.createdAt); // Use createdAt as proxy for when it was accepted
+            const timeDiff = now.getTime() - updatedAt.getTime();
+            
+            // Only redirect if accepted within last 30 seconds
+            return timeDiff < 30000;
+          });
           
           if (acceptedQueue) {
             // Fetch the session associated with this queue
@@ -136,8 +145,12 @@ export default function JoinQueuePage() {
               const sessionsData = await sessionsResponse.json();
               const sessions = sessionsData.sessions || [];
               
-              // Find the most recent session (assuming it's the one from the accepted queue)
-              const recentSession = sessions[0];
+              // Find the most recent session that's still active (within 6 hours)
+              const recentSession = sessions.find((s: any) => {
+                const sessionStart = new Date(s.startTime);
+                const hoursSinceStart = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60);
+                return hoursSinceStart < 6 && s.status === 'IN_PROGRESS';
+              });
               
               if (recentSession) {
                 console.log("Queue accepted! Redirecting to session:", recentSession.id);

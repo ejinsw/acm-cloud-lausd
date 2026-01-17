@@ -7,6 +7,7 @@ import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getToken } from "@/actions/authentication";
 import { Session } from "@/lib/types";
 import CreateSessionForm from "../../create/CreateSessionForm";
+import { ZoomRequiredGuard } from "@/components/sessions/ZoomRequiredGuard";
 
 export default function EditSessionPage() {
   const router = useRouter();
@@ -138,12 +139,17 @@ export default function EditSessionPage() {
         </Group>
       </Paper>
 
-      {/* Edit Session Form */}
-      <CreateSessionForm 
-        mode="edit" 
-        existingSession={session}
-        onSuccess={() => router.push("/dashboard/instructor")}
-      />
+      {/* Edit Session Form - Protected by Zoom Guard */}
+      <ZoomRequiredGuard 
+        message="You must have your Zoom account connected to edit sessions."
+        redirectToDashboard={true}
+      >
+        <CreateSessionForm 
+          mode="edit" 
+          existingSession={session}
+          onSuccess={() => router.push("/dashboard/instructor")}
+        />
+      </ZoomRequiredGuard>
     </Container>
   );
 }

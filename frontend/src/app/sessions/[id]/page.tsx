@@ -24,7 +24,6 @@ import {
   Tabs,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { getToken } from "../../../actions/authentication";
 import {
   IconMessage,
   IconVideo,

@@ -310,7 +310,14 @@ export default function JoinQueuePage() {
 
       console.log("Leave queue response status:", response.status);
 
-      if (!response.ok) {
+      if (response.ok) {
+        console.log("Successfully left queue");
+        // Refresh queue data to update UI
+        await refreshQueue();
+        // Clear existing queue state
+        setExistingQueue(null);
+        setFormData({ subjectId: "", description: "" });
+      } else {
         const errorData = await response.json().catch(() => ({}));
         console.error("Leave queue request failed:", errorData);
         throw new Error(

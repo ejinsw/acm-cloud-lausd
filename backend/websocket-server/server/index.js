@@ -688,8 +688,12 @@ server.on('connection', ws => {
           break;
         case 'QUEUE_UPDATED':
           // This message comes from the API server when queue changes
+          console.log('Received QUEUE_UPDATED message:', JSON.stringify(data, null, 2));
           if (payload?.queueData) {
+            console.log('Broadcasting queue update to subscribers...');
             broadcastQueueUpdate(payload.queueData);
+          } else {
+            console.warn('QUEUE_UPDATED message missing queueData:', payload);
           }
           break;
         default:

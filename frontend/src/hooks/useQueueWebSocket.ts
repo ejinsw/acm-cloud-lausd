@@ -260,18 +260,25 @@ export function useQueueWebSocket(
 
     // Cleanup on unmount
     return () => {
-      if (wsRef.current) {
-        // Unsubscribe before closing
-        if (isSubscribed.current) {
-          wsRef.current.send(JSON.stringify({ type: "UNSUBSCRIBE_QUEUE" }));
-        }
-        wsRef.current.close();
-      }
+      console.log("[WS] Cleaning up WebSocket connection");
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (wsRef.current) {
+        // Unsubscribe before closing
+        if (isSubscribed.current && wsRef.current.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify({ type: "UNSUBSCRIBE_QUEUE" }));
+          } catch (error) {
+            console.error("[WS] Error unsubscribing:", error);
+          }
+        }
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [connect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only connect once on mount
 
   return {
     isConnected,

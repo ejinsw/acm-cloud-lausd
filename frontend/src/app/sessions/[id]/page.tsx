@@ -24,6 +24,7 @@ import {
   Tabs,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { getToken } from "../../../actions/authentication";
 import {
   IconMessage,
   IconVideo,
@@ -208,20 +209,57 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         typeof payload.type === "string" ? payload.type : undefined;
 
       switch (eventType) {
-        case "message":
-        case "system": {
-          const normalized = normalizeServerMessage(
-            (payload as Record<string, unknown>).message ?? payload
-          );
+        case "USER_IDENTIFIED": {
+          console.log("[Chat WS] ✅ User identified, joining room:", session.id);
+          setIsConnected(true);
+          
+          // Join the room after authentication
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              type: "JOIN_ROOM",
+              payload: {
+                roomId: session.id,
+                user: chatUser
+              }
+            }));
+          }
+          break;
+        }
+        case "ROOM_JOINED": {
+          console.log("[Chat WS] ✅ Successfully joined room");
+          notifications.show({
+            title: "Connected",
+            message: "Connected to live session",
+            color: "green",
+          });
+          
+          // Load existing messages and participants from payload
+          const roomPayload = payload as Record<string, unknown>;
+          if (Array.isArray(roomPayload.messages)) {
+            const msgs = roomPayload.messages
+              .map(normalizeServerMessage)
+              .filter((m): m is ChatMessage => m !== null);
+            setMessages(msgs);
+          }
+          if (Array.isArray(roomPayload.users)) {
+            const users = roomPayload.users
+              .map(normalizeServerUser)
+              .filter((u): u is ChatUser => u !== null);
+            setParticipants(dedupeUsers(users));
+          }
+          break;
+        }
+        case "NEW_MESSAGE": {
+          const msgPayload = (payload as Record<string, unknown>).payload;
+          const normalized = normalizeServerMessage(msgPayload);
           if (normalized) {
             setMessages((prev) => [...prev, normalized]);
           }
           break;
         }
-        case "participant_joined": {
-          const user = normalizeServerUser(
-            (payload as Record<string, unknown>).user
-          );
+        case "USER_JOINED": {
+          const userPayload = (payload as Record<string, unknown>).payload as Record<string, unknown>;
+          const user = normalizeServerUser(userPayload.user);
           if (user) {
             setParticipants((prev) => dedupeUsers([...prev, user]));
             notifications.show({
@@ -232,8 +270,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           }
           break;
         }
-        case "participant_left": {
-          const rawId = (payload as Record<string, unknown>).userId;
+        case "USER_LEFT": {
+          const leftPayload = (payload as Record<string, unknown>).payload as Record<string, unknown>;
+          const rawId = leftPayload.userId;
           const userId =
             typeof rawId === "number"
               ? String(rawId)
@@ -286,27 +325,38 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
 
   useEffect(() => {
     const wsUrl =
-      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001";
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:9999";
 
     if (!session.id || !chatUser.id) {
       return undefined;
     }
 
-    const socket = new WebSocket(
-      `${wsUrl}?sessionId=${encodeURIComponent(
-        session.id
-      )}&userId=${encodeURIComponent(chatUser.id)}&userType=${chatUser.type}`
-    );
+    console.log("[Chat WS] Connecting to:", wsUrl);
+    console.log("[Chat WS] Session ID:", session.id);
+    console.log("[Chat WS] User:", chatUser);
+
+    const socket = new WebSocket(wsUrl);
 
     wsRef.current = socket;
 
-    socket.onopen = () => {
-      setIsConnected(true);
-      notifications.show({
-        title: "Connected",
-        message: "Connected to live session",
-        color: "green",
-      });
+    socket.onopen = async () => {
+      console.log("[Chat WS] ✅ Connection opened");
+      
+      // Get authentication token and identify user
+      try {
+        const token = await getToken();
+        if (token) {
+          console.log("[Chat WS] Sending IDENTIFY_USER message");
+          socket.send(JSON.stringify({
+            type: "IDENTIFY_USER",
+            payload: { token }
+          }));
+        } else {
+          console.error("[Chat WS] No token available");
+        }
+      } catch (error) {
+        console.error("[Chat WS] Failed to get token:", error);
+      }
     };
 
     socket.onmessage = (event) => {
@@ -381,13 +431,13 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
       return;
     }
 
+    console.log("[Chat WS] Sending message:", text);
     ws.send(
       JSON.stringify({
-        type: "send_message",
-        message: {
-          sessionId: session.id,
+        type: "SEND_MESSAGE",
+        payload: {
+          roomId: session.id,
           text,
-          senderId: currentUser.id,
         },
       })
     );

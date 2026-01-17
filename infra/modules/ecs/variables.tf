@@ -13,8 +13,8 @@ variable "execution_role_arn" {}
 variable "task_role_arn" {}
 variable "public_subnet_ids" { type = list(string) }
 variable "fargate_sg_id" {}
-variable "api_desired_count" { default = 0 }
-variable "websocket_desired_count" { default = 0 }
+variable "api_desired_count" { default = 1 }
+variable "websocket_desired_count" { default = 1 }
 variable "vpc_id" {}
 variable "websocket_target_group_arn" { 
   description = "ARN of the target group to attach the websocket service to"

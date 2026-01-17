@@ -141,7 +141,10 @@ module "ecs" {
   fargate_sg_id              = module.vpc.fargate_sg_id
   api_desired_count          = var.api_desired_count
   websocket_desired_count    = var.websocket_desired_count
-  vpc_id                 = module.vpc.vpc_id
+  vpc_id                     = module.vpc.vpc_id
+  websocket_target_group_arn = module.websocket_gateway.websocket_target_group_arn
+  
+  depends_on = [module.websocket_gateway]
 }
 
 # API Gateway with VPC Link to Cloud Map
@@ -174,12 +177,8 @@ module "websocket_gateway" {
   # WebSocket Gateway variables
   vpc_id                 = module.vpc.vpc_id
   public_subnet_ids      = [module.vpc.public_subnet_id_1, module.vpc.public_subnet_id_2]
-  alb_security_group_ids = [module.vpc.fargate_sg_id]
+  alb_security_group_ids = [module.vpc.alb_sg_id]
   websocket_port         = 9999
-  ecs_service_name       = module.ecs.websocket_service_name
-  ecs_cluster_name       = module.ecs.cluster_name
-
-  depends_on = [module.ecs]
 }
 
 # FOR DAEHOON AND SID

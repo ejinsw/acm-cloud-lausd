@@ -111,7 +111,7 @@ module "ecs" {
     { name = "NODE_ENV", value = var.environment },
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
     { name = "FRONTEND_URL", value = "https://acm-cloud-lausd.vercel.app" },
-    { name = "NEXT_PUBLIC_WEBSOCKET_URL", value = "http://websocket.acmcloud.local:9999" },
+    { name = "WEBSOCKET_SERVER_URL", value = "ws://websocket.acmcloud.local:9999" },  # Internal WebSocket URL for API server
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },

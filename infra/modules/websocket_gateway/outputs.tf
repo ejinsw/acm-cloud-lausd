@@ -8,6 +8,11 @@ output "websocket_api_endpoint" {
   value       = aws_apigatewayv2_stage.websocket.invoke_url
 }
 
+output "websocket_cloudfront_domain" {
+  description = "CloudFront domain for WebSocket connections (wss://)"
+  value       = "wss://${aws_cloudfront_distribution.websocket.domain_name}"
+}
+
 output "websocket_api_arn" {
   description = "The ARN of the WebSocket API Gateway"
   value       = aws_apigatewayv2_api.websocket.arn

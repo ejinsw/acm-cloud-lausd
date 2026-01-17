@@ -9,40 +9,11 @@ dotenv.config();
 
 const PORT = process.env.PORT || 9999;
 
-// Create HTTP server for health checks and internal queue notifications
+// Create HTTP server for health checks only
 const httpServer = http.createServer((req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
   if (req.url === '/' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'websocket-server' }));
-    return;
-  }
-
-  if (req.url === '/notify-queue' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk.toString(); });
-    req.on('end', () => {
-      try {
-        const queueData = JSON.parse(body);
-        broadcastQueueUpdate(queueData);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, subscribers: queueSubscribers.size }));
-      } catch (err) {
-        console.error('Error processing queue notification:', err);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid request body' }));
-      }
-    });
     return;
   }
 
@@ -66,7 +37,7 @@ const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
 
 httpServer.listen(PORT, () => {
-  console.log(`WebSocket server with HTTP endpoint started on port ${PORT}`);
+  console.log(`WebSocket server started on port ${PORT}`);
 });
 
 // --- Helper Functions ---

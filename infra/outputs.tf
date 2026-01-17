@@ -59,8 +59,13 @@ output "api_gateway_id" {
 }
 
 output "websocket_gateway_endpoint" {
-  description = "WebSocket API Gateway endpoint URL (wss://) - FLAT URL, no path needed"
+  description = "WebSocket API Gateway endpoint URL (wss://) - DEPRECATED, use websocket_cloudfront_endpoint instead"
   value       = module.websocket_gateway.websocket_api_endpoint
+}
+
+output "websocket_cloudfront_endpoint" {
+  description = "CloudFront WebSocket endpoint (wss://) - USE THIS for frontend connections"
+  value       = module.websocket_gateway.websocket_cloudfront_domain
 }
 
 output "websocket_gateway_id" {

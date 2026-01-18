@@ -23,12 +23,12 @@ interface QueueItem {
 }
 
 interface QueueWebSocketMessage {
-  type: "QUEUE_SUBSCRIBED" | "QUEUE_UPDATE" | "QUEUE_UNSUBSCRIBED" | "ERROR";
+  type: "QUEUE_SUBSCRIBED" | "QUEUE_JOIN" | "QUEUE_LEAVE" | "QUEUE_ACCEPTED" | "QUEUE_UNSUBSCRIBED" | "ERROR";
   payload?: {
-    type?: string;
-    studentId?: string;
     sessionId?: string;
-    queueData?: any;
+    queueItem?: any;
+    queueId?: number;
+    studentId?: string;
     message?: string;
   };
 }
@@ -165,11 +165,24 @@ export function useQueueWebSocket(
               fetchQueueData();
               break;
 
-            case "QUEUE_UPDATE":
-              console.log("[WS] 🔄 Queue update received:", message.payload);
-              
-              // Refresh queue data when update is received
+            case "QUEUE_JOIN":
+              console.log("[WS] 👋 Student joined queue:", message.payload);
+              // Refetch queue data to get updated list
               fetchQueueData();
+              break;
+
+            case "QUEUE_LEAVE":
+              console.log("[WS] 👋 Student left queue:", message.payload);
+              // Refetch queue data to get updated list
+              fetchQueueData();
+              break;
+
+            case "QUEUE_ACCEPTED":
+              console.log("[WS] 🎉 Queue accepted! Redirecting to session:", message.payload?.sessionId);
+              // Student's queue was accepted - redirect to session
+              if (message.payload?.sessionId && typeof window !== 'undefined') {
+                window.location.href = `/sessions/${message.payload.sessionId}`;
+              }
               break;
 
             case "ERROR":

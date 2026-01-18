@@ -100,20 +100,42 @@ async function pushRoomListUpdate(targetWs = null) {
   }
 }
 
-function broadcastQueueUpdate(queueData) {
-  console.log(`Broadcasting queue update to ${queueSubscribers.size} subscribers:`, queueData);
-  queueSubscribers.forEach(({ ws, role }, userId) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'QUEUE_UPDATE',
-        payload: { queueData }  // Wrap queueData in payload object
-      }));
-      console.log(`Sent queue update to user ${userId} (${role})`);
+function broadcastQueueUpdate(updateData) {
+  console.log(`Broadcasting queue update to ${queueSubscribers.size} subscribers:`, updateData);
+  
+  const { type, targetStudentId, sessionId, queueItem, queueId, studentId } = updateData;
+  
+  // Handle different update types
+  if (type === 'queue_accepted' && targetStudentId) {
+    // Send targeted notification to specific student
+    const studentSub = Array.from(queueSubscribers.entries()).find(
+      ([userId, { role }]) => userId === targetStudentId && role === 'student'
+    );
+    
+    if (studentSub) {
+      const [userId, { ws }] = studentSub;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'QUEUE_ACCEPTED',
+          payload: { sessionId }
+        }));
+        console.log(`✅ Sent queue acceptance notification to student ${userId} with session ${sessionId}`);
+      }
     } else {
-      console.log(`User ${userId} WebSocket not open, removing from subscribers`);
-      queueSubscribers.delete(userId);
+      console.warn(`⚠️  Target student ${targetStudentId} not connected to WebSocket`);
     }
-  });
+  } else if (type === 'queue_join' || type === 'queue_leave') {
+    // Broadcast to all instructors to refetch queue
+    queueSubscribers.forEach(({ ws, role }, userId) => {
+      if (role === 'instructor' && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: type === 'queue_join' ? 'QUEUE_JOIN' : 'QUEUE_LEAVE',
+          payload: { queueItem, queueId, studentId }
+        }));
+        console.log(`📢 Sent ${type} notification to instructor ${userId}`);
+      }
+    });
+  }
 }
 
 function verifyToken(token) {
@@ -688,12 +710,12 @@ server.on('connection', ws => {
           break;
         case 'QUEUE_UPDATED':
           // This message comes from the API server when queue changes
-          console.log('Received QUEUE_UPDATED message:', JSON.stringify(data, null, 2));
+          console.log('📨 Received QUEUE_UPDATED message:', JSON.stringify(data, null, 2));
           if (payload?.queueData) {
-            console.log('Broadcasting queue update to subscribers...');
+            console.log('📢 Broadcasting queue update to subscribers...');
             broadcastQueueUpdate(payload.queueData);
           } else {
-            console.warn('QUEUE_UPDATED message missing queueData:', payload);
+            console.warn('⚠️  QUEUE_UPDATED message missing queueData:', payload);
           }
           break;
         default:

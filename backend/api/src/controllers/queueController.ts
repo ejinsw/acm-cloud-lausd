@@ -135,10 +135,30 @@ export const createStudentQueue = expressAsyncHandler(
 
     const newQueue = await prisma.studentQueue.create({
       data: { description, subjectId, studentId: userId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            level: true,
+          },
+        },
+      },
     });
 
-    // Notify WebSocket server of queue change
-    notifyQueueChange({ type: 'student_joined', studentId: userId }).catch(err => {
+    // Notify WebSocket server that a student joined the queue
+    notifyQueueChange({ 
+      type: 'queue_join',
+      queueItem: newQueue
+    }).catch(err => {
       console.error('Queue notification failed:', err);
     });
 
@@ -264,8 +284,12 @@ export const acceptQueue = expressAsyncHandler(
       },
     });
 
-    // Notify WebSocket server of queue change
-    notifyQueueChange({ type: 'queue_accepted', studentId: queue.studentId, sessionId: session.id }).catch(err => {
+    // Notify the specific student that their queue was accepted
+    notifyQueueChange({ 
+      type: 'queue_accepted',
+      targetStudentId: queue.studentId,
+      sessionId: session.id
+    }).catch(err => {
       console.error('Queue notification failed:', err);
     });
 
@@ -350,15 +374,20 @@ export const deleteQueue = expressAsyncHandler(
       return;
     }
 
-    // Get student ID before deleting for SSE notification
+    // Get queue details before deleting
     const studentId = queue.studentId;
-    console.log(`Deleting queue for student: ${studentId}`);
+    const queueId = queue.id;
+    console.log(`Deleting queue ${queueId} for student: ${studentId}`);
 
     await prisma.studentQueue.delete({ where: { id: Number(id) } });
     console.log(`Queue ${id} deleted successfully`);
 
-    // Notify WebSocket server of queue change
-    notifyQueueChange({ type: 'student_left', studentId }).catch(err => {
+    // Notify WebSocket server that a student left the queue
+    notifyQueueChange({ 
+      type: 'queue_leave',
+      queueId,
+      studentId
+    }).catch(err => {
       console.error('Queue notification failed:', err);
     });
 

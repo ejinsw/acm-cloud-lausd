@@ -43,6 +43,12 @@ export const connectZoom = expressAsyncHandler(
     // Generate state parameter for security - include userId for validation
     const state = `${userId}-${Date.now()}`;
 
+    console.log('[Zoom Connect] Building OAuth URL with config:', {
+      clientId: ZOOM_CONFIG.clientId ? `${ZOOM_CONFIG.clientId.substring(0, 10)}...` : 'MISSING',
+      redirectUri: ZOOM_CONFIG.redirectUri || 'MISSING',
+      userId: userId
+    });
+
     // Build OAuth URL
     const authUrl = new URL(ZOOM_ENDPOINTS.OAUTH_AUTHORIZE);
     authUrl.searchParams.set('response_type', 'code');
@@ -51,7 +57,8 @@ export const connectZoom = expressAsyncHandler(
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('scope', 'meeting:write meeting:read user:read');
 
-    console.log('Returning Zoom OAuth URL to frontend');
+    console.log('[Zoom Connect] Full OAuth URL:', authUrl.toString());
+    console.log('[Zoom Connect] Returning Zoom OAuth URL to frontend');
     
     // Return the OAuth URL to the frontend instead of redirecting
     // This allows the frontend to handle the redirect with proper token handling
@@ -71,7 +78,15 @@ export const zoomCallback = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { code, state } = req.query;
 
+    console.log('[Zoom Callback] Received callback with:', {
+      hasCode: !!code,
+      hasState: !!state,
+      code: code ? `${String(code).substring(0, 20)}...` : 'MISSING',
+      state: state || 'MISSING'
+    });
+
     if (!code || !state) {
+      console.error('[Zoom Callback] Missing required parameters');
       res.status(400).json({ message: 'Missing authorization code or state' });
       return;
     }
@@ -80,12 +95,17 @@ export const zoomCallback = expressAsyncHandler(
     const stateStr = state as string;
     const userId = stateStr.split('-')[0];
 
+    console.log('[Zoom Callback] Extracted userId from state:', userId);
+
     if (!userId) {
+      console.error('[Zoom Callback] Invalid state parameter - could not extract userId');
       res.status(400).json({ message: 'Invalid state parameter' });
       return;
     }
 
     try {
+      console.log('[Zoom Callback] Exchanging code for tokens with redirect_uri:', ZOOM_CONFIG.redirectUri);
+      
       // Exchange code for tokens
       const tokenResponse = await axios.post(
         ZOOM_ENDPOINTS.OAUTH_TOKEN,
@@ -102,6 +122,8 @@ export const zoomCallback = expressAsyncHandler(
         }
       );
 
+      console.log('[Zoom Callback] Successfully received tokens from Zoom');
+
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
       // Store tokens in database
@@ -114,11 +136,19 @@ export const zoomCallback = expressAsyncHandler(
         },
       });
 
+      console.log('[Zoom Callback] Tokens stored in database for user:', userId);
+
       // Redirect back to the frontend dashboard with success message
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      console.log('[Zoom Callback] Redirecting to frontend:', `${frontendUrl}/dashboard/instructor?tab=zoom&zoom_connected=true`);
       res.redirect(`${frontendUrl}/dashboard/instructor?tab=zoom&zoom_connected=true`);
     } catch (error: any) {
-      console.error('Zoom OAuth error:', error.response?.data || error.message);
+      console.error('[Zoom Callback] Error during token exchange:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
       res.status(400).json({
         message: 'Failed to connect Zoom account',
         error: error.response?.data || error.message,

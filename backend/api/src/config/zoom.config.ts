@@ -11,6 +11,15 @@ export const ZOOM_CONFIG = {
   sdkSecret: process.env.ZOOM_SDK_SECRET,
 };
 
+// Log configuration on startup (mask sensitive data)
+console.log('[Zoom Config] Loaded configuration:', {
+  clientId: ZOOM_CONFIG.clientId ? `${ZOOM_CONFIG.clientId.substring(0, 10)}...` : '❌ MISSING',
+  clientSecret: ZOOM_CONFIG.clientSecret ? '✅ SET' : '❌ MISSING',
+  redirectUri: ZOOM_CONFIG.redirectUri || '❌ MISSING',
+  sdkKey: ZOOM_CONFIG.sdkKey ? `${ZOOM_CONFIG.sdkKey.substring(0, 10)}...` : '⚠️  NOT SET',
+  sdkSecret: ZOOM_CONFIG.sdkSecret ? '✅ SET' : '⚠️  NOT SET',
+});
+
 // Zoom API Endpoints
 export const ZOOM_ENDPOINTS = {
   OAUTH_AUTHORIZE: 'https://zoom.us/oauth/authorize',

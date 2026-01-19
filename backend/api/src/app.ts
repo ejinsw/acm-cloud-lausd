@@ -61,7 +61,7 @@ app.use('/api', subjectRouter);
 app.use('/api', adminRouter);
 app.use('/api', sessionHistoryRouter);
 app.use('/api', queueRouter);
-app.use('/api/zoom', zoomRouter);
+app.use('/api', zoomRouter);
 
 // Health check endpoint
 app.get('/api/health', async (req: Request, res: Response) => {

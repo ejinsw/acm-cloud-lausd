@@ -5,9 +5,9 @@ import { authenticateToken } from '../middleware/auth';
 const router = express.Router();
 
 // Zoom OAuth routes
-router.get('/connect', authenticateToken, connectZoom); // Returns OAuth URL (doesn't redirect)
-router.get('/callback', zoomCallback); // No auth middleware - validates via state parameter
-router.get('/status', authenticateToken, getZoomStatus);
-router.delete('/disconnect', authenticateToken, disconnectZoom);
+router.get('/zoom/connect', authenticateToken, connectZoom); // Returns OAuth URL (doesn't redirect)
+router.get('/zoom/callback', zoomCallback); // No auth middleware - validates via state parameter
+router.get('/zoom/status', authenticateToken, getZoomStatus);
+router.delete('/zoom/disconnect', authenticateToken, disconnectZoom);
 
 export default router;

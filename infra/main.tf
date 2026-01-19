@@ -111,7 +111,7 @@ module "ecs" {
     { name = "NODE_ENV", value = var.environment },
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
     { name = "FRONTEND_URL", value = "https://acm-cloud-lausd.vercel.app" },
-    { name = "WEBSOCKET_SERVER_URL", value = "ws://websocket.acmcloud.local:9999" },  # Internal WebSocket URL for API server
+    { name = "WEBSOCKET_SERVER_URL", value = "wss://dfh19to7ozrqj.cloudfront.net" },  # CloudFront WebSocket endpoint
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },
@@ -119,7 +119,12 @@ module "ecs" {
     { name = "COGNITO_USER_POOL_ID", value = module.cognito.user_pool_id },
     { name = "AWS_REGION", value = "us-west-1" },
     { name = "AWS_ACCESS_KEY_ID", value = module.cognito_admin.admin_access_key_id },
-    { name = "AWS_SECRET_ACCESS_KEY", value = module.cognito_admin.admin_secret_access_key }
+    { name = "AWS_SECRET_ACCESS_KEY", value = module.cognito_admin.admin_secret_access_key },
+    { name = "ZOOM_CLIENT_ID", value = var.zoom_client_id },
+    { name = "ZOOM_CLIENT_SECRET", value = var.zoom_client_secret },
+    { name = "ZOOM_REDIRECT_URI", value = var.zoom_redirect_uri },
+    { name = "ZOOM_SDK_KEY", value = var.zoom_sdk_key },
+    { name = "ZOOM_SDK_SECRET", value = var.zoom_sdk_secret }
   ]
   websocket_environment = [
     { name = "NODE_ENV", value = var.environment },
@@ -158,7 +163,7 @@ module "api_gateway" {
   # API Gateway variables
   vpc_id          = module.vpc.vpc_id
   cloudmap_api_service_arn = module.ecs.cloudmap_api_service_arn
-  cloudmap_websocket_service_arn = module.ecs.cloudmap_websocket_service_arn
+  # cloudmap_websocket_service_arn removed - using dedicated WebSocket Gateway
   # VPC Link should be in private subnets (AWS best practice)
   subnet_ids      = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   vpc_link_security_group_ids = [module.vpc.vpc_link_sg_id]

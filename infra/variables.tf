@@ -50,4 +50,36 @@ variable "websocket_desired_count" {
   description = "Number of WebSocket ECS tasks to run (set to 0 to scale to zero)"
   type        = number
   default     = 1
+}
+
+variable "zoom_client_id" {
+  description = "Zoom OAuth Client ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "zoom_client_secret" {
+  description = "Zoom OAuth Client Secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "zoom_redirect_uri" {
+  description = "Zoom OAuth Redirect URI"
+  type        = string
+  default     = "https://guzdb7gpyk.execute-api.us-west-1.amazonaws.com/api/zoom/callback"
+}
+
+variable "zoom_sdk_key" {
+  description = "Zoom SDK Key (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "zoom_sdk_secret" {
+  description = "Zoom SDK Secret (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
 } 

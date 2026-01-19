@@ -28,6 +28,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 import { useZoomStatus } from "@/hooks/useZoomStatus";
+import { notifications } from "@mantine/notifications";
 
 function InstructorDashboardContent() {
   const { user } = useAuth();
@@ -104,6 +105,22 @@ function InstructorDashboardContent() {
       router.push(`?${params.toString()}`);
     }
   }, [activeTab, router, searchParams]);
+
+  // Check for Zoom connection success
+  useEffect(() => {
+    const zoomConnected = searchParams.get('zoom_connected');
+    if (zoomConnected === 'true') {
+      notifications.show({
+        title: 'Success',
+        message: 'Zoom account connected successfully!',
+        color: 'green',
+      });
+      // Clean up the URL
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('zoom_connected');
+      router.replace(`?${params.toString()}`);
+    }
+  }, [searchParams, router]);
 
   // Calculate statistics
   const completedSessions = sessions.filter(

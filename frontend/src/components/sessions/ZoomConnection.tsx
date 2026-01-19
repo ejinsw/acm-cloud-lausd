@@ -19,6 +19,7 @@ import {
   IconExternalLink,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
+import { getToken } from "@/actions/authentication";
 
 interface ZoomConnectionProps {
   onConnected?: () => void;
@@ -32,7 +33,6 @@ interface ZoomStatus {
 }
 
 const ZoomConnection: React.FC<ZoomConnectionProps> = ({
-  onConnected,
   onDisconnected,
 }) => {
   const [zoomStatus, setZoomStatus] = useState<ZoomStatus | null>(null);
@@ -44,10 +44,17 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
   const checkZoomStatus = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("auth_token");
+      const token = await getToken();
 
       if (!token) {
-        throw new Error("No authentication token found");
+        console.warn("No authentication token found");
+        setZoomStatus({
+          connected: false,
+          expired: false,
+          needsReconnect: false,
+        });
+        setIsLoading(false);
+        return;
       }
 
       const response = await fetch(
@@ -62,6 +69,16 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
       );
 
       if (!response.ok) {
+        // If 403, user is not an instructor - show not connected
+        if (response.status === 403) {
+          setZoomStatus({
+            connected: false,
+            expired: false,
+            needsReconnect: false,
+          });
+          setIsLoading(false);
+          return;
+        }
         throw new Error("Failed to check Zoom status");
       }
 
@@ -74,6 +91,12 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
         message: "Failed to check Zoom connection status",
         color: "red",
       });
+      // Set a default status so UI doesn't break
+      setZoomStatus({
+        connected: false,
+        expired: false,
+        needsReconnect: false,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -83,14 +106,24 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
   const connectZoom = async () => {
     try {
       setIsConnecting(true);
-      const token = localStorage.getItem("auth_token");
+      const token = await getToken();
 
       if (!token) {
-        throw new Error("No authentication token found");
+        notifications.show({
+          title: "Authentication Required",
+          message: "Please log in to connect your Zoom account",
+          color: "red",
+        });
+        setIsConnecting(false);
+        return;
       }
 
-      // Redirect to Zoom OAuth
-      window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/zoom/connect`;
+      // Store token temporarily for the OAuth flow
+      sessionStorage.setItem('zoom_auth_token', token);
+      
+      // Redirect to Zoom OAuth endpoint
+      // The backend will handle the redirect to Zoom
+      window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/zoom/connect?token=${encodeURIComponent(token)}`;
     } catch (error) {
       console.error("Error connecting to Zoom:", error);
       notifications.show({
@@ -98,7 +131,6 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
         message: "Failed to connect to Zoom",
         color: "red",
       });
-    } finally {
       setIsConnecting(false);
     }
   };
@@ -106,10 +138,15 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
   // Disconnect from Zoom
   const disconnectZoom = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
+      const token = await getToken();
 
       if (!token) {
-        throw new Error("No authentication token found");
+        notifications.show({
+          title: "Authentication Required",
+          message: "Please log in to disconnect your Zoom account",
+          color: "red",
+        });
+        return;
       }
 
       const response = await fetch(
@@ -169,12 +206,12 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
 
   return (
     <>
-      <Stack spacing="md">
+      <Stack gap="md">
         {/* Connection Status */}
-        <Group position="apart">
-          <Group spacing="xs">
+        <Group justify="space-between">
+          <Group gap="xs">
             <IconVideo size={20} />
-            <Text weight={500}>Zoom Integration</Text>
+            <Text fw={500}>Zoom Integration</Text>
           </Group>
           <Badge color={zoomStatus.connected ? "green" : "red"} variant="light">
             {zoomStatus.connected ? "Connected" : "Not Connected"}
@@ -197,12 +234,12 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
         )}
 
         {/* Action Buttons */}
-        <Group spacing="sm">
+        <Group gap="sm">
           {zoomStatus.connected && !zoomStatus.expired ? (
             <>
               <Button
                 color="green"
-                leftIcon={<IconCheck size={16} />}
+                leftSection={<IconCheck size={16} />}
                 size="sm"
                 disabled
               >
@@ -211,7 +248,7 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
               <Button
                 color="red"
                 variant="outline"
-                leftIcon={<IconX size={16} />}
+                leftSection={<IconX size={16} />}
                 onClick={disconnectZoom}
                 size="sm"
               >
@@ -221,7 +258,7 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
           ) : (
             <Button
               color="blue"
-              leftIcon={<IconVideo size={16} />}
+              leftSection={<IconVideo size={16} />}
               onClick={() => setShowConnectModal(true)}
               loading={isConnecting}
               size="sm"
@@ -246,7 +283,7 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
         title="Connect Zoom Account"
         size="md"
       >
-        <Stack spacing="md">
+        <Stack gap="md">
           <Text>
             To create sessions with embedded video meetings, you need to connect
             your Zoom account. This will allow us to automatically create Zoom
@@ -258,7 +295,7 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
             a secure process.
           </Alert>
 
-          <Group position="right" spacing="sm">
+          <Group justify="flex-end" gap="sm">
             <Button
               variant="outline"
               onClick={() => setShowConnectModal(false)}
@@ -267,7 +304,7 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
             </Button>
             <Button
               color="blue"
-              leftIcon={<IconVideo size={16} />}
+              leftSection={<IconVideo size={16} />}
               onClick={connectZoom}
               loading={isConnecting}
             >

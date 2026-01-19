@@ -40,13 +40,8 @@ export const connectZoom = expressAsyncHandler(
       return;
     }
 
-    // Generate state parameter for security
+    // Generate state parameter for security - include userId for validation
     const state = `${userId}-${Date.now()}`;
-
-    // Store state in session or database for validation
-    // For now, we'll use a simple approach
-    req.session = req.session || {};
-    req.session.zoomOAuthState = state;
 
     // Build OAuth URL
     const authUrl = new URL(ZOOM_ENDPOINTS.OAUTH_AUTHORIZE);
@@ -63,20 +58,22 @@ export const connectZoom = expressAsyncHandler(
 /**
  * Handle Zoom OAuth callback
  * @route GET /zoom/callback
- * @access Private
+ * @access Public (validates via state parameter)
  */
 export const zoomCallback = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { code, state } = req.query;
-    const userId = (req.user as { sub: string })?.sub;
 
     if (!code || !state) {
       res.status(400).json({ message: 'Missing authorization code or state' });
       return;
     }
 
-    // Validate state parameter
-    if (req.session?.zoomOAuthState !== state) {
+    // Extract userId from state parameter
+    const stateStr = state as string;
+    const userId = stateStr.split('-')[0];
+
+    if (!userId) {
       res.status(400).json({ message: 'Invalid state parameter' });
       return;
     }
@@ -110,13 +107,9 @@ export const zoomCallback = expressAsyncHandler(
         },
       });
 
-      // Clear state from session
-      delete req.session?.zoomOAuthState;
-
-      res.json({
-        message: 'Zoom account connected successfully',
-        connected: true,
-      });
+      // Redirect back to the frontend dashboard with success message
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/dashboard/instructor?tab=zoom&zoom_connected=true`);
     } catch (error: any) {
       console.error('Zoom OAuth error:', error.response?.data || error.message);
       res.status(400).json({

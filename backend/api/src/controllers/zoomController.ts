@@ -55,7 +55,7 @@ export const connectZoom = expressAsyncHandler(
     authUrl.searchParams.set('client_id', ZOOM_CONFIG.clientId ?? "");
     authUrl.searchParams.set('redirect_uri', ZOOM_CONFIG.redirectUri ?? "");
     authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('scope', 'meeting:write meeting:read user:read');
+    authUrl.searchParams.set('scope', 'meeting:write:meeting meeting:read:meeting user:read:user');
 
     console.log('[Zoom Connect] Full OAuth URL:', authUrl.toString());
     console.log('[Zoom Connect] Returning Zoom OAuth URL to frontend');

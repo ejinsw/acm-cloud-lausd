@@ -16,7 +16,7 @@ function connectToWebSocket() {
     console.log('[Queue Notifier] Connected to WebSocket server');
   });
 
-  ws.on('error', (error) => {
+  ws.on('error', (error: Error) => {
     console.error('[Queue Notifier] WebSocket error:', error);
   });
 

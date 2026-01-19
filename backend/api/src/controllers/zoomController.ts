@@ -18,11 +18,26 @@ declare global {
 /**
  * Start Zoom OAuth flow
  * @route GET /zoom/connect
- * @access Private/Instructor
+ * @access Private/Instructor (accepts token from query param or header)
  */
 export const connectZoom = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.user as { sub: string })?.sub;
+    // Get userId from authenticated user (set by middleware) or decode from query token
+    let userId = (req.user as { sub: string })?.sub;
+
+    // If no user from middleware, try to get token from query parameter
+    if (!userId && req.query.token) {
+      try {
+        const token = req.query.token as string;
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+          userId = payload.sub || payload.id;
+        }
+      } catch (error) {
+        console.error('Error decoding token from query:', error);
+      }
+    }
 
     if (!userId) {
       res.status(401).json({ message: 'Not authorized' });

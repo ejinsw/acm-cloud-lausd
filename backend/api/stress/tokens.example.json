@@ -1,0 +1,5 @@
+{
+  "studentToken": "PASTE_STUDENT_JWT_OR_ACCESS_TOKEN_HERE",
+  "instructorToken": "PASTE_INSTRUCTOR_JWT_OR_ACCESS_TOKEN_HERE",
+  "subjectId": 1
+}

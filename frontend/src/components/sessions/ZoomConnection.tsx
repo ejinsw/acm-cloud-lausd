@@ -118,12 +118,31 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
         return;
       }
 
-      // Store token temporarily for the OAuth flow
-      sessionStorage.setItem('zoom_auth_token', token);
+      // Make an authenticated request to get the Zoom OAuth URL
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/zoom/connect`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to initiate Zoom connection");
+      }
+
+      // The backend should return the Zoom OAuth URL
+      const data = await response.json();
       
-      // Redirect to Zoom OAuth endpoint
-      // The backend will handle the redirect to Zoom
-      window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/zoom/connect?token=${encodeURIComponent(token)}`;
+      if (data.authUrl) {
+        // Redirect to Zoom OAuth
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("No authorization URL received");
+      }
     } catch (error) {
       console.error("Error connecting to Zoom:", error);
       notifications.show({

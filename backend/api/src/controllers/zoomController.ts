@@ -16,28 +16,13 @@ declare global {
 }
 
 /**
- * Start Zoom OAuth flow
+ * Start Zoom OAuth flow - Returns OAuth URL for frontend to redirect
  * @route GET /zoom/connect
- * @access Private/Instructor (accepts token from query param or header)
+ * @access Private/Instructor
  */
 export const connectZoom = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // Get userId from authenticated user (set by middleware) or decode from query token
-    let userId = (req.user as { sub: string })?.sub;
-
-    // If no user from middleware, try to get token from query parameter
-    if (!userId && req.query.token) {
-      try {
-        const token = req.query.token as string;
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-          userId = payload.sub || payload.id;
-        }
-      } catch (error) {
-        console.error('Error decoding token from query:', error);
-      }
-    }
+    const userId = (req.user as { sub: string })?.sub;
 
     if (!userId) {
       res.status(401).json({ message: 'Not authorized' });
@@ -66,7 +51,14 @@ export const connectZoom = expressAsyncHandler(
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('scope', 'meeting:write meeting:read user:read');
 
-    res.redirect(authUrl.toString());
+    console.log('Returning Zoom OAuth URL to frontend');
+    
+    // Return the OAuth URL to the frontend instead of redirecting
+    // This allows the frontend to handle the redirect with proper token handling
+    res.json({
+      authUrl: authUrl.toString(),
+      message: 'Zoom OAuth URL generated successfully',
+    });
   }
 );
 

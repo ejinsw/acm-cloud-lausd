@@ -4,26 +4,19 @@ import { ZOOM_CONFIG, ZoomMeeting, ZoomAPIError } from '../config/zoom.config';
 // Zoom API Service for tutoring app
 export class ZoomService {
   private baseURL = ZOOM_CONFIG.baseUrl;
-  private accessToken: string | null = null;
-
-  // Get access token (you'll need to implement OAuth flow)
-  private async getAccessToken(): Promise<string> {
-    if (this.accessToken) return this.accessToken;
-
-    // TODO: Implement OAuth token refresh logic
-    // For now, you'll need to get this from your OAuth implementation
-    throw new Error('Access token not available. Implement OAuth flow first.');
-  }
 
   // Create a new meeting for a tutoring session
-  async createMeeting(sessionData: {
-    topic: string;
-    startTime: string;
-    duration: number;
-    instructorEmail: string;
-  }): Promise<ZoomMeeting> {
+  async createMeeting(
+    accessToken: string,
+    sessionData: {
+      topic: string;
+      startTime: string;
+      duration: number;
+      instructorEmail: string;
+    }
+  ): Promise<ZoomMeeting> {
     try {
-      const token = await this.getAccessToken();
+      console.log('[ZoomService] Creating meeting with topic:', sessionData.topic);
 
       const meetingData = {
         topic: sessionData.topic,
@@ -44,35 +37,36 @@ export class ZoomService {
       };
 
       const response: AxiosResponse<ZoomMeeting> = await axios.post(
-        `${this.baseURL}/users/${sessionData.instructorEmail}/meetings`,
+        `${this.baseURL}/users/me/meetings`,
         meetingData,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }
       );
 
+      console.log('[ZoomService] Meeting created successfully:', response.data.id);
       return response.data;
     } catch (error: any) {
+      console.error('[ZoomService] Failed to create meeting:', error.response?.data || error.message);
       throw new ZoomAPIError(
-        `Failed to create Zoom meeting: ${error.message}`,
+        `Failed to create Zoom meeting: ${error.response?.data?.message || error.message}`,
         error.response?.status || 500
       );
     }
   }
 
   // Get meeting details (for joining)
-  async getMeeting(meetingId: string): Promise<ZoomMeeting> {
+  async getMeeting(accessToken: string, meetingId: string): Promise<ZoomMeeting> {
     try {
-      const token = await this.getAccessToken();
 
       const response: AxiosResponse<ZoomMeeting> = await axios.get(
         `${this.baseURL}/meetings/${meetingId}`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -88,6 +82,7 @@ export class ZoomService {
 
   // Generate SDK token for embedded video (this is key for embedding!)
   async generateSDKToken(
+    accessToken: string,
     meetingId: string,
     role: 'host' | 'participant' = 'participant'
   ): Promise<{
@@ -98,10 +93,8 @@ export class ZoomService {
     userEmail: string;
   }> {
     try {
-      const token = await this.getAccessToken();
-
       // Get meeting details first
-      const meeting = await this.getMeeting(meetingId);
+      const meeting = await this.getMeeting(accessToken, meetingId);
 
       // Generate SDK token
       const response = await axios.post(
@@ -112,7 +105,7 @@ export class ZoomService {
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }
@@ -135,6 +128,7 @@ export class ZoomService {
 
   // Update meeting (for rescheduling)
   async updateMeeting(
+    accessToken: string,
     meetingId: string,
     updates: {
       topic?: string;
@@ -143,14 +137,13 @@ export class ZoomService {
     }
   ): Promise<ZoomMeeting> {
     try {
-      const token = await this.getAccessToken();
 
       const response: AxiosResponse<ZoomMeeting> = await axios.patch(
         `${this.baseURL}/meetings/${meetingId}`,
         updates,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }
@@ -166,13 +159,11 @@ export class ZoomService {
   }
 
   // Delete meeting (for cancelled sessions)
-  async deleteMeeting(meetingId: string): Promise<void> {
+  async deleteMeeting(accessToken: string, meetingId: string): Promise<void> {
     try {
-      const token = await this.getAccessToken();
-
       await axios.delete(`${this.baseURL}/meetings/${meetingId}`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       });
     } catch (error: any) {

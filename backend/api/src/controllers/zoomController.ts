@@ -92,8 +92,13 @@ export const zoomCallback = expressAsyncHandler(
     }
 
     // Extract userId from state parameter
+    // State format: {userId}-{timestamp}
+    // userId is a UUID with dashes, so we need to extract everything except the last part (timestamp)
     const stateStr = state as string;
-    const userId = stateStr.split('-')[0];
+    const parts = stateStr.split('-');
+    // UUID has 5 parts (8-4-4-4-12), timestamp is the last part
+    // So we take all parts except the last one and rejoin with dashes
+    const userId = parts.slice(0, -1).join('-');
 
     console.log('[Zoom Callback] Extracted userId from state:', userId);
 
@@ -104,6 +109,28 @@ export const zoomCallback = expressAsyncHandler(
     }
 
     try {
+      // First, verify the user exists
+      console.log('[Zoom Callback] Looking up user in database with ID:', userId);
+      
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, role: true },
+      });
+
+      if (!user) {
+        console.error('[Zoom Callback] ❌ User not found in database with ID:', userId);
+        console.error('[Zoom Callback] This means the user ID from the state parameter does not match any user in the database');
+        console.error('[Zoom Callback] Possible causes:');
+        console.error('[Zoom Callback] 1. User was deleted from database');
+        console.error('[Zoom Callback] 2. User ID mismatch between Cognito and Prisma');
+        console.error('[Zoom Callback] 3. State parameter was tampered with');
+        
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        res.redirect(`${frontendUrl}/dashboard/instructor?tab=zoom&error=user_not_found`);
+        return;
+      }
+
+      console.log('[Zoom Callback] ✅ User found in database:', { id: user.id, email: user.email, role: user.role });
       console.log('[Zoom Callback] Exchanging code for tokens with redirect_uri:', ZOOM_CONFIG.redirectUri);
       
       // Exchange code for tokens

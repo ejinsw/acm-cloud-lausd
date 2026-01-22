@@ -243,14 +243,19 @@ export const acceptQueue = expressAsyncHandler(
     // Create Zoom meeting for the session
     let zoomMeeting;
     try {
-      zoomMeeting = await zoomService.createMeeting({
-        topic: `Tutoring Session - ${queue.subject.name}`,
-        startTime: now.toISOString(),
-        duration: 60, // 1 hour
-        instructorEmail: user.email,
-      });
+      console.log('[Queue Accept] Creating Zoom meeting for instructor:', user.email);
+      zoomMeeting = await zoomService.createMeeting(
+        user.zoomAccessToken!, // Pass the instructor's access token
+        {
+          topic: `Tutoring Session - ${queue.subject.name}`,
+          startTime: now.toISOString(),
+          duration: 60, // 1 hour
+          instructorEmail: user.email,
+        }
+      );
+      console.log('[Queue Accept] Zoom meeting created successfully:', zoomMeeting.join_url);
     } catch (error: any) {
-      console.error('Failed to create Zoom meeting for queue acceptance:', error);
+      console.error('[Queue Accept] Failed to create Zoom meeting:', error);
       res.status(500).json({
         message: 'Failed to create Zoom meeting. Please try again.',
         error: error.message,

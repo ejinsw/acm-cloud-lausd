@@ -2,18 +2,13 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
-import {
-  AdminCreateUserCommand,
-  AdminSetUserPasswordCommand,
-  AdminUpdateUserAttributesCommand,
-  AdminConfirmSignUpCommand,
-} from '@aws-sdk/client-cognito-identity-provider';
+import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 const prisma = new PrismaClient();
 
 export const verifyInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
 
     if (!user?.sub) {
@@ -55,7 +50,7 @@ export const verifyInstructor = expressAsyncHandler(
 
 export const adminDeleteUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
 
     if (!user?.sub) {
@@ -83,7 +78,7 @@ export const adminDeleteUser = expressAsyncHandler(
 
 export const resetUserPassword = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
     const { newPassword } = req.body;
 
@@ -102,9 +97,9 @@ export const resetUserPassword = expressAsyncHandler(
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({ 
       where: { id },
-      select: { id: true, email: true },
+      select: { id: true, email: true }
     });
 
     if (!existingUser) {
@@ -118,7 +113,7 @@ export const resetUserPassword = expressAsyncHandler(
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
         Username: existingUser.email,
         Password: newPassword,
-        Permanent: true,
+        Permanent: true
       });
 
       await cognito.send(setPasswordCommand);
@@ -134,7 +129,7 @@ export const adminUpdateSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
 
     // Find the session
     const session = await prisma.session.findUnique({ where: { id } });
@@ -268,7 +263,7 @@ export const adminUpdateSession = expressAsyncHandler(
 export const adminDeleteSession = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
 
     // Find the session
     const session = await prisma.session.findUnique({ where: { id } });
@@ -291,7 +286,7 @@ export const adminDeleteSession = expressAsyncHandler(
 // Get all users for admin management
 export const getAllUsers = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { page = 1, limit = 10, role: roleFilter, verified, search } = req.query;
 
     if (!user?.sub) {
@@ -306,23 +301,23 @@ export const getAllUsers = expressAsyncHandler(
 
     try {
       const skip = (Number(page) - 1) * Number(limit);
-
+      
       // Build where clause for filtering
       const where: any = {};
-
+      
       if (roleFilter && ['STUDENT', 'INSTRUCTOR', 'ADMIN'].includes(roleFilter as string)) {
         where.role = roleFilter;
       }
-
+      
       if (verified !== undefined) {
         where.verified = verified === 'true';
       }
-
+      
       if (search) {
         where.OR = [
           { firstName: { contains: search as string, mode: 'insensitive' } },
           { lastName: { contains: search as string, mode: 'insensitive' } },
-          { email: { contains: search as string, mode: 'insensitive' } },
+          { email: { contains: search as string, mode: 'insensitive' } }
         ];
       }
 
@@ -343,9 +338,9 @@ export const getAllUsers = expressAsyncHandler(
           },
           skip,
           take: Number(limit),
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: 'desc' }
         }),
-        prisma.user.count({ where }),
+        prisma.user.count({ where })
       ]);
 
       res.status(200).json({
@@ -354,8 +349,8 @@ export const getAllUsers = expressAsyncHandler(
           page: Number(page),
           limit: Number(limit),
           total: totalCount,
-          pages: Math.ceil(totalCount / Number(limit)),
-        },
+          pages: Math.ceil(totalCount / Number(limit))
+        }
       });
     } catch (error: any) {
       console.error('Error fetching users:', error);
@@ -367,7 +362,7 @@ export const getAllUsers = expressAsyncHandler(
 // Get unverified instructors for document review
 export const getUnverifiedInstructors = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
 
     if (!user?.sub) {
       res.status(401).json({ message: 'Unauthorized' });
@@ -383,7 +378,7 @@ export const getUnverifiedInstructors = expressAsyncHandler(
       const unverifiedInstructors = await prisma.user.findMany({
         where: {
           role: 'INSTRUCTOR',
-          verified: false,
+          verified: false
         },
         select: {
           id: true,
@@ -394,17 +389,15 @@ export const getUnverifiedInstructors = expressAsyncHandler(
           experience: true,
           certificationUrls: true,
           bio: true,
-          createdAt: true,
+          createdAt: true
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'asc' }
       });
 
       res.status(200).json({ instructors: unverifiedInstructors });
     } catch (error: any) {
       console.error('Error fetching unverified instructors:', error);
-      res
-        .status(500)
-        .json({ message: 'Failed to fetch unverified instructors', details: error.message });
+      res.status(500).json({ message: 'Failed to fetch unverified instructors', details: error.message });
     }
   }
 );
@@ -412,7 +405,7 @@ export const getUnverifiedInstructors = expressAsyncHandler(
 // Create a new admin account
 export const createAdminAccount = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { email, firstName, lastName, password } = req.body;
 
     if (!user?.sub) {
@@ -453,7 +446,7 @@ export const createAdminAccount = expressAsyncHandler(
           { Name: 'email_verified', Value: 'true' },
         ],
         TemporaryPassword: password,
-        MessageAction: 'SUPPRESS', // Don't send welcome email
+        MessageAction: 'SUPPRESS' // Don't send welcome email
       });
 
       const cognitoResponse = await cognito.send(createUserCommand);
@@ -469,7 +462,7 @@ export const createAdminAccount = expressAsyncHandler(
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
         Username: email,
         Password: password,
-        Permanent: true,
+        Permanent: true
       });
 
       await cognito.send(setPasswordCommand);
@@ -482,19 +475,19 @@ export const createAdminAccount = expressAsyncHandler(
           firstName,
           lastName,
           role: 'ADMIN',
-          verified: true,
-        },
+          verified: true
+        }
       });
 
-      res.status(201).json({
+      res.status(201).json({ 
         message: 'Admin account created successfully',
         user: {
           id: newUser.id,
           email: newUser.email,
           firstName: newUser.firstName,
           lastName: newUser.lastName,
-          role: newUser.role,
-        },
+          role: newUser.role
+        }
       });
     } catch (error: any) {
       console.error('Error creating admin account:', error);
@@ -506,7 +499,7 @@ export const createAdminAccount = expressAsyncHandler(
 // Update user role
 export const updateUserRole = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
     const { role: newRole } = req.body;
 
@@ -525,9 +518,9 @@ export const updateUserRole = expressAsyncHandler(
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({ 
       where: { id },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true }
     });
 
     if (!existingUser) {
@@ -540,7 +533,9 @@ export const updateUserRole = expressAsyncHandler(
       const updateAttributesCommand = new AdminUpdateUserAttributesCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
         Username: existingUser.email,
-        UserAttributes: [{ Name: 'custom:role', Value: newRole }],
+        UserAttributes: [
+          { Name: 'custom:role', Value: newRole }
+        ]
       });
 
       await cognito.send(updateAttributesCommand);
@@ -555,13 +550,13 @@ export const updateUserRole = expressAsyncHandler(
           firstName: true,
           lastName: true,
           role: true,
-          verified: true,
-        },
+          verified: true
+        }
       });
 
-      res.status(200).json({
+      res.status(200).json({ 
         message: 'User role updated successfully',
-        user: updatedUser,
+        user: updatedUser
       });
     } catch (error: any) {
       console.error('Error updating user role:', error);
@@ -573,7 +568,7 @@ export const updateUserRole = expressAsyncHandler(
 // Get admin dashboard statistics
 export const getAdminStats = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
 
     if (!user?.sub) {
       res.status(401).json({ message: 'Unauthorized' });
@@ -594,7 +589,7 @@ export const getAdminStats = expressAsyncHandler(
         unverifiedInstructors,
         totalSessions,
         activeSessions,
-        totalReviews,
+        totalReviews
       ] = await Promise.all([
         prisma.user.count(),
         prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -603,7 +598,7 @@ export const getAdminStats = expressAsyncHandler(
         prisma.user.count({ where: { role: 'INSTRUCTOR', verified: false } }),
         prisma.session.count(),
         prisma.session.count({ where: { status: 'IN_PROGRESS' } }),
-        prisma.review.count(),
+        prisma.review.count()
       ]);
 
       res.status(200).json({
@@ -612,15 +607,15 @@ export const getAdminStats = expressAsyncHandler(
           students: totalStudents,
           instructors: totalInstructors,
           admins: totalAdmins,
-          unverifiedInstructors,
+          unverifiedInstructors
         },
         sessions: {
           total: totalSessions,
-          active: activeSessions,
+          active: activeSessions
         },
         reviews: {
-          total: totalReviews,
-        },
+          total: totalReviews
+        }
       });
     } catch (error: any) {
       console.error('Error fetching admin stats:', error);
@@ -632,7 +627,7 @@ export const getAdminStats = expressAsyncHandler(
 // Manually confirm any user account
 export const confirmUserAccount = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { sub: string; role: string };
+    const user = (req.user as { sub: string; role: string });
     const { id } = req.params;
 
     if (!user?.sub) {
@@ -645,9 +640,9 @@ export const confirmUserAccount = expressAsyncHandler(
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({ 
       where: { id },
-      select: { id: true, email: true, verified: true },
+      select: { id: true, email: true, verified: true }
     });
 
     if (!existingUser) {
@@ -664,7 +659,7 @@ export const confirmUserAccount = expressAsyncHandler(
       // Confirm user in Cognito
       const confirmCommand = new AdminConfirmSignUpCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
-        Username: existingUser.email,
+        Username: existingUser.email
       });
 
       await cognito.send(confirmCommand);
@@ -679,13 +674,13 @@ export const confirmUserAccount = expressAsyncHandler(
           firstName: true,
           lastName: true,
           role: true,
-          verified: true,
-        },
+          verified: true
+        }
       });
 
-      res.status(200).json({
+      res.status(200).json({ 
         message: 'User account confirmed successfully',
-        user: updatedUser,
+        user: updatedUser
       });
     } catch (error: any) {
       console.error('Error confirming user account:', error);

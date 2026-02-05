@@ -80,6 +80,7 @@ model Session {
   endTime      DateTime?
   zoomLink     String?
   maxAttendees Int?
+  lastInstructorHeartbeatAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

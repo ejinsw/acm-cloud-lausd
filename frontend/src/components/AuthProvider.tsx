@@ -47,11 +47,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check if current route requires authentication
-  // const isProtectedRoute = (path: string) => {
-  //   return PROTECTED_ROUTES.some((route) => path.startsWith(route));
-  // };
-
   // Helper function to check if token is valid and not expired
   const isTokenValid = (token: string): boolean => {
     try {
@@ -102,67 +97,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const token = await getToken();
 
-      if (token && isTokenValid(token)) {
+      if (token && (isTokenValid(token) || isTokenExpiringSoon(token))) {
+        // Token might be expired, try to refresh once before giving up
+        try {
+          await refreshAuth();
+          return;
+        } catch (refreshError) {
+          console.error(
+            "Token refresh failed during initialization:",
+            refreshError
+          );
+        }
+      } else if (token) {
         const userData = await fetchUserData();
         if (userData) {
           setUser(userData);
-        } else {
-          // Token might be expired, try to refresh once before giving up
-          try {
-            await refreshAuth();
-            // If refreshAuth succeeds, it will set the user
-            // If it fails, it will handle logout and redirect
-            return;
-          } catch (refreshError) {
-            console.error(
-              "Token refresh failed during initialization:",
-              refreshError
-            );
-            await logout();
-            router.push("/auth/sign-in");
-          }
         }
-      } else {
-        // No token found or token is invalid, redirect to login
-        router.push("/auth/sign-in");
       }
     } catch (error) {
       console.error("Error initializing auth:", error);
-      await logout();
-      router.push("/auth/sign-in");
     } finally {
       setIsLoading(false);
       setIsInitialized(true);
     }
-  };
-
-  // Auto-refresh token
-  const setupTokenRefresh = () => {
-    const refreshInterval = setInterval(async () => {
-      try {
-        // Don't refresh if already refreshing
-        if (isRefreshing) {
-          return;
-        }
-
-        const token = await getToken();
-        if (token && isTokenExpiringSoon(token)) {
-          await refreshAuth();
-        }
-      } catch (error) {
-        console.error("Error in token refresh:", error);
-        // If there's an error checking the token, try to refresh
-        if (!isRefreshing) {
-          try {
-            await refreshAuth();
-          } catch (refreshError) {
-            console.error("Failed to refresh token:", refreshError);
-          }
-        }
-      }
-    }, 60000); // Check every minute
-
-    return () => clearInterval(refreshInterval);
   };
 
   // Refresh authentication
@@ -276,15 +233,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Initialize auth on mount
   useEffect(() => {
     initializeAuth();
-  }, []);
-
-  // Setup token refresh after initialization
-  useEffect(() => {
-    if (isInitialized && user) {
-      const cleanup = setupTokenRefresh();
-      return cleanup;
-    }
-  }, [isInitialized, user]);
+  }, [initializeAuth]);
 
   // Route protection
   useEffect(() => {

@@ -14,7 +14,12 @@ export const routes = {
   studentDashboard: "/dashboard/student",
   instructorDashboard: "/dashboard/instructor",
   adminDashboard: "/dashboard/admin",
-  dashboard: (role: string) => role === "admin" ? "/dashboard/admin" : role === "instructor" ? "/dashboard/instructor" : "/dashboard/student",
+  dashboard: (role: string) =>
+    role === "admin"
+      ? "/dashboard/admin"
+      : role === "instructor"
+      ? "/dashboard/instructor"
+      : "/dashboard/student",
 
   // Session routes
   exploreSessions: "/sessions/explore",
@@ -39,6 +44,7 @@ export const routes = {
   // Help center
   help: "/help",
   contact: "/contact",
+  support: "/support",
 
   // Legal
   terms: "/legal/terms",

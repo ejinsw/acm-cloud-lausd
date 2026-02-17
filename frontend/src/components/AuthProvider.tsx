@@ -7,7 +7,7 @@ import React, {
   useState,
   ReactNode,
 } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { showNotification } from "@mantine/notifications";
 import { getToken, refreshToken, logout } from "@/actions/authentication";
 import { User } from "@/lib/types";
@@ -30,46 +30,10 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Protected routes that require authentication
-// const PROTECTED_ROUTES = [
-//   "/dashboard",
-//   "/sessions",
-//   "/profile",
-//   "/instructor",
-//   "/help",
-// ];
-
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
-
-  // Helper function to check if token is valid and not expired
-  const isTokenValid = (token: string): boolean => {
-    try {
-      const tokenData = JSON.parse(atob(token.split(".")[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return tokenData.exp > currentTime;
-    } catch {
-      return false;
-    }
-  };
-
-  // Helper function to check if token expires soon (within 5 minutes)
-  const isTokenExpiringSoon = (token: string): boolean => {
-    try {
-      const tokenData = JSON.parse(atob(token.split(".")[1]));
-      const expiryTime = tokenData.exp * 1000; // Convert to milliseconds
-      const currentTime = Date.now();
-      const timeUntilExpiry = expiryTime - currentTime;
-      return timeUntilExpiry < 5 * 60 * 1000; // 5 minutes
-    } catch {
-      return true; // If we can't parse the token, assume it's expiring soon
-    }
-  };
 
   // Fetch user data from API
   const fetchUserData = async (): Promise<User | null> => {
@@ -79,9 +43,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.ok) {
         const userData = await response.json();
         return userData;
-      } else if (response.status === 401) {
-        // Token is expired or invalid, return null to trigger refresh
-        return null;
       }
       return null;
     } catch (error) {
@@ -90,65 +51,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Initialize authentication state
-  const initializeAuth = async () => {
-    try {
-      setIsLoading(true);
-
-      const token = await getToken();
-
-      if (token && (isTokenValid(token) || isTokenExpiringSoon(token))) {
-        // Token might be expired, try to refresh once before giving up
-        try {
-          await refreshAuth();
-          return;
-        } catch (refreshError) {
-          console.error(
-            "Token refresh failed during initialization:",
-            refreshError
-          );
+  // Initialize authentication state - runs once on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const token = await getToken();
+        
+        if (token) {
+          const userData = await fetchUserData();
+          if (userData) {
+            setUser(userData);
+          }
         }
-      } else if (token) {
-        const userData = await fetchUserData();
-        if (userData) {
-          setUser(userData);
-        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error initializing auth:", error);
-    } finally {
-      setIsLoading(false);
-      setIsInitialized(true);
-    }
-  };
+    };
+
+    initializeAuth();
+  }, []); // Empty dependency array - only run once
 
   // Refresh authentication
   const refreshAuth = async () => {
-    // Prevent multiple simultaneous refresh attempts
-    if (isRefreshing) {
-      return;
-    }
-
     try {
-      setIsRefreshing(true);
       const newToken = await refreshToken();
       if (newToken) {
-        // Token refreshed successfully, fetch updated user data
         const userData = await fetchUserData();
         if (userData) {
           setUser(userData);
-          return;
         }
       }
-      // If refresh failed or user data couldn't be fetched, logout
-      await logout();
-      router.push("/auth/sign-in");
     } catch (error) {
       console.error("Error refreshing auth:", error);
-      await logout();
-      router.push("/auth/sign-in");
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -230,31 +166,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Initialize auth on mount
-  useEffect(() => {
-    initializeAuth();
-  }, [initializeAuth]);
-
-  // Route protection
-  useEffect(() => {
-    if (isInitialized && !isLoading) {
-      // Only redirect away from auth pages if user is logged in
-      if (
-        user &&
-        (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")
-      ) {
-        // Redirect to appropriate dashboard based on role
-        if (user.role === "ADMIN") {
-          router.push("/dashboard/admin");
-        } else if (user.role === "INSTRUCTOR") {
-          router.push("/dashboard/instructor");
-        } else {
-          router.push("/dashboard/student");
-        }
-      }
-    }
-  }, [isInitialized, isLoading, user, pathname, router]);
-
+  // Refresh user data
   const refreshUser = async () => {
     const userData = await fetchUserData();
     if (userData) {
@@ -285,13 +197,21 @@ export function useAuth() {
   return context;
 }
 
-// Higher-order component for route protection
+// Higher-order component for route protection (deprecated - use useRequireAuth hook instead)
 export function withAuth<P extends object>(
   Component: React.ComponentType<P>,
   requiredRole?: "STUDENT" | "INSTRUCTOR" | "ADMIN"
 ) {
   return function ProtectedComponent(props: P) {
-    const { user, isLoading, isAuthenticated } = useAuth();
+    const { user, isLoading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+      // Redirect to login if not authenticated after loading
+      if (!isLoading && !user) {
+        router.push("/auth/sign-in");
+      }
+    }, [user, isLoading, router]);
 
     if (isLoading) {
       return (
@@ -304,8 +224,8 @@ export function withAuth<P extends object>(
       );
     }
 
-    if (!isAuthenticated) {
-      return null; // Will be redirected by AuthProvider
+    if (!user) {
+      return null; // Will be redirected
     }
 
     if (requiredRole && user?.role !== requiredRole) {

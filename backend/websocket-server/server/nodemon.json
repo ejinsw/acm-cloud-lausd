@@ -1,0 +1,11 @@
+{
+  "watch": ["index.js", "daxSTORE.js"],
+  "ext": "js,json",
+  "ignore": ["node_modules/**", "tests/**", "coverage/**"],
+  "exec": "node index.js",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": "1000",
+  "verbose": true
+}

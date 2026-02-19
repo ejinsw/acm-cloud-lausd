@@ -22,11 +22,49 @@ tests/
 ⚠️ **Tests are stubs** - Need to be filled in with actual test logic  
 📝 **TODO comments** - Each test has a TODO comment explaining what needs to be implemented  
 
-## Running Tests
+## Development
 
 ### Install Dependencies
 ```bash
 npm install
+```
+
+### Running the Server
+
+#### Production Mode
+```bash
+npm start
+```
+
+#### Development Mode (with nodemon hot reloading)
+```bash
+npm run dev
+```
+
+The server will automatically restart when you make changes to `index.js` or `daxSTORE.js`.
+
+#### Using Docker Compose
+The WebSocket server is configured to run with nodemon in Docker:
+```bash
+# From the project root
+docker-compose up websocket-server
+```
+
+Changes to the server files will automatically trigger a restart inside the container.
+
+### Nodemon Configuration
+
+The server uses nodemon for development with the following settings (see `nodemon.json`):
+- Watches: `index.js`, `daxSTORE.js`
+- File extensions: `.js`, `.json`
+- Ignores: `node_modules`, `tests`, `coverage`
+- Restart delay: 1 second
+
+## Running Tests
+
+### Run All Tests
+```bash
+npm test
 ```
 
 ### Run All Tests

@@ -1,0 +1,23 @@
+# Development Dockerfile with nodemon for hot reloading
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies for nodemon)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose the WebSocket port
+EXPOSE 9999
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=9999
+
+# Start the server with node (nodemon has issues with volume mounts)
+CMD ["node", "index.js"]

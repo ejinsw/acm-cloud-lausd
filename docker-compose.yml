@@ -2,11 +2,17 @@ services:
   websocket-server:
     build:
       context: ./backend/websocket-server/server
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "9999:9999"
     environment:
       - PORT=9999
+      - NODE_ENV=development
+    volumes:
+      - ./backend/websocket-server/server:/app
+      - /app/node_modules
+    env_file:
+      - ./backend/websocket-server/server/.env
 
   backend:
     build:

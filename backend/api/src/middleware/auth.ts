@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { cognito } from '../lib/cognitoSDK';
 import { GetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { prisma } from '../config/prisma';
+import { UserRole } from '@prisma/client';
 
 interface CognitoUser {
   sub: string;
@@ -62,7 +63,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         AccessToken: accessToken,
       });
 
-      const response = await cognito.send(command);
+      let response = await cognito.send(command);
 
       // Extract user information from Cognito response
       const user: CognitoUser = {
@@ -71,6 +72,28 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
         role: response.UserAttributes?.find(attr => attr.Name === 'custom:role')?.Value || 'STUDENT',
       };
 
+      console.log("Updating prisma with missing userdata...")
+      try {
+        await prisma.user.upsert({
+          where: {
+            email: user.email
+          },
+          create: {
+            id: user.sub,
+            email: user.email,
+            role: (user.role?.toUpperCase() as UserRole) || 'STUDENT',
+            firstName: '',
+            lastName: '',
+          },
+          update: {
+            id: user.sub,
+          },
+        });
+      } catch (error) {
+        console.log("User already exists.")
+      }
+
+      console.log(user);
       // Attach user to request object
       (req as any).user = user;
       next();

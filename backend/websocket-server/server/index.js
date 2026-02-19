@@ -102,24 +102,28 @@ async function pushRoomListUpdate(targetWs = null) {
 
 function broadcastQueueUpdate(updateData) {
   console.log(`Broadcasting queue update to ${queueSubscribers.size} subscribers:`, updateData);
-  
+
   const { type, targetStudentId, sessionId, queueItem, queueId, studentId } = updateData;
-  
+
   // Handle different update types
   if (type === 'queue_accepted' && targetStudentId) {
     // Send targeted notification to specific student
     const studentSub = Array.from(queueSubscribers.entries()).find(
       ([userId, { role }]) => userId === targetStudentId && role === 'student'
     );
-    
+
     if (studentSub) {
       const [userId, { ws }] = studentSub;
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'QUEUE_ACCEPTED',
-          payload: { sessionId }
-        }));
-        console.log(`✅ Sent queue acceptance notification to student ${userId} with session ${sessionId}`);
+        ws.send(
+          JSON.stringify({
+            type: 'QUEUE_ACCEPTED',
+            payload: { sessionId },
+          })
+        );
+        console.log(
+          `✅ Sent queue acceptance notification to student ${userId} with session ${sessionId}`
+        );
       }
     } else {
       console.warn(`⚠️  Target student ${targetStudentId} not connected to WebSocket`);
@@ -128,10 +132,12 @@ function broadcastQueueUpdate(updateData) {
     // Broadcast to all instructors to refetch queue
     queueSubscribers.forEach(({ ws, role }, userId) => {
       if (role === 'instructor' && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: type === 'queue_join' ? 'QUEUE_JOIN' : 'QUEUE_LEAVE',
-          payload: { queueItem, queueId, studentId }
-        }));
+        ws.send(
+          JSON.stringify({
+            type: type === 'queue_join' ? 'QUEUE_JOIN' : 'QUEUE_LEAVE',
+            payload: { queueItem, queueId, studentId },
+          })
+        );
         console.log(`📢 Sent ${type} notification to instructor ${userId}`);
       }
     });
@@ -548,39 +554,47 @@ async function handleIdentify(ws, payload) {
     return;
   }
 
-  const existing = connectedUsers.get(userData.id);
-  if (existing && existing.ws !== ws) {
-    try {
-      existing.ws.send(
-        JSON.stringify({
-          type: 'ERROR',
-          payload: {
-            message:
-              'You have logged in from another location. This session is being disconnected.',
-          },
-        })
-      );
-    } catch (sendError) {
-      console.warn(
-        `Failed to notify existing session for user ${userData.username} (${userData.id}) about duplicate login:`,
-        sendError
-      );
+  // Fetch the actual user role from the API backend
+  try {
+    const apiUrl = process.env.API_URL || 'http://backend:8080';
+    const response = await fetch(`${apiUrl}/api/auth/me`, {
+      headers: {
+        'Authorization': `Bearer ${payload.token}`
+      }
+    });
+
+    if (response.ok) {
+      const dbUser = await response.json();
+      // Update userData with the correct role from database
+      userData.type = dbUser.role === 'INSTRUCTOR' || dbUser.role === 'ADMIN' ? 'instructor' : 'student';
+      userData.username = `${dbUser.firstName} ${dbUser.lastName}`.trim() || userData.username;
+    } else {
+      console.warn(`Failed to fetch user role from API (status ${response.status}), using default role from token`);
     }
+  } catch (error) {
+    console.warn(`Error fetching user role from API: ${error.message}`);
+    // Continue with the role from token (which defaults to 'student')
+  }
+
+  // Simplified: Just replace the old connection silently without notifying or closing it
+  // The old connection will be cleaned up automatically when it detects it's no longer in the map
+  const existing = connectedUsers.get(userData.id);
+  if (existing && existing.ws !== ws && existing.ws.readyState === WebSocket.OPEN) {
+    console.log(`Silently replacing existing connection for user ${userData.username}`);
+    // Just close the old one quietly, no error message needed
     try {
       existing.ws.close();
-    } catch (closeError) {
-      console.warn(
-        `Failed to close existing session for user ${userData.username} (${userData.id}):`,
-        closeError
-      );
+    } catch (e) {
+      // Ignore errors
     }
   }
 
+  // Set the new connection
   connectedUsers.set(userData.id, { ...userData, ws, currentRoomId: null });
   ws.userId = userData.id;
 
-  await store.setUserSession({ ...userData, currentRoomId: null });
-  console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id})`);
+  // Skip DynamoDB persistence - in-memory map is sufficient
+  console.log(`User authenticated via token: ${userData.username} (ID: ${userData.id}, Type: ${userData.type})`);
   ws.send(JSON.stringify({ type: 'USER_IDENTIFIED', payload: userData }));
 }
 
@@ -612,7 +626,8 @@ server.on('connection', ws => {
       }`
     );
 
-    if (type !== 'IDENTIFY_USER' && !ws.userId) {
+    // Allow QUEUE_UPDATED messages from API server without authentication
+    if (type !== 'IDENTIFY_USER' && type !== 'QUEUE_UPDATED' && !ws.userId) {
       if (
         (type === 'CREATE_ROOM' || type === 'JOIN_ROOM') &&
         payload?.user?.id &&
@@ -698,7 +713,9 @@ server.on('connection', ws => {
             console.log(`${actingUser.username} subscribed to queue updates`);
             ws.send(JSON.stringify({ type: 'QUEUE_SUBSCRIBED' }));
           } else {
-            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } }));
+            ws.send(
+              JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } })
+            );
           }
           break;
         case 'UNSUBSCRIBE_QUEUE':
@@ -738,17 +755,24 @@ server.on('connection', ws => {
     const userId = ws.userId;
     if (userId && connectedUsers.has(userId)) {
       const user = connectedUsers.get(userId);
-      console.log(
-        `${user.username} (ID: ${user.id}, Type: ${user.type}) disconnected (ws: ${ws.userId || ws.tempId}).`
-      );
+      // Only clean up if this is the current active connection for this user
       if (user.ws === ws) {
+        console.log(
+          `${user.username} (ID: ${user.id}, Type: ${user.type}) disconnected (ws: ${ws.userId || ws.tempId}).`
+        );
         if (user.currentRoomId) {
           await leaveRoom(ws, user.currentRoomId, userId, false);
         }
         queueSubscribers.delete(userId);
         connectedUsers.delete(userId);
-        await store.removeUserSession(userId);
-        await pushRoomListUpdate();
+        // Skip DynamoDB cleanup - using in-memory map only
+        try {
+          await pushRoomListUpdate();
+        } catch (e) {
+          console.warn('Failed to push room list update:', e.message);
+        }
+      } else {
+        console.log(`Old connection closed for user ${userId}, but newer connection exists`);
       }
     } else {
       console.log(

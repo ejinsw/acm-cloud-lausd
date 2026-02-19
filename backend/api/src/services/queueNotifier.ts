@@ -7,10 +7,7 @@ let ws: WebSocket | null = null;
 let reconnectTimeout: NodeJS.Timeout | null = null;
 
 function connectToWebSocket() {
-  // Convert http:// to ws:// if needed
-  const wsUrl = WEBSOCKET_SERVER_URL.replace('http://', 'ws://').replace('https://', 'wss://');
-  
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(WEBSOCKET_SERVER_URL);
 
   ws.on('open', () => {
     console.log('[Queue Notifier] Connected to WebSocket server');

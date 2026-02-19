@@ -53,6 +53,7 @@ export function useQueueWebSocket(
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const isSubscribed = useRef(false);
+  const isConnecting = useRef(false);
 
   // Fetch initial queue data from REST API
   const fetchQueueData = useCallback(async () => {
@@ -95,6 +96,14 @@ export function useQueueWebSocket(
   }, [userRole]);
 
   const connect = useCallback(async () => {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting.current) {
+      console.log("[WS] Already connecting, skipping duplicate connection attempt");
+      return;
+    }
+    
+    isConnecting.current = true;
+    
     try {
       // Close existing connection
       if (wsRef.current) {
@@ -131,6 +140,7 @@ export function useQueueWebSocket(
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
+        isConnecting.current = false; // Reset connecting flag
 
         // Identify user with token
         console.log("[WS] Sending IDENTIFY_USER message");
@@ -232,33 +242,16 @@ export function useQueueWebSocket(
         });
         setIsConnected(false);
         isSubscribed.current = false;
-
-        // Attempt to reconnect
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          const delay = Math.min(
-            1000 * Math.pow(2, reconnectAttempts.current),
-            30000
-          );
-          console.log(
-            `[WS] 🔄 Attempting to reconnect in ${delay}ms (attempt ${
-              reconnectAttempts.current + 1
-            }/${maxReconnectAttempts})`
-          );
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttempts.current++;
-            connect();
-          }, delay);
-        } else {
-          console.error("[WS] ❌ Failed to reconnect after maximum attempts");
-          setConnectionError("Failed to reconnect after multiple attempts");
-        }
+        
+        // No auto-reconnect - let the user refresh the page if needed
+        console.log("[WS] Connection closed. Refresh the page to reconnect.");
       };
     } catch (error) {
       console.error("[WS] ❌ Failed to establish WebSocket connection:", error);
       console.error("[WS] Error stack:", error instanceof Error ? error.stack : "No stack trace");
       setIsConnected(false);
       setConnectionError("Failed to connect to server");
+      isConnecting.current = false; // Reset connecting flag on error
     }
   }, [fetchQueueData]);
 

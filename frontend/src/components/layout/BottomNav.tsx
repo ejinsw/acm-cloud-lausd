@@ -139,13 +139,13 @@ export default function BottomNav() {
         <Box style={{ flex: 1, display: "flex", justifyContent: "center" }}>
           <Popover position="top" withArrow shadow="md">
             <Popover.Target>
-              <Box
-                component="button"
+              <ActionIcon
+                variant="subtle"
+                radius="xl"
+                size="xl"
+                color="gray"
                 style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
+                  height: "auto",
                   width: "100%",
                 }}
               >
@@ -157,19 +157,12 @@ export default function BottomNav() {
                     color: "var(--mantine-color-gray-7)",
                   }}
                 >
-                  <ActionIcon
-                    variant="subtle"
-                    radius="xl"
-                    size="lg"
-                    color="gray"
-                  >
-                    <MoreVertical size={20} />
-                  </ActionIcon>
+                  <MoreVertical size={20} />
                   <Text size="xs" fw={500}>
                     More
                   </Text>
                 </Stack>
-              </Box>
+              </ActionIcon>
             </Popover.Target>
             <Popover.Dropdown p="xs">
               <Stack gap="xs">

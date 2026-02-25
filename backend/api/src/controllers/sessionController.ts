@@ -191,7 +191,7 @@ export const createSession = expressAsyncHandler(
         startTime: startTime ? new Date(startTime) : new Date(Date.now()),
         endTime: endTime ? new Date(endTime) : new Date(Date.now() + 30 * 60 * 1000),
         zoomLink: '',
-        maxAttendees: maxAttendees ?? 1,
+        maxAttendees: maxAttendees ?? 2,
         materials: materials || [],
         objectives: objectives || [],
         instructorId: userId,

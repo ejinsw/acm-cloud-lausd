@@ -27,13 +27,13 @@ const dynamoDocClient = new AWS.DynamoDB.DocumentClient({
 
 // CHANGED: DAX client disabled - using only DynamoDB
 // const daxDocClient = daxService ? new AWS.DynamoDB.DocumentClient({ service: daxService }) : null;
-const daxDocClient = null;
+// const daxDocClient = null;
 
 // CHANGED: DAX health tracking disabled
 // let daxHealthy = Boolean(daxDocClient);
 // let daxFallbackLogged = false;
-let daxHealthy = false;
-let daxFallbackLogged = false;
+// let daxHealthy = false;
+// let daxFallbackLogged = false;
 
 // CHANGED: DAX connectivity error detection no longer needed
 // function isDaxConnectivityError(error) {
@@ -68,7 +68,7 @@ let daxFallbackLogged = false;
 async function docCall(operation, params) {
   // Direct DynamoDB call only
   return dynamoDocClient[operation](params).promise();
-  
+
   // CHANGED: DAX fallback logic commented out
   // if (daxHealthy && daxDocClient) {
   //   try {

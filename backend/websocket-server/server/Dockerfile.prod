@@ -1,5 +1,5 @@
 # Stage 1: Build (if you have TypeScript or build steps, add them here)
-FROM node:20-slim as builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 

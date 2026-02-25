@@ -2,6 +2,11 @@
 resource "aws_cognito_user_pool" "main" {
   name = var.user_pool_name
 
+  # Lifecycle rule to ignore schema changes (schema cannot be modified after creation)
+  lifecycle {
+    ignore_changes = [schema]
+  }
+
   # Password policy
   password_policy {
     minimum_length                   = 8
@@ -72,6 +77,17 @@ resource "aws_cognito_user_pool" "main" {
     string_attribute_constraints {
       min_length = "0"
       max_length = "2048"
+    }
+  }
+
+  schema {
+    name                = "role"
+    attribute_data_type = "String"
+    required            = false
+    mutable             = true
+    string_attribute_constraints {
+      min_length = "0"
+      max_length = "256"
     }
   }
 

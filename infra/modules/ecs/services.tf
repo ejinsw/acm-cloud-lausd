@@ -16,6 +16,7 @@ resource "aws_ecs_service" "api" {
   }
 
   # Register with Cloud Map for service discovery
+  # Port is required for SRV records (needed by API Gateway VPC Link)
   service_registries {
     registry_arn = aws_service_discovery_service.api.arn
     port         = var.api_container_port
@@ -50,8 +51,8 @@ resource "aws_ecs_service" "websocket" {
   }
 
   # Register with Cloud Map for service discovery
+  # Note: Port is not specified for A record type (only needed for SRV records)
   service_registries {
     registry_arn = aws_service_discovery_service.websocket.arn
-    port         = var.websocket_container_port
   }
 } 

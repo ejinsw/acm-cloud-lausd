@@ -130,11 +130,13 @@ module "ecs" {
     { name = "NODE_ENV", value = var.environment },
     { name = "PORT", value = "9999" },
     { name = "AWS_REGION", value = var.aws_region },
+    { name = "API_URL", value = "http://api.acmcloud.local:8080" },
     { name = "ROOMS_TABLE_NAME", value = module.dynamodb_dax.rooms_table_name },
     { name = "ROOM_MEMBERS_TABLE_NAME", value = module.dynamodb_dax.room_members_table_name },
     { name = "ROOM_MESSAGES_TABLE_NAME", value = module.dynamodb_dax.room_messages_table_name },
     { name = "USER_SESSIONS_TABLE_NAME", value = module.dynamodb_dax.user_sessions_table_name },
-    { name = "DYNAMODB_ENDPOINT", value = module.dynamodb_dax.dynamodb_endpoint },
+    # REMOVED: DYNAMODB_ENDPOINT causes credential issues - let SDK use default endpoint
+    # { name = "DYNAMODB_ENDPOINT", value = module.dynamodb_dax.dynamodb_endpoint },
     # CHANGED: DAX endpoint disabled - using direct DynamoDB connection
     # { name = "DAX_ENDPOINT", value = module.dynamodb_dax.dax_configuration_endpoint },
     { name = "SESSION_IDLE_TIMEOUT_MS", value = tostring(local.session_idle_timeout_ms) },

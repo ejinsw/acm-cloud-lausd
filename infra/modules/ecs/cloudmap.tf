@@ -6,6 +6,7 @@ resource "aws_service_discovery_private_dns_namespace" "main" {
 }
 
 # Cloud Map Service for API
+# Using SRV records because API Gateway VPC Link requires port information
 resource "aws_service_discovery_service" "api" {
   name = "api"
 
@@ -32,7 +33,7 @@ resource "aws_service_discovery_service" "websocket" {
 
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
   }
 

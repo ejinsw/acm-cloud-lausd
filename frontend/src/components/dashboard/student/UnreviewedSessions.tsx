@@ -112,7 +112,7 @@ export function UnreviewedSessions({
               </Box>
             </Box>
           );
-        }}
+        })}
       </Stack>
     </Box>
   );

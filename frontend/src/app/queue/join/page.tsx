@@ -290,11 +290,8 @@ export default function JoinQueuePage() {
   };
 
   const handleLeaveQueue = async () => {
-    // Get queue ID from either WebSocket data or existing queue data
-    const queueId = myQueueItem?.id || existingQueue?.id;
-
-    if (!queueId) {
-      console.error("No queue ID available to leave");
+    if (!myQueueItem && !existingQueue) {
+      console.error("No queue found to leave");
       alert("No queue found to leave");
       return;
     }
@@ -302,13 +299,9 @@ export default function JoinQueuePage() {
     setIsLoading(true);
 
     try {
-      const token = await getToken();
-      if (!token) {
-        throw new Error("No authentication token available");
-      }
+      console.log("Leaving queue...");
 
-      console.log("Leaving queue with ID:", queueId);
-
+      // Unsubscribe via WebSocket (uses student's user ID)
       unsubscribeQueue("student");
 
       // Clear existing queue state and reset form

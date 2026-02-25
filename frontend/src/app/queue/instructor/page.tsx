@@ -33,79 +33,114 @@ import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 import { useZoomStatus } from "../../../hooks/useZoomStatus";
 
+interface EnrichedQueueItem {
+  id: number;
+  description: string;
+  status: string;
+  createdAt: string;
+  studentId: string;
+  subjectId: string;
+  student?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  subject?: {
+    id: string;
+    name: string;
+    level: string | null;
+  };
+  canTeach?: boolean;
+}
+
 export default function InstructorQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [fallbackQueueItems, setFallbackQueueItems] = useState<any[]>([]);
+  const [enrichedQueueItems, setEnrichedQueueItems] = useState<EnrichedQueueItem[]>([]);
   
   // Check Zoom connection status
   const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
 
   // Use WebSocket hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect } =
+  const { isConnected, connectionError, queueItems, reconnect, subscribeQueue, acceptQueue } =
     useQueueWebSocket(user);
 
-  // Use WebSocket queue items if available, otherwise fall back to API-loaded items
-  const displayQueueItems = queueItems.length > 0 ? queueItems : fallbackQueueItems;
-
-  // Log WebSocket queue updates
+  // Subscribe to queue on mount and when reconnecting
   useEffect(() => {
-    console.log("Queue items updated via WebSocket:", queueItems.length, "items");
-    if (queueItems.length > 0) {
-      console.log("Current queue items:", queueItems);
+    if (isConnected && user?.role === "INSTRUCTOR") {
+      console.log("[Instructor Queue] Subscribing to queue as instructor");
+      subscribeQueue("instructor");
     }
-  }, [queueItems]);
+  }, [isConnected, subscribeQueue, user?.role]);
 
-  // Session creation redirect is handled by the accept queue API response
-
-  // Load initial queue items on component mount
+  // Enrich queue items with subject and student data from API
   useEffect(() => {
-    const loadInitialQueueItems = async () => {
+    const enrichQueueItems = async () => {
+      if (queueItems.size === 0) {
+        setEnrichedQueueItems([]);
+        return;
+      }
+
       try {
         const token = await getToken();
-        const response = await fetch(
-          `${
-            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-          }/api/queue`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        const enrichedItems: EnrichedQueueItem[] = [];
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch queue items");
+        for (const [id, item] of queueItems.entries()) {
+          // Fetch subject data
+          const subjectResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/subjects/${item.subjectId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          // Fetch student data
+          const studentResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/users/${item.studentId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          const subject = subjectResponse.ok ? await subjectResponse.json() : null;
+          const student = studentResponse.ok ? await studentResponse.json() : null;
+
+          // Check if instructor can teach this subject
+          const canTeach = user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
+
+          enrichedItems.push({
+            id: item.id || 0,
+            description: item.description,
+            status: item.status || "PENDING",
+            createdAt: item.createdAt || new Date().toISOString(),
+            studentId: item.studentId || "",
+            subjectId: item.subjectId || "",
+            subject,
+            student,
+            canTeach,
+          });
         }
 
-        const data = await response.json();
-        console.log("Initial queue API response:", data);
-        console.log(
-          "Initial queue loaded:",
-          data.queueItems?.length || 0,
-          "items"
-        );
-        
-        // Set fallback queue items if SSE hasn't loaded them yet
-        if (data.queueItems && data.queueItems.length > 0) {
-          setFallbackQueueItems(data.queueItems);
-          console.log("Fallback queue items set:", data.queueItems.length, "items");
-        }
+        setEnrichedQueueItems(enrichedItems);
+        console.log("[Instructor Queue] Enriched queue items:", enrichedItems);
       } catch (error) {
-        console.error("Failed to load initial queue items:", error);
-      } finally {
-        setInitialLoadComplete(true);
+        console.error("[Instructor Queue] Failed to enrich queue items:", error);
       }
     };
 
-    loadInitialQueueItems();
-  }, []);
+    enrichQueueItems();
+  }, [queueItems, user?.subjects]);
 
-  const handleAcceptStudent = async (queueItemId: number) => {
+
+  const handleAcceptStudent = async (queueItem: EnrichedQueueItem) => {
     // Check Zoom connection before accepting
     if (!zoomConnected || zoomExpired) {
       alert("You must connect your Zoom account before accepting queue requests.\n\nYou will be redirected to connect your Zoom account.");
@@ -121,26 +156,29 @@ export default function InstructorQueuePage() {
         throw new Error("No authentication token available");
       }
 
-      console.log(`Accepting queue item: ${queueItemId}`);
+      console.log(`[Instructor Queue] Accepting queue item: ${queueItem.id}`);
 
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-        }/api/queue/${queueItemId}/accept`,
+      // Step 1: Create session
+      console.log("[Instructor Queue] Creating session...");
+      const sessionResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions`,
         {
-          method: "PUT",
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            studentId: queueItem.studentId,
+            subjectId: queueItem.subjectId,
+            queueId: queueItem.id,
+          }),
         }
       );
 
-      console.log("Accept response status:", response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Accept request failed:", errorData);
+      if (!sessionResponse.ok) {
+        const errorData = await sessionResponse.json().catch(() => ({}));
+        console.error("[Instructor Queue] Session creation failed:", errorData);
         
         // Handle Zoom connection error specifically
         if (errorData.needsZoomConnection) {
@@ -150,26 +188,29 @@ export default function InstructorQueuePage() {
         }
         
         throw new Error(
-          errorData.message || `Failed to accept student (${response.status})`
+          errorData.message || `Failed to create session (${sessionResponse.status})`
         );
       }
 
-      const result = await response.json();
-      console.log("Accept request successful:", result);
-
-      // Check if session was created and redirect immediately
-      if (result.session && result.redirectUrl) {
-        console.log("Session created, redirecting to:", result.redirectUrl);
-        router.push(result.redirectUrl);
-      } else {
-        // Note: SSE will automatically update the queue list
-        // No need to manually update state - SSE handles it
-        console.log(
-          `Accepted queue item ${queueItemId} - SSE will update the list`
-        );
+      const sessionData = await sessionResponse.json();
+      const sessionId = sessionData.session?.id || sessionData.id;
+      
+      if (!sessionId) {
+        throw new Error("Session created but no session ID returned");
       }
+
+      console.log("[Instructor Queue] Session created:", sessionId);
+
+      // Step 2: Call acceptQueue via WebSocket
+      console.log("[Instructor Queue] Notifying queue acceptance via WebSocket...");
+      acceptQueue(queueItem.studentId, sessionId);
+
+      // Step 3: Redirect to session
+      console.log("[Instructor Queue] Redirecting to session:", sessionId);
+      router.push(`/sessions/${sessionId}`);
+      
     } catch (error) {
-      console.error("Failed to accept student:", error);
+      console.error("[Instructor Queue] Failed to accept student:", error);
       alert(
         `Failed to accept student: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -208,7 +249,7 @@ export default function InstructorQueuePage() {
         </Box>
         <Group gap="md">
           <Badge size="lg" color="blue" variant="light">
-            {displayQueueItems.length} students waiting
+            {enrichedQueueItems.length} students waiting
           </Badge>
           <Group gap="xs">
             {isConnected ? (
@@ -217,7 +258,12 @@ export default function InstructorQueuePage() {
               </Tooltip>
             ) : (
               <Tooltip label="Connection lost - click to reconnect">
-                <ActionIcon variant="subtle" color="red" onClick={reconnect}>
+                <ActionIcon variant="subtle" color="red" onClick={() => {
+                  reconnect();
+                  if (user?.role === "INSTRUCTOR") {
+                    subscribeQueue("instructor");
+                  }
+                }}>
                   <IconWifiOff size={20} />
                 </ActionIcon>
               </Tooltip>
@@ -232,13 +278,18 @@ export default function InstructorQueuePage() {
           color="red"
           title="Connection Error"
           mb="md"
-          action={
-            <Button size="xs" variant="light" onClick={reconnect}>
+        >
+          <Group justify="space-between">
+            <Text>{connectionError}</Text>
+            <Button size="xs" variant="light" onClick={() => {
+              reconnect();
+              if (user?.role === "INSTRUCTOR") {
+                subscribeQueue("instructor");
+              }
+            }}>
               <IconRefresh size={14} />
             </Button>
-          }
-        >
-          {connectionError}
+          </Group>
         </Alert>
       )}
 
@@ -249,7 +300,14 @@ export default function InstructorQueuePage() {
           color="yellow"
           title="Zoom Account Required"
           mb="md"
-          action={
+        >
+          <Group justify="space-between">
+            <Text>
+              {zoomExpired 
+                ? "Your Zoom connection has expired. Please reconnect to accept queue requests and create sessions."
+                : "You must connect your Zoom account before accepting queue requests. Zoom meetings are automatically created for all sessions."
+              }
+            </Text>
             <Button 
               size="xs" 
               variant="light" 
@@ -257,27 +315,22 @@ export default function InstructorQueuePage() {
             >
               Connect Zoom
             </Button>
-          }
-        >
-          {zoomExpired 
-            ? "Your Zoom connection has expired. Please reconnect to accept queue requests and create sessions."
-            : "You must connect your Zoom account before accepting queue requests. Zoom meetings are automatically created for all sessions."
-          }
+          </Group>
         </Alert>
       )}
 
-      {!initialLoadComplete ? (
+      {!isConnected && queueItems.size === 0 ? (
         <Card shadow="sm" padding="xl" radius="md" withBorder>
           <Center>
             <Stack align="center" gap="md">
               <Loader size="lg" />
               <Text size="lg" c="dimmed">
-                Loading queue...
+                Connecting to queue...
               </Text>
             </Stack>
           </Center>
         </Card>
-      ) : displayQueueItems.length === 0 ? (
+      ) : enrichedQueueItems.length === 0 ? (
         <Card shadow="sm" padding="xl" radius="md" withBorder>
           <Center>
             <Stack align="center" gap="md">
@@ -294,7 +347,7 @@ export default function InstructorQueuePage() {
       ) : (
         <ScrollArea h={600}>
           <Stack gap="md">
-            {displayQueueItems.map((item) => {
+            {enrichedQueueItems.map((item) => {
               const canTeach = item.canTeach;
 
               return (
@@ -308,21 +361,21 @@ export default function InstructorQueuePage() {
                   <Group justify="space-between" align="flex-start">
                     <Group gap="md" style={{ flex: 1 }}>
                       <Avatar color="blue" radius="xl">
-                        {item.student.firstName[0]}
-                        {item.student.lastName[0]}
+                        {item.student?.firstName?.[0] || "?"}
+                        {item.student?.lastName?.[0] || "?"}
                       </Avatar>
 
                       <Box style={{ flex: 1 }}>
                         <Text fw={600} size="lg" mb="xs">
-                          {item.student.firstName} {item.student.lastName}
+                          {item.student?.firstName || "Unknown"} {item.student?.lastName || "Student"}
                         </Text>
 
                         <Text size="sm" c="dimmed" mb="xs">
-                          {item.student.email}
+                          {item.student?.email || "No email"}
                         </Text>
 
                         <Badge color="blue" variant="outline" mb="sm">
-                          {item.subject.name}
+                          {item.subject?.name || "Unknown Subject"}
                         </Badge>
 
                         <Text size="sm" mb="md">
@@ -347,7 +400,7 @@ export default function InstructorQueuePage() {
                       <Tooltip label="Accept and start session">
                         <Button
                           leftSection={<IconCheck size={16} />}
-                          onClick={() => handleAcceptStudent(item.id)}
+                          onClick={() => handleAcceptStudent(item)}
                           loading={isLoading}
                           color={canTeach ? "green" : "orange"}
                           variant={canTeach ? "filled" : "outline"}

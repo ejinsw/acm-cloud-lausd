@@ -3,12 +3,12 @@ import { getToken } from "../actions/authentication";
 import { User } from "@/lib/types";
 
 interface QueueItem {
-  id: number;
+  id?: number;
   description: string;
-  status: string;
-  createdAt: string;
-  studentId?: string; // Direct field from student endpoint
-  subjectId?: string; // Direct field from student endpoint
+  status?: string;
+  createdAt?: string;
+  studentId?: string;
+  subjectId?: string;
   student?: {
     id: string;
     firstName: string;
@@ -65,14 +65,18 @@ interface UseQueueWebSocketReturn {
   connectionError: string | null;
   queueItems: Map<string, QueueItem>;
   reconnect: () => void;
-  subscribeQueue: (role: "student" | "instructor" | "admin", data?: QueueItem) => void;
-  unsubscribeQueue: (role: "student" | "instructor" | "admin", data?: QueueItem) => void;
+  subscribeQueue: (
+    role: "student" | "instructor" | "admin",
+    data?: QueueItem,
+  ) => void;
+  unsubscribeQueue: (
+    role: "student" | "instructor" | "admin",
+    data?: QueueItem,
+  ) => void;
   acceptQueue: (studentId: string, sessionId: string) => void;
 }
 
-export function useQueueWebSocket(
-  user: User | null
-): UseQueueWebSocketReturn {
+export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [queueItems, setQueueItems] = useState<Map<string, QueueItem>>(
@@ -169,7 +173,7 @@ export function useQueueWebSocket(
                     payload: {
                       role: userRef.current.role.toLowerCase(),
                     },
-                  })
+                  }),
                 );
                 isSubscribed.current = true;
               }
@@ -192,7 +196,9 @@ export function useQueueWebSocket(
               break;
 
             case "QUEUE_UNSUBSCRIBED":
-              console.log("[WS] ✅ Successfully unsubscribed from queue updates");
+              console.log(
+                "[WS] ✅ Successfully unsubscribed from queue updates",
+              );
               isSubscribed.current = false;
               break;
 
@@ -231,10 +237,7 @@ export function useQueueWebSocket(
               );
               // Student's queue was accepted - redirect to session
               // Server sends: payload: { data: { studentId, sessionId } }
-              if (
-                message.payload?.data &&
-                typeof window !== "undefined"
-              ) {
+              if (message.payload?.data && typeof window !== "undefined") {
                 const acceptData = message.payload.data as any;
                 if (acceptData.sessionId) {
                   window.location.href = `/sessions/${acceptData.sessionId}`;
@@ -300,7 +303,7 @@ export function useQueueWebSocket(
    * Subscribe to queue updates
    * @param role - User role (student, instructor, or admin)
    * @param data - Queue item data (required for students)
-   * 
+   *
    * Sends: { type: "SUBSCRIBE_QUEUE", payload: { role, data } }
    * Server expects: payload.role and payload.data
    */
@@ -320,22 +323,22 @@ export function useQueueWebSocket(
             role: role.toLowerCase(),
             data,
           },
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   /**
    * Unsubscribe from queue updates
    * @param role - User role (student, instructor, or admin)
    * @param data - Queue item data (optional)
-   * 
+   *
    * Sends: { type: "UNSUBSCRIBE_QUEUE", payload: { role, data } }
    * Server expects: payload.role and optional payload.data
    */
   const unsubscribeQueue = useCallback(
-    (role: "student" | "instructor" | "admin", data?: QueueItem) => {
+    (role: "student" | "instructor" | "admin") => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         console.error("[WS] Cannot unsubscribe - WebSocket not connected");
         return;
@@ -347,60 +350,60 @@ export function useQueueWebSocket(
           type: "UNSUBSCRIBE_QUEUE",
           payload: {
             role: role.toLowerCase(),
-            data,
           },
-        })
+        }),
       );
     },
-    []
+    [],
   );
 
   /**
    * Accept a student's queue request (instructor/admin only)
    * @param studentId - ID of the student to accept
    * @param sessionId - Session ID to redirect student to
-   * 
+   *
    * Sends: { type: "ACCEPT_QUEUE", payload: { role, data: { studentId, sessionId } } }
    * Server expects: payload.role and payload.data with studentId and sessionId
    * Server responds: { type: "QUEUE_ACCEPTED", payload: { data: { studentId, sessionId } } }
    */
-  const acceptQueue = useCallback(
-    (studentId: string, sessionId: string) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        console.error("[WS] Cannot accept queue - WebSocket not connected");
-        setConnectionError("WebSocket not connected");
-        return;
-      }
+  const acceptQueue = useCallback((studentId: string, sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error("[WS] Cannot accept queue - WebSocket not connected");
+      setConnectionError("WebSocket not connected");
+      return;
+    }
 
-      if (!userRef.current) {
-        console.error("[WS] Cannot accept queue - User not identified");
-        setConnectionError("User not identified");
-        return;
-      }
+    if (!userRef.current) {
+      console.error("[WS] Cannot accept queue - User not identified");
+      setConnectionError("User not identified");
+      return;
+    }
 
-      const role = userRef.current.role.toLowerCase();
-      if (role !== "instructor" && role !== "admin") {
-        console.error("[WS] Only instructors and admins can accept queue requests");
-        setConnectionError("Unauthorized - only instructors and admins can accept queue requests");
-        return;
-      }
-
-      console.log(`[WS] Accepting queue request for student ${studentId}`);
-      wsRef.current.send(
-        JSON.stringify({
-          type: "ACCEPT_QUEUE",
-          payload: {
-            role,
-            data: {
-              studentId,
-              sessionId,
-            },
-          },
-        })
+    const role = userRef.current.role.toLowerCase();
+    if (role !== "instructor" && role !== "admin") {
+      console.error(
+        "[WS] Only instructors and admins can accept queue requests",
       );
-    },
-    []
-  );
+      setConnectionError(
+        "Unauthorized - only instructors and admins can accept queue requests",
+      );
+      return;
+    }
+
+    console.log(`[WS] Accepting queue request for student ${studentId}`);
+    wsRef.current.send(
+      JSON.stringify({
+        type: "ACCEPT_QUEUE",
+        payload: {
+          role,
+          data: {
+            studentId,
+            sessionId,
+          },
+        },
+      }),
+    );
+  }, []);
 
   useEffect(() => {
     connect();

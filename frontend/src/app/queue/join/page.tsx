@@ -16,6 +16,8 @@ import {
 import { IconInfoCircle, IconArrowLeft } from "@tabler/icons-react";
 import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
+import { notifications } from "@mantine/notifications";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 interface Subject {
   id: string;
@@ -50,11 +52,12 @@ export default function JoinQueuePage() {
   });
 
   // Use WebSocket hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect } =
+  const { queueItems, subscribeQueue, unsubscribeQueue } =
     useQueueWebSocket(user);
 
   // Find the current user's queue item from the queue items
-  const myQueueItem = queueItems.find((item) => {
+  const queueItemsArray = Array.from(queueItems.values());
+  const myQueueItem = queueItemsArray.find((item) => {
     // Handle both formats: item.student.id (from instructor endpoint) and item.studentId (from student endpoint)
     const studentId = item.student?.id || item.studentId;
     return studentId === user?.id && item.status === "PENDING";
@@ -65,7 +68,7 @@ export default function JoinQueuePage() {
         subject: myQueueItem.subject?.name || "Unknown Subject",
         description: myQueueItem.description || "",
         position:
-          queueItems
+          queueItemsArray
             .filter((item) => item.status === "PENDING")
             .findIndex((item) => item.id === myQueueItem.id) + 1,
         estimatedWait: "15-20 minutes", // Could be calculated based on position
@@ -242,46 +245,27 @@ export default function JoinQueuePage() {
         description: formData.description,
       });
 
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-        }/api/queue`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            subjectId: formData.subjectId,
-            description: formData.description,
-          }),
-        },
-      );
+      subscribeQueue("student", {
+        description: formData.description,
+        subjectId: formData.subjectId,
+      });
 
-      console.log("Queue response status:", response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Queue request failed:", errorData);
-        throw new Error(
-          errorData.message || `Failed to join queue (${response.status})`,
-        );
-      }
-
-      const result = await response.json();
-      console.log("Queue request successful:", result);
-
-      // Refresh the queue data to show the new queue item
-      await refreshQueue();
+      notifications.show({
+        title: "Success!",
+        message: "You have successfully joined the queue.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
     } catch (error) {
       console.error("Failed to join queue:", error);
-      // TODO: Show error notification or alert to user
-      alert(
-        `Failed to join queue: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      );
+      notifications.show({
+        title: "Error",
+        message: "Failure processing request. Try again.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -307,38 +291,7 @@ export default function JoinQueuePage() {
 
       console.log("Leaving queue with ID:", queueId);
 
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-        }/api/queue/${queueId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      console.log("Leave queue response status:", response.status);
-
-      if (response.ok) {
-        console.log("Successfully left queue");
-        // Refresh queue data to update UI
-        await refreshQueue();
-        // Clear existing queue state
-        setExistingQueue(null);
-        setFormData({ subjectId: "", description: "" });
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Leave queue request failed:", errorData);
-        throw new Error(
-          errorData.message || `Failed to leave queue (${response.status})`,
-        );
-      }
-
-      const result = await response.json();
-      console.log("Leave queue request successful:", result);
+      unsubscribeQueue("student");
 
       // Clear existing queue state and reset form
       setExistingQueue(null);
@@ -346,28 +299,26 @@ export default function JoinQueuePage() {
         subjectId: "",
         description: "",
       });
-
-      // The SSE hook will automatically update the state when the queue status changes
-      // No need to manually set local state here
+      notifications.show({
+        title: "Success!",
+        message: "You have successfully left the queue.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
     } catch (error) {
       console.error("Failed to leave queue:", error);
-      alert(
-        `Failed to leave queue: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      );
+      notifications.show({
+        title: "Error",
+        message: "Failure processing request. Try again.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
     } finally {
       setIsLoading(false);
     }
   };
-
-  if (!user || user.role !== "STUDENT") {
-    return (
-      <Box p="xl">
-        <Text>Access denied. This page is for students only.</Text>
-      </Box>
-    );
-  }
 
   // Show existing queue status if student is already in queue (from SSE) or has existing pending queue
   if ((isInQueue && queueData) || existingQueue) {

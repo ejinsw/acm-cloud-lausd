@@ -1,0 +1,29 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development files
+node_modules
+npm-debug.log
+.DS_Store
+.git
+.gitignore
+
+# Test files
+tests
+coverage
+*.test.js
+*.spec.js
+
+# Development configs
+nodemon.json
+.prettierrc
+.prettierignore
+.eslintrc.js
+
+# Documentation
+README.md
+
+# Scripts (if not needed in production)
+imageCreator.sh

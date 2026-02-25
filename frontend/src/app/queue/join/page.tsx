@@ -235,29 +235,14 @@ export default function JoinQueuePage() {
     setIsLoading(true);
 
     try {
-      const token = await getToken();
-      if (!token) {
-        throw new Error("No authentication token available");
+      console.log("Joining queue...");
+
+      // Find subject from already-loaded subjects list
+      const subject = subjects.find((s) => s.id === formData.subjectId);
+      
+      if (!subject) {
+        throw new Error("Subject not found");
       }
-
-      console.log("Fetching subject data and joining queue...");
-
-      // Fetch subject data to send enriched payload
-      const subjectResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/subjects/${formData.subjectId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!subjectResponse.ok) {
-        throw new Error("Failed to fetch subject data");
-      }
-
-      const subject = await subjectResponse.json();
 
       // Send enriched data to WebSocket
       subscribeQueue("student", {
@@ -274,8 +259,8 @@ export default function JoinQueuePage() {
           id: subject.id,
           name: subject.name,
           level: subject.level || null,
-          description: subject.description || "",
-          category: subject.category || "",
+          description: "", // Optional field
+          category: "", // Optional field
         },
       });
 

@@ -32,6 +32,8 @@ import {
 import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 import { useZoomStatus } from "../../../hooks/useZoomStatus";
+import { notifications } from "@mantine/notifications";
+import { XCircle } from "lucide-react";
 
 interface EnrichedQueueItem {
   id: number;
@@ -58,11 +60,9 @@ export default function InstructorQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [enrichedQueueItems, setEnrichedQueueItems] = useState<EnrichedQueueItem[]>([]);
-  
-  // Check Zoom connection status
-  const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
-
+  const [enrichedQueueItems, setEnrichedQueueItems] = useState<
+    EnrichedQueueItem[]
+  >([]);
   // Use WebSocket hook for real-time updates
   // Note: Hook auto-subscribes instructors/admins after USER_IDENTIFIED
   const { isConnected, connectionError, queueItems, reconnect, acceptQueue } =
@@ -80,7 +80,8 @@ export default function InstructorQueuePage() {
 
     for (const [cognitoId, item] of queueItems.entries()) {
       // Check if instructor can teach this subject
-      const canTeach = user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
+      const canTeach =
+        user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
 
       enrichedItems.push({
         id: item.id || 0,
@@ -106,18 +107,13 @@ export default function InstructorQueuePage() {
     }
 
     setEnrichedQueueItems(enrichedItems);
-    console.log("[Instructor Queue] Enriched queue items:", enrichedItems.length);
+    console.log(
+      "[Instructor Queue] Enriched queue items:",
+      enrichedItems.length,
+    );
   }, [queueItems, user?.subjects]);
 
-
   const handleAcceptStudent = async (queueItem: EnrichedQueueItem) => {
-    // Check Zoom connection before accepting
-    if (!zoomConnected || zoomExpired) {
-      alert("You must connect your Zoom account before accepting queue requests.\n\nYou will be redirected to connect your Zoom account.");
-      router.push('/dashboard/instructor?tab=zoom');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -139,53 +135,62 @@ export default function InstructorQueuePage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            studentId: queueItem.studentId,
-            subjectId: queueItem.subjectId,
-            queueId: queueItem.id,
+            name: `${queueItem.subject} Session with ${queueItem.student}`,
+            description: queueItem.description,
+            startTime: Date.now(),
+            endTime: new Date(Date.now() + 30 * 60 * 1000),
+            students: [queueItem.studentId],
+            subjects: [queueItem.subjectId],
           }),
-        }
+        },
       );
 
       if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json().catch(() => ({}));
-        console.error("[Instructor Queue] Session creation failed:", errorData);
-        
-        // Handle Zoom connection error specifically
-        if (errorData.needsZoomConnection) {
-          alert(`${errorData.message}\n\nYou will be redirected to connect your Zoom account.`);
-          router.push('/dashboard/instructor?tab=zoom');
-          return;
-        }
-        
-        throw new Error(
-          errorData.message || `Failed to create session (${sessionResponse.status})`
-        );
+        notifications.show({
+          title: "Error",
+          message: "Couldn't generate a session. Try again.",
+          color: "red",
+          icon: <XCircle size={16} />,
+          autoClose: 5000,
+        });
+        return;
       }
 
       const sessionData = await sessionResponse.json();
       const sessionId = sessionData.session?.id || sessionData.id;
-      
+
       if (!sessionId) {
-        throw new Error("Session created but no session ID returned");
+        notifications.show({
+          title: "Error",
+          message: "Something went wrong. Try again.",
+          color: "red",
+          icon: <XCircle size={16} />,
+          autoClose: 5000,
+        });
+        return;
       }
 
       console.log("[Instructor Queue] Session created:", sessionId);
 
       // Step 2: Call acceptQueue via WebSocket
-      console.log("[Instructor Queue] Notifying queue acceptance via WebSocket...");
+      console.log(
+        "[Instructor Queue] Notifying queue acceptance via WebSocket...",
+      );
       acceptQueue(queueItem.studentId, sessionId);
 
       // Step 3: Redirect to session
       console.log("[Instructor Queue] Redirecting to session:", sessionId);
       router.push(`/sessions/${sessionId}`);
-      
     } catch (error) {
       console.error("[Instructor Queue] Failed to accept student:", error);
-      alert(
-        `Failed to accept student: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      notifications.show({
+        title: "Error",
+        message: "Failed to accept student. Try again.",
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+      });
+      return;
     } finally {
       setIsLoading(false);
     }
@@ -253,32 +258,6 @@ export default function InstructorQueuePage() {
         </Alert>
       )}
 
-      {/* Zoom Connection Warning */}
-      {!zoomLoading && (!zoomConnected || zoomExpired) && (
-        <Alert
-          icon={<IconVideo size={16} />}
-          color="yellow"
-          title="Zoom Account Required"
-          mb="md"
-        >
-          <Group justify="space-between">
-            <Text>
-              {zoomExpired 
-                ? "Your Zoom connection has expired. Please reconnect to accept queue requests and create sessions."
-                : "You must connect your Zoom account before accepting queue requests. Zoom meetings are automatically created for all sessions."
-              }
-            </Text>
-            <Button 
-              size="xs" 
-              variant="light" 
-              onClick={() => router.push('/dashboard/instructor?tab=zoom')}
-            >
-              Connect Zoom
-            </Button>
-          </Group>
-        </Alert>
-      )}
-
       {!isConnected && queueItems.size === 0 ? (
         <Card shadow="sm" padding="xl" radius="md" withBorder>
           <Center>
@@ -327,7 +306,8 @@ export default function InstructorQueuePage() {
 
                       <Box style={{ flex: 1 }}>
                         <Text fw={600} size="lg" mb="xs">
-                          {item.student?.firstName || "Unknown"} {item.student?.lastName || "Student"}
+                          {item.student?.firstName || "Unknown"}{" "}
+                          {item.student?.lastName || "Student"}
                         </Text>
 
                         <Text size="sm" c="dimmed" mb="xs">

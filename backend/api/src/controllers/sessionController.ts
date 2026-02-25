@@ -6,7 +6,7 @@ import { zoomService } from '../services/zoomService';
 // Helper function to check and expire old sessions (older than 6 hours)
 async function expireOldSessions() {
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-  
+
   try {
     const result = await prisma.session.updateMany({
       where: {
@@ -21,7 +21,7 @@ async function expireOldSessions() {
         status: 'COMPLETED',
       },
     });
-    
+
     if (result.count > 0) {
       console.log(`Expired ${result.count} old sessions`);
     }
@@ -56,7 +56,7 @@ export const getAllSessions = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     // Expire old sessions before fetching
     await expireOldSessions();
-    
+
     const { tutorName, name, subject, instructorId } = req.query;
 
     const where: any = {};
@@ -105,7 +105,7 @@ export const getSessionById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     // Expire old sessions before fetching
     await expireOldSessions();
-    
+
     const { id } = req.params;
     const session = await prisma.session.findUnique({
       where: { id },
@@ -166,17 +166,6 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
-    // Check if user is an instructor
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    if (!user || user.role !== 'INSTRUCTOR') {
-      res.status(403).json({ message: 'Only instructors can create sessions' });
-      return;
-    }
-
     const {
       name,
       description,
@@ -186,143 +175,12 @@ export const createSession = expressAsyncHandler(
       materials,
       objectives,
       subjects = [],
+      students = [],
     } = req.body;
 
     // Validate required fields
-    if (!name || !Array.isArray(subjects) || subjects.length === 0) {
-      res.status(400).json({ message: 'Missing required fields: name and at least one subject' });
-      return;
-    }
-
-    // Validate all required fields (removed zoomLink requirement - we'll create it)
-    if (!description || !startTime || !endTime || !maxAttendees) {
-      res.status(400).json({
-        message: 'Missing required fields: description, startTime, endTime, and maxAttendees',
-      });
-      return;
-    }
-
-    // Validate that materials and objectives are arrays (if provided)
-    if (materials && !Array.isArray(materials)) {
-      res.status(400).json({ message: 'materials must be an array' });
-      return;
-    }
-
-    if (objectives && !Array.isArray(objectives)) {
-      res.status(400).json({ message: 'objectives must be an array' });
-      return;
-    }
-
-    // Validate that dates are actually valid
-    if (startTime) {
-      let isValidDate = false;
-      if (startTime instanceof Date) {
-        isValidDate = !isNaN(startTime.getTime());
-      } else if (typeof startTime === 'string') {
-        isValidDate = !isNaN(Date.parse(startTime));
-      }
-      if (!isValidDate) {
-        res.status(400).json({ message: 'startTime must be a valid ISO string or Date' });
-        return;
-      }
-    }
-
-    if (endTime) {
-      let isValidDate = false;
-      if (endTime instanceof Date) {
-        isValidDate = !isNaN(endTime.getTime());
-      } else if (typeof endTime === 'string') {
-        isValidDate = !isNaN(Date.parse(endTime));
-      }
-      if (!isValidDate) {
-        res.status(400).json({ message: 'endTime must be a valid ISO string or Date' });
-        return;
-      }
-    }
-
-    // Validate time constraints
-    if (startTime && endTime) {
-      const start = new Date(startTime);
-      const end = new Date(endTime);
-      if (start >= end) {
-        res.status(400).json({ message: 'Start time must be before end time' });
-        return;
-      }
-    }
-
-    // Validate start time is in the future
-    if (startTime) {
-      const start = new Date(startTime);
-      const now = new Date();
-      if (start <= now) {
-        res.status(400).json({ message: 'Start time must be in the future' });
-        return;
-      }
-    }
-
-    // Validate max attendees
-    if (maxAttendees !== undefined) {
-      if (!Number.isInteger(maxAttendees) || maxAttendees <= 0) {
-        res.status(400).json({ message: 'Max attendees must be a positive integer' });
-        return;
-      }
-    }
-
-    // Find subject IDs for connection
-    const subjectRecords = await prisma.subject.findMany({
-      where: { name: { in: subjects } },
-      select: { id: true, name: true },
-    });
-    if (subjectRecords.length !== subjects.length) {
-      const foundNames = subjectRecords.map(s => s.name);
-      const missing = subjects.filter((s: string) => !foundNames.includes(s));
-      res.status(400).json({ message: `Invalid subject(s): ${missing.join(', ')}` });
-      return;
-    }
-
-    // Check if instructor has Zoom connected - REQUIRED for session creation
-    const instructor = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
-        zoomAccessToken: true,
-        zoomTokenExpiresAt: true,
-      },
-    });
-
-    if (
-      !instructor?.zoomAccessToken ||
-      !instructor?.zoomTokenExpiresAt ||
-      new Date() >= instructor.zoomTokenExpiresAt
-    ) {
-      res.status(400).json({
-        message: 'Zoom account not connected. Please connect your Zoom account first.',
-        needsZoomConnection: true,
-      });
-      return;
-    }
-
-    // Create Zoom meeting - REQUIRED for embedded video
-    let zoomMeeting;
-    try {
-      zoomMeeting = await zoomService.createMeeting(
-        instructor.zoomAccessToken!, // Pass the instructor's access token
-        {
-          topic: name,
-          startTime: startTime ? new Date(startTime).toISOString() : new Date().toISOString(),
-          duration:
-            endTime && startTime
-              ? Math.ceil((new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60)) // duration in minutes
-              : 60, // default 60 minutes
-          instructorEmail: instructor.email,
-        }
-      );
-    } catch (error: any) {
-      console.error('Failed to create Zoom meeting:', error);
-      res.status(500).json({
-        message: 'Failed to create Zoom meeting. Please try again.',
-        error: error.message,
-      });
+    if (!name) {
+      res.status(400).json({ message: 'Missing required fields: name' });
       return;
     }
 
@@ -330,15 +188,18 @@ export const createSession = expressAsyncHandler(
       data: {
         name,
         description,
-        startTime: startTime ? new Date(startTime) : undefined,
-        endTime: endTime ? new Date(endTime) : undefined,
-        zoomLink: zoomMeeting.join_url, // Always use our created Zoom meeting
-        maxAttendees,
+        startTime: startTime ? new Date(startTime) : new Date(Date.now()),
+        endTime: endTime ? new Date(endTime) : new Date(Date.now() + 30 * 60 * 1000),
+        zoomLink: '',
+        maxAttendees: maxAttendees ?? 1,
         materials: materials || [],
         objectives: objectives || [],
         instructorId: userId,
         subjects: {
-          connect: subjectRecords.map(s => ({ id: s.id })),
+          connect: subjects.map((s: string) => ({ id: s })),
+        },
+        students: {
+          connect: students.map((s: string) => ({ id: s })),
         },
       },
       include: {
@@ -349,11 +210,6 @@ export const createSession = expressAsyncHandler(
 
     res.status(201).json({
       session,
-      zoomMeeting: {
-        id: zoomMeeting.id,
-        joinUrl: zoomMeeting.join_url,
-        startUrl: zoomMeeting.start_url,
-      },
       message: 'Session created with embedded Zoom meeting',
     });
   }
@@ -521,21 +377,17 @@ export const updateSession = expressAsyncHandler(
             : session.zoomLink;
 
           if (meetingId) {
-            await zoomService.updateMeeting(
-              instructor.zoomAccessToken,
-              meetingId,
-              {
-                topic: data.name,
-                startTime: data.startTime,
-                duration:
-                  data.endTime && data.startTime
-                    ? Math.ceil(
-                        (new Date(data.endTime).getTime() - new Date(data.startTime).getTime()) /
-                          (1000 * 60)
-                      )
-                    : undefined,
-              }
-            );
+            await zoomService.updateMeeting(instructor.zoomAccessToken, meetingId, {
+              topic: data.name,
+              startTime: data.startTime,
+              duration:
+                data.endTime && data.startTime
+                  ? Math.ceil(
+                      (new Date(data.endTime).getTime() - new Date(data.startTime).getTime()) /
+                        (1000 * 60)
+                    )
+                  : undefined,
+            });
           }
         }
       }

@@ -22,7 +22,10 @@ import { Search, Sparkles, AlertCircle, History, Video, Star } from "lucide-reac
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
+import { SessionsByWeekChart } from "@/components/dashboard/student/SessionsByWeekChart";
+import { UnreviewedSessions } from "@/components/dashboard/student/UnreviewedSessions";
 import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
+import { PastSession } from "@/components/dashboard/student/SessionHistoryTab";
 import ZoomConnection from "@/components/sessions/ZoomConnection";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
@@ -128,11 +131,6 @@ function InstructorDashboardContent() {
     (session) => session.status === "COMPLETED"
   );
   const totalSessions = sessions.length;
-  const totalStudents = new Set(
-    sessions.flatMap(
-      (session) => session.students?.map((student) => student.id) || []
-    )
-  ).size;
 
   const hoursTutored = Math.round(
     completedSessions.reduce((total, session) => {
@@ -145,14 +143,7 @@ function InstructorDashboardContent() {
     }, 0)
   );
 
-  const averageRating = user?.averageRating || 0;
-
-  const statsData = {
-    totalStudents,
-    hoursTutored,
-    averageRating,
-    totalSessions,
-  };
+  const reviewCount = reviews.length;
 
   // Fetch session history
   const fetchSessionHistory = async () => {
@@ -293,7 +284,16 @@ function InstructorDashboardContent() {
                 </Stack>
               </Alert>
             )}
-            <StatsGrid {...statsData} />
+            <StatsGrid
+              totalSessions={totalSessions}
+              hoursTutored={hoursTutored}
+              reviewCount={reviewCount}
+            />
+            <SessionsByWeekChart sessionHistory={sessionHistory} />
+            <UnreviewedSessions
+              sessionHistory={sessionHistory as PastSession[]}
+              canReview={false}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel value="history" pt="lg">

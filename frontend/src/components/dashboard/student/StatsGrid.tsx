@@ -1,11 +1,10 @@
 import { Group, Text, Box, SimpleGrid } from "@mantine/core";
-import { BookOpen, Clock, Sparkles } from "lucide-react";
+import { BookOpen, Clock, Star } from "lucide-react";
 
 interface StatsGridProps {
   totalSessions: number;
   hoursLearned: number;
-  subjectsCovered: number;
-  streak: number;
+  reviewCount: number;
 }
 
 function StatItem({ label, value, icon: Icon }: { label: string; value: number; icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }> }) {
@@ -20,14 +19,13 @@ function StatItem({ label, value, icon: Icon }: { label: string; value: number; 
   );
 }
 
-export function StatsGrid({ totalSessions, hoursLearned, subjectsCovered, streak }: StatsGridProps) {
+export function StatsGrid({ totalSessions, hoursLearned, reviewCount }: StatsGridProps) {
   return (
-    <Box mb="xl" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
-      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg" py="lg">
+    <Box style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+      <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="lg" py="lg">
         <StatItem label="Total Sessions" value={totalSessions} icon={BookOpen} />
-        <StatItem label="Hours Learned" value={hoursLearned} icon={Clock} />
-        <StatItem label="Subjects" value={subjectsCovered} icon={BookOpen} />
-        <StatItem label="Day Streak" value={streak} icon={Sparkles} />
+        <StatItem label="Hours spent learning" value={hoursLearned} icon={Clock} />
+        <StatItem label="Reviews given" value={reviewCount} icon={Star} />
       </SimpleGrid>
     </Box>
   );

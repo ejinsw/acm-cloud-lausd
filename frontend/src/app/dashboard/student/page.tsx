@@ -25,6 +25,8 @@ import { notifications } from "@mantine/notifications";
 import { Sparkles, History, Star, AlertCircle } from "lucide-react";
 import { ProgressOverview } from "@/components/dashboard/student/ProgressOverview";
 import { StatsGrid } from "@/components/dashboard/student/StatsGrid";
+import { SessionsByWeekChart } from "@/components/dashboard/student/SessionsByWeekChart";
+import { UnreviewedSessions } from "@/components/dashboard/student/UnreviewedSessions";
 import { SessionHistoryTab, PastSession } from "@/components/dashboard/student/SessionHistoryTab";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
@@ -172,19 +174,7 @@ function StudentDashboardContent() {
     }
     return total;
   }, 0));
-  const subjectsCovered = new Set(
-    sessions.flatMap(session => 
-      session.subjects?.map(subject => subject.name) || []
-    )
-  ).size;
-  const streak = Math.min(completedSessions.length, 30); // Mock streak calculation
-
-  const achievementStats = {
-    totalSessions,
-    hoursLearned,
-    subjectsCovered,
-    streak,
-  };
+  const reviewCount = reviews.length;
 
   // Calculate completion percentage for all courses
   const totalLessons = upcomingSessions.length + completedSessions.length;
@@ -305,7 +295,16 @@ function StudentDashboardContent() {
             totalLessons={totalLessons}
             overallProgress={overallProgress}
           />
-          <StatsGrid {...achievementStats} />
+          <StatsGrid
+            totalSessions={totalSessions}
+            hoursLearned={hoursLearned}
+            reviewCount={reviewCount}
+          />
+          <SessionsByWeekChart sessionHistory={sessionHistory} />
+          <UnreviewedSessions
+            sessionHistory={sessionHistory as PastSession[]}
+            onReviewClick={handleOpenReviewModal}
+          />
         </Tabs.Panel>
 
         <Tabs.Panel value="history" pt="lg">

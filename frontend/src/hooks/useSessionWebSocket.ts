@@ -62,7 +62,15 @@ interface UseSessionWebSocketReturn {
   notifySessionUpdate: (sessionId: string) => void;
 }
 
-export function useSessionWebSocket(user: User | null): UseSessionWebSocketReturn {
+interface UseSessionWebSocketOptions {
+  onSessionUpdated?: () => void;
+  onSessionEnded?: () => void;
+}
+
+export function useSessionWebSocket(
+  user: User | null,
+  options?: UseSessionWebSocketOptions
+): UseSessionWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
@@ -73,11 +81,16 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
   const isIdentified = useRef(false);
   const isConnecting = useRef(false);
   const userRef = useRef(user);
+  const optionsRef = useRef(options);
 
-  // Keep userRef in sync with user prop
+  // Keep refs in sync with props
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const connect = useCallback(async () => {
     // Prevent multiple simultaneous connection attempts
@@ -261,7 +274,13 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
               break;
 
             case "SESSION_UPDATED":
-              console.log("[Session WS] 🔄 Session updated, please refetch");
+              console.log("[Session WS] 🔄 Session updated, triggering refetch");
+              
+              // Call the callback to trigger refetch
+              if (optionsRef.current?.onSessionUpdated) {
+                optionsRef.current.onSessionUpdated();
+              }
+              
               if (typeof window !== "undefined") {
                 const { notifications } = require("@mantine/notifications");
                 notifications.show({
@@ -276,6 +295,12 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
             case "SESSION_ENDED":
               console.log("[Session WS] 🔚 Session has ended");
               setRoom(null);
+              
+              // Call the callback to handle session end
+              if (optionsRef.current?.onSessionEnded) {
+                optionsRef.current.onSessionEnded();
+              }
+              
               if (typeof window !== "undefined") {
                 const { notifications } = require("@mantine/notifications");
                 notifications.show({

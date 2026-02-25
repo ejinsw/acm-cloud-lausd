@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Container,
@@ -73,6 +73,43 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [adminOpened, { open: openAdmin, close: closeAdmin }] = useDisclosure(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
+  const refetchSession = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${session.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch session");
+      }
+
+      const data = await response.json();
+      setLocalSession(data.session as Session);
+      console.log("[Session] Refetched session data:", data.session);
+    } catch (error) {
+      console.error("Failed to refetch session:", error);
+    }
+  }, [session.id]);
+
+  const handleSessionEnded = useCallback(() => {
+    console.log("[Session] Session ended, redirecting...");
+    setTimeout(() => {
+      if (currentUser.role == 'STUDENT'){
+        router.push(routes.joinQueue);
+      } else {
+        router.push(routes.instructorQueue);
+      }
+    }, 3000);
+  }, [router]);
+
   const {
     isConnected,
     connectionError,
@@ -83,7 +120,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     deleteMessage: wsDeleteMessage,
     kickUser: wsKickUser,
     notifySessionUpdate,
-  } = useSessionWebSocket(currentUser);
+  } = useSessionWebSocket(currentUser, {
+    onSessionUpdated: refetchSession,
+    onSessionEnded: handleSessionEnded,
+  });
 
   const messages = room?.messages || [];
   const participants = room?.users || [];
@@ -127,31 +167,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   useEffect(() => {
     setLocalSession(session);
   }, [session]);
-
-  const refetchSession = async () => {
-    try {
-      const token = await getToken();
-      if (!token) return;
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${localSession.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch session");
-      }
-
-      const data = await response.json();
-      setLocalSession(data.session as Session);
-    } catch (error) {
-      console.error("Failed to refetch session:", error);
-    }
-  };
 
   const handleSessionUpdated = async () => {
     await refetchSession();

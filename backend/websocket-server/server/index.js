@@ -18,6 +18,7 @@ const {
   handleMessage,
   leaveRoom,
   deleteMessage,
+  editMessage,
   kickUser,
   notifySessionUpdate,
 } = require('./RoomManager');
@@ -183,6 +184,18 @@ server.on('connection', ws => {
               JSON.stringify({
                 type: 'ERROR',
                 payload: { message: 'Invalid delete message data or user not identified.' },
+              })
+            );
+          }
+          break;
+        case 'EDIT_MESSAGE':
+          if (payload?.roomId && payload?.messageId && payload?.text && ws.userId) {
+            await editMessage(ws, payload.roomId, payload.messageId, payload.text, liveRooms);
+          } else {
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: { message: 'Invalid edit message data or user not identified.' },
               })
             );
           }

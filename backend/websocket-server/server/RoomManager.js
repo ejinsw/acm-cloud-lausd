@@ -310,6 +310,74 @@ async function deleteMessage(ws, roomId, messageId, liveRooms) {
   console.log(`Message ${messageId} deleted from ${roomState.name} by ${requesterInfo.username}`);
 }
 
+async function editMessage(ws, roomId, messageId, newText, liveRooms) {
+  const roomState = liveRooms.get(roomId);
+  const requesterInfo = roomState ? roomState.clients.get(ws) : null;
+
+  if (!roomState || !requesterInfo) {
+    ws.send(
+      JSON.stringify({
+        type: 'ERROR',
+        payload: { message: 'Room not found or you are not in it.' },
+      })
+    );
+    return;
+  }
+
+  const sanitizedHtmlText = sanitizeInput(newText);
+  const filteredText = profanity.censor(sanitizedHtmlText);
+
+  if (!filteredText.trim()) {
+    ws.send(
+      JSON.stringify({
+        type: 'ERROR',
+        payload: { message: 'Message cannot be empty after filtering.' },
+      })
+    );
+    return;
+  }
+
+  try {
+    const updatedMessage = await store.updateMessage(roomId, messageId, filteredText);
+
+    if (!updatedMessage) {
+      ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Message not found.' } }));
+      return;
+    }
+
+    if (requesterInfo.id !== updatedMessage.sender.id && requesterInfo.type !== 'instructor') {
+      ws.send(
+        JSON.stringify({
+          type: 'ERROR',
+          payload: { message: 'You can only edit your own messages.' },
+        })
+      );
+      return;
+    }
+
+    roomState.lastActivity = Date.now();
+    broadcastToRoom(
+      roomId,
+      {
+        type: 'MESSAGE_EDITED',
+        payload: {
+          roomId,
+          messageId,
+          text: filteredText,
+          editedAt: updatedMessage.editedAt,
+          editedBy: requesterInfo.id,
+        },
+      },
+      liveRooms
+    );
+
+    console.log(`Message ${messageId} edited in ${roomState.name} by ${requesterInfo.username}`);
+  } catch (err) {
+    console.error('Failed to edit message:', err);
+    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Failed to edit message.' } }));
+  }
+}
+
 async function kickUser(ws, roomId, userIdToKick, liveRooms, connectedUsers) {
   const roomState = liveRooms.get(roomId);
   const requesterInfo = roomState ? roomState.clients.get(ws) : null;
@@ -423,6 +491,7 @@ module.exports = {
   // Messages
   handleMessage,
   deleteMessage,
+  editMessage,
   kickUser,
   // Session updates
   notifySessionUpdate,

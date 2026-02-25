@@ -454,6 +454,52 @@ async function deleteMessage(roomId, messageId) {
   return true;
 }
 
+async function updateMessage(roomId, messageId, newText) {
+  const lookup = await docCall('query', {
+    TableName: tables.messages,
+    IndexName: 'messageId',
+    KeyConditionExpression: 'messageId = :messageId',
+    ExpressionAttributeValues: { ':messageId': messageId },
+    Limit: 1,
+  });
+
+  const match = lookup.Items?.find(item => item.roomId === roomId);
+  if (!match) return null;
+
+  const now = Date.now();
+  await docCall('update', {
+    TableName: tables.messages,
+    Key: { roomId, sentAt: match.sentAt },
+    UpdateExpression: 'SET #text = :text, editedAt = :editedAt',
+    ExpressionAttributeNames: {
+      '#text': 'text',
+    },
+    ExpressionAttributeValues: {
+      ':text': newText,
+      ':editedAt': now,
+    },
+  });
+
+  await docCall('update', {
+    TableName: tables.rooms,
+    Key: { roomId },
+    UpdateExpression: 'SET lastActivity = :now, expiresAt = :expiresAt',
+    ExpressionAttributeValues: {
+      ':now': now,
+      ':expiresAt': defaultExpiry(),
+    },
+  });
+
+  return {
+    id: match.messageId,
+    text: newText,
+    sender: match.sender,
+    roomId,
+    timestamp: match.timestamp,
+    editedAt: now,
+  };
+}
+
 async function setUserSession(user) {
   await docCall('put', {
     TableName: tables.sessions,
@@ -509,6 +555,7 @@ module.exports = {
   saveMessage,
   fetchMessages,
   deleteMessage,
+  updateMessage,
   setUserSession,
   removeUserSession,
   expireRoom,

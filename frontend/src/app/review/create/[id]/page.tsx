@@ -442,9 +442,10 @@ export default function CreateReviewPage() {
                   minRows={4}
                   required
                   value={studentDraft.comment}
-                  onChange={(event) =>
-                    setStudentDraft((prev) => ({ ...prev, comment: event.currentTarget.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.currentTarget?.value ?? "";
+                    setStudentDraft((prev) => ({ ...prev, comment: value }));
+                  }}
                 />
 
                 <Group justify="flex-end">
@@ -491,9 +492,10 @@ export default function CreateReviewPage() {
                           placeholder="Share feedback for this student"
                           minRows={3}
                           value={draft.comment}
-                          onChange={(event) =>
-                            upsertInstructorDraft(student.id, { comment: event.currentTarget.value })
-                          }
+                          onChange={(event) => {
+                            const value = event.currentTarget?.value ?? "";
+                            upsertInstructorDraft(student.id, { comment: value });
+                          }}
                         />
                         <Group justify="flex-end">
                           <Button

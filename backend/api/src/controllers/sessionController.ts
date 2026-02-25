@@ -1164,20 +1164,26 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  // Check if session is in IN_PROGRESS status
-  if (session.status !== 'IN_PROGRESS') {
+  // Allow stopping when IN_PROGRESS (complete) or SCHEDULED (cancel/end without having started)
+  if (session.status !== 'IN_PROGRESS' && session.status !== 'SCHEDULED') {
     res
       .status(400)
-      .json({ message: 'Session cannot be stopped. Only sessions in progress can be stopped.' });
+      .json({
+        message:
+          'Session cannot be stopped. Only scheduled or in-progress sessions can be stopped.',
+      });
     return;
   }
 
-  // Update session status to COMPLETED and set end time
+  const endTime = new Date();
+  const newStatus = session.status === 'IN_PROGRESS' ? 'COMPLETED' : 'CANCELLED';
+
+  // Update session status and set end time
   const updatedSession = await prisma.session.update({
     where: { id: id },
     data: {
-      status: 'COMPLETED',
-      endTime: new Date(), // Set actual end time when session ends
+      status: newStatus,
+      endTime,
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
@@ -1192,8 +1198,13 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
     console.log(`Session ${id} notes: ${notes}`);
   }
 
+  const message =
+    newStatus === 'COMPLETED'
+      ? 'Session completed successfully'
+      : 'Session ended (was not started).';
+
   res.status(200).json({
-    message: 'Session completed successfully',
+    message,
     session: updatedSession,
   });
 });

@@ -30,6 +30,11 @@ locals {
     module.dynamodb_dax.room_messages_table_arn,
     module.dynamodb_dax.user_sessions_table_arn,
   ]
+  
+  dynamodb_table_and_index_arns = concat(
+    local.dynamodb_table_arns,
+    [for table_arn in local.dynamodb_table_arns : "${table_arn}/index/*"]
+  )
 }
 
 resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
@@ -53,7 +58,7 @@ resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
           "dynamodb:Scan",
           "dynamodb:UpdateItem"
         ]
-        Resource = local.dynamodb_table_arns
+        Resource = local.dynamodb_table_and_index_arns
       },
       # DAX access - commented out to reduce costs (using direct DynamoDB access)
       # {

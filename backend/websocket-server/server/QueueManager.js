@@ -9,10 +9,23 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
   const { role, data } = payload;
 
   switch (role.toLowerCase()) {
-    case 'student':
+    case 'student': {
       queueStudents.set(ws.userId, { id: ws.userId, ws, role, data });
       console.log(`Student ${ws.userId} subscribed to queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_SUBSCRIBED', payload: {} }));
+
+      // Create enriched payload without ws object (which breaks JSON serialization)
+      const studentPayload = {
+        id: ws.userId,
+        role,
+        data: {
+          description: data.description,
+          subjectId: data.subjectId,
+          // Client-provided enriched data
+          student: data.student, // { id, firstName, lastName, email, cognitoId }
+          subject: data.subject, // { id, name, level, description?, category? }
+        },
+      };
 
       // NOTIFY WATCHING INSTRUCTORS
       queueInstructors.forEach(({ ws: instrWs }) => {
@@ -23,7 +36,7 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
         instrWs.send(
           JSON.stringify({
             type: 'QUEUE_JOIN',
-            payload: { id: ws.userId, ws, role, data },
+            payload: studentPayload,
           })
         );
       });
@@ -37,31 +50,60 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
         instrWs.send(
           JSON.stringify({
             type: 'QUEUE_JOIN',
-            payload: { id: ws.userId, ws, role, data },
+            payload: studentPayload,
           })
         );
       });
       break;
-    case 'instructor':
+    }
+    case 'instructor': {
       queueInstructors.set(ws.userId, { ws, role });
       console.log(`Instructor ${ws.userId} subscribed to queue updates`);
+
+      // Send enriched student list without ws objects
+      const enrichedStudentsForInstructor = Array.from(queueStudents.values()).map(student => ({
+        id: student.id,
+        role: student.role,
+        data: {
+          description: student.data.description,
+          subjectId: student.data.subjectId,
+          student: student.data.student,
+          subject: student.data.subject,
+        },
+      }));
+
       ws.send(
         JSON.stringify({
           type: 'QUEUE_SUBSCRIBED',
-          payload: { students: Array.from(queueStudents.values()) },
+          payload: { students: enrichedStudentsForInstructor },
         })
       );
       break;
-    case 'admin':
+    }
+    case 'admin': {
       queueAdmins.set(ws.userId, { ws, role });
-      console.log(`Student ${ws.userId} subscribed to queue updates`);
+      console.log(`Admin ${ws.userId} subscribed to queue updates`);
+
+      // Send enriched student list without ws objects
+      const enrichedStudentsForAdmin = Array.from(queueStudents.values()).map(student => ({
+        id: student.id,
+        role: student.role,
+        data: {
+          description: student.data.description,
+          subjectId: student.data.subjectId,
+          student: student.data.student,
+          subject: student.data.subject,
+        },
+      }));
+
       ws.send(
         JSON.stringify({
           type: 'QUEUE_SUBSCRIBED',
-          payload: { students: Array.from(queueStudents.values()) },
+          payload: { students: enrichedStudentsForAdmin },
         })
       );
       break;
+    }
   }
 }
 
@@ -71,24 +113,30 @@ function unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdm
     return;
   }
 
-  const { role, data } = payload;
+  const { role } = payload;
 
   switch (role.toLowerCase()) {
-    case 'student':
+    case 'student': {
       queueStudents.delete(ws.userId);
-      console.log(`Student ${ws.userId} subscribed to queue updates`);
+      console.log(`Student ${ws.userId} unsubscribed from queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_UNSUBSCRIBED', payload: {} }));
+
+      // Create payload without ws object
+      const leavePayload = {
+        id: ws.userId,
+        role,
+      };
 
       // NOTIFY WATCHING INSTRUCTORS
       queueInstructors.forEach(({ ws: instrWs }) => {
         if (instrWs.readyState !== WebSocket.OPEN) {
-          console.log(`Instructor ${ws.userId} connection is not ready. Skipping...`);
+          console.log(`Instructor connection is not ready. Skipping...`);
           return;
         }
         instrWs.send(
           JSON.stringify({
             type: 'QUEUE_LEAVE',
-            payload: { id: ws.userId, ws, role },
+            payload: leavePayload,
           })
         );
       });
@@ -96,25 +144,26 @@ function unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdm
       // NOTIFY WATCHING ADMINS
       queueAdmins.forEach(({ ws: instrWs }) => {
         if (instrWs.readyState !== WebSocket.OPEN) {
-          console.log(`Instructor ${ws.userId} connection is not ready. Skipping...`);
+          console.log(`Admin connection is not ready. Skipping...`);
           return;
         }
         instrWs.send(
           JSON.stringify({
             type: 'QUEUE_LEAVE',
-            payload: { id: ws.userId, ws, role },
+            payload: leavePayload,
           })
         );
       });
       break;
+    }
     case 'instructor':
       queueInstructors.delete(ws.userId);
-      console.log(`Instructor ${ws.userId} subscribed to queue updates`);
+      console.log(`Instructor ${ws.userId} unsubscribed from queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_UNSUBSCRIBED', payload: {} }));
       break;
     case 'admin':
       queueAdmins.delete(ws.userId);
-      console.log(`Student ${ws.userId} subscribed to queue updates`);
+      console.log(`Admin ${ws.userId} unsubscribed from queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_UNSUBSCRIBED', payload: {} }));
       break;
   }

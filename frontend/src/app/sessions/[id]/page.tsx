@@ -70,6 +70,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [messageInput, setMessageInput] = useState("");
   const [localSession, setLocalSession] = useState<Session>(session);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const hasRedirectedToReviewRef = useRef(false);
   const isMobile = useMediaQuery(`(max-width: ${em(768)})`);
   
   const [participantsOpened, { open: openParticipants, close: closeParticipants }] = useDisclosure(false);
@@ -78,6 +79,72 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [adminOpened, { open: openAdmin, close: closeAdmin }] = useDisclosure(false);
   const [infoOpened, { open: openInfo, close: closeInfo }] = useDisclosure(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  const createSessionHistoryItem = useCallback(
+    async (sessionId: string) => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const existingHistoryResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/session-history`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (existingHistoryResponse.ok) {
+        const payload = await existingHistoryResponse.json();
+        const sessions = payload?.sessions || [];
+        const alreadyExists = sessions.some(
+          (item: {
+            userId?: string;
+            name?: string;
+            instructorId?: string;
+            startTime?: string;
+            endTime?: string;
+          }) =>
+            item.userId === currentUser.id &&
+            item.name === localSession.name &&
+            item.instructorId === localSession.instructorId &&
+            item.startTime === localSession.startTime &&
+            item.endTime === localSession.endTime
+        );
+
+        if (alreadyExists) {
+          return;
+        }
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/session-history`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sessionId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.message || "Failed to create session history");
+      }
+    },
+    [
+      currentUser.id,
+      localSession.endTime,
+      localSession.instructorId,
+      localSession.name,
+      localSession.startTime,
+    ]
+  );
 
   const refetchSession = useCallback(async () => {
     try {
@@ -105,16 +172,32 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     }
   }, [session.id]);
 
-  const handleSessionEnded = useCallback(() => {
-    console.log("[Session] Session ended, redirecting...");
-    setTimeout(() => {
-      if (currentUser.role == 'STUDENT'){
-        router.push(routes.joinQueue);
-      } else {
-        router.push(routes.instructorQueue);
-      }
-    }, 3000);
-  }, [router]);
+  const handleSessionEnded = useCallback(async () => {
+    if (hasRedirectedToReviewRef.current) {
+      return;
+    }
+
+    hasRedirectedToReviewRef.current = true;
+    const endedSessionId = localSession.id;
+
+    try {
+      await createSessionHistoryItem(endedSessionId);
+    } catch (error) {
+      console.error("Failed to create session history on session end:", error);
+      notifications.show({
+        title: "Session ended",
+        message:
+          "Meeting ended. Could not pre-save session history automatically.",
+        color: "yellow",
+      });
+    } finally {
+      router.push(
+        `/review/create/${encodeURIComponent(
+          endedSessionId
+        )}?sessionId=${encodeURIComponent(endedSessionId)}`
+      );
+    }
+  }, [createSessionHistoryItem, localSession.id, router]);
 
   const {
     isConnected,
@@ -178,6 +261,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     await refetchSession();
     notifySessionUpdate(localSession.id);
   };
+
+  useEffect(() => {
+    if (localSession.status === "COMPLETED") {
+      void handleSessionEnded();
+    }
+  }, [localSession.status, handleSessionEnded]);
 
   const handleDeleteMessage = (messageId: string) => {
     wsDeleteMessage(session.id, messageId);
@@ -760,6 +849,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               onDeleteMessage={handleDeleteMessage}
               onKickUser={handleKickUser}
               onSessionUpdated={handleSessionUpdated}
+              onSessionEnded={handleSessionEnded}
             />
           </Drawer>
         )}
@@ -1134,6 +1224,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               onDeleteMessage={handleDeleteMessage}
               onKickUser={handleKickUser}
               onSessionUpdated={handleSessionUpdated}
+              onSessionEnded={handleSessionEnded}
             />
           </Drawer>
         )}

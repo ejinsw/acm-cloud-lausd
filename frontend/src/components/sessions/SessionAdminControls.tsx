@@ -36,6 +36,7 @@ interface SessionAdminControlsProps {
   onDeleteMessage: (messageId: string) => void;
   onKickUser: (userId: string) => void;
   onSessionUpdated: () => void;
+  onSessionEnded?: (sessionId: string) => Promise<void> | void;
 }
 
 export default function SessionAdminControls({
@@ -46,6 +47,7 @@ export default function SessionAdminControls({
   onDeleteMessage,
   onKickUser,
   onSessionUpdated,
+  onSessionEnded,
 }: SessionAdminControlsProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
@@ -116,7 +118,7 @@ export default function SessionAdminControls({
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${sessionId}/end`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${sessionId}/stop`,
         {
           method: "POST",
           headers: {
@@ -138,6 +140,7 @@ export default function SessionAdminControls({
 
       closeEndModal();
       onSessionUpdated();
+      await onSessionEnded?.(sessionId);
     } catch (error) {
       console.error("Failed to end session:", error);
       notifications.show({

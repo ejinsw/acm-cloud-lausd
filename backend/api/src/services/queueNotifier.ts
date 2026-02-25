@@ -28,7 +28,7 @@ function connectToWebSocket() {
 }
 
 // Initialize connection
-connectToWebSocket();
+// connectToWebSocket();
 
 export async function notifyQueueChange(queueData: any) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {

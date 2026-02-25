@@ -41,27 +41,33 @@ export default function JoinQueuePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [existingQueue, setExistingQueue] = useState<ExistingQueue | null>(null);
+  const [existingQueue, setExistingQueue] = useState<ExistingQueue | null>(
+    null,
+  );
   const [formData, setFormData] = useState({
     subjectId: "",
     description: "",
   });
 
   // Use WebSocket hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect, refreshQueue } = useQueueWebSocket("STUDENT");
+  const { isConnected, connectionError, queueItems, reconnect } =
+    useQueueWebSocket(user);
 
   // Find the current user's queue item from the queue items
-  const myQueueItem = queueItems.find(item => {
+  const myQueueItem = queueItems.find((item) => {
     // Handle both formats: item.student.id (from instructor endpoint) and item.studentId (from student endpoint)
     const studentId = item.student?.id || item.studentId;
-    return studentId === user?.id && item.status === 'PENDING';
+    return studentId === user?.id && item.status === "PENDING";
   });
   const isInQueue = !!myQueueItem;
   const queueData = myQueueItem
     ? {
-        subject: myQueueItem.subject?.name || 'Unknown Subject',
-        description: myQueueItem.description || '',
-        position: queueItems.filter(item => item.status === 'PENDING').findIndex(item => item.id === myQueueItem.id) + 1,
+        subject: myQueueItem.subject?.name || "Unknown Subject",
+        description: myQueueItem.description || "",
+        position:
+          queueItems
+            .filter((item) => item.status === "PENDING")
+            .findIndex((item) => item.id === myQueueItem.id) + 1,
         estimatedWait: "15-20 minutes", // Could be calculated based on position
       }
     : null;
@@ -80,7 +86,7 @@ export default function JoinQueuePage() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -89,10 +95,12 @@ export default function JoinQueuePage() {
 
       const data = await response.json();
       const queues = data.queues || [];
-      
+
       // Find the first queue that is not accepted (PENDING status)
-      const pendingQueue = queues.find((queue: ExistingQueue) => queue.status === 'PENDING');
-      
+      const pendingQueue = queues.find(
+        (queue: ExistingQueue) => queue.status === "PENDING",
+      );
+
       if (pendingQueue) {
         setExistingQueue(pendingQueue);
         // Pre-fill the form with existing queue data
@@ -117,47 +125,51 @@ export default function JoinQueuePage() {
           `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/queue/student`,
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
 
         if (response.ok) {
           const data = await response.json();
           const queues = data.queues || [];
-          
+
           // Find recently accepted queue (within last 30 seconds)
           const now = new Date();
           const acceptedQueue = queues.find((q: ExistingQueue) => {
-            if (q.status !== 'ACCEPTED') return false;
-            
+            if (q.status !== "ACCEPTED") return false;
+
             const updatedAt = new Date(q.createdAt); // Use createdAt as proxy for when it was accepted
             const timeDiff = now.getTime() - updatedAt.getTime();
-            
+
             // Only redirect if accepted within last 30 seconds
             return timeDiff < 30000;
           });
-          
+
           if (acceptedQueue) {
             // Fetch the session associated with this queue
             const sessionsResponse = await fetch(
               `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions`,
               {
                 headers: { Authorization: `Bearer ${token}` },
-              }
+              },
             );
 
             if (sessionsResponse.ok) {
               const sessionsData = await sessionsResponse.json();
               const sessions = sessionsData.sessions || [];
-              
+
               // Find the most recent session that's still active (within 6 hours)
               const recentSession = sessions.find((s: any) => {
                 const sessionStart = new Date(s.startTime);
-                const hoursSinceStart = (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60);
-                return hoursSinceStart < 6 && s.status === 'IN_PROGRESS';
+                const hoursSinceStart =
+                  (now.getTime() - sessionStart.getTime()) / (1000 * 60 * 60);
+                return hoursSinceStart < 6 && s.status === "IN_PROGRESS";
               });
-              
+
               if (recentSession) {
-                console.log("Queue accepted! Redirecting to session:", recentSession.id);
+                console.log(
+                  "Queue accepted! Redirecting to session:",
+                  recentSession.id,
+                );
                 router.push(`/sessions/${recentSession.id}`);
               }
             }
@@ -190,7 +202,7 @@ export default function JoinQueuePage() {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (!response.ok) {
@@ -204,7 +216,7 @@ export default function JoinQueuePage() {
         setSubjects([]);
       }
     };
-    
+
     loadSubjects();
     checkExistingQueue();
   }, []);
@@ -244,7 +256,7 @@ export default function JoinQueuePage() {
             subjectId: formData.subjectId,
             description: formData.description,
           }),
-        }
+        },
       );
 
       console.log("Queue response status:", response.status);
@@ -253,7 +265,7 @@ export default function JoinQueuePage() {
         const errorData = await response.json().catch(() => ({}));
         console.error("Queue request failed:", errorData);
         throw new Error(
-          errorData.message || `Failed to join queue (${response.status})`
+          errorData.message || `Failed to join queue (${response.status})`,
         );
       }
 
@@ -268,7 +280,7 @@ export default function JoinQueuePage() {
       alert(
         `Failed to join queue: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsLoading(false);
@@ -278,7 +290,7 @@ export default function JoinQueuePage() {
   const handleLeaveQueue = async () => {
     // Get queue ID from either WebSocket data or existing queue data
     const queueId = myQueueItem?.id || existingQueue?.id;
-    
+
     if (!queueId) {
       console.error("No queue ID available to leave");
       alert("No queue found to leave");
@@ -305,7 +317,7 @@ export default function JoinQueuePage() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       console.log("Leave queue response status:", response.status);
@@ -321,7 +333,7 @@ export default function JoinQueuePage() {
         const errorData = await response.json().catch(() => ({}));
         console.error("Leave queue request failed:", errorData);
         throw new Error(
-          errorData.message || `Failed to leave queue (${response.status})`
+          errorData.message || `Failed to leave queue (${response.status})`,
         );
       }
 
@@ -342,7 +354,7 @@ export default function JoinQueuePage() {
       alert(
         `Failed to leave queue: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setIsLoading(false);
@@ -359,12 +371,18 @@ export default function JoinQueuePage() {
 
   // Show existing queue status if student is already in queue (from SSE) or has existing pending queue
   if ((isInQueue && queueData) || existingQueue) {
-    const displayData = isInQueue && queueData ? queueData : {
-      subject: existingQueue ? subjects.find(s => s.id === existingQueue.subjectId)?.name || 'Unknown Subject' : '',
-      description: existingQueue?.description || '',
-      position: queueData?.position || 0,
-      estimatedWait: queueData?.estimatedWait || "15-20 minutes",
-    };
+    const displayData =
+      isInQueue && queueData
+        ? queueData
+        : {
+            subject: existingQueue
+              ? subjects.find((s) => s.id === existingQueue.subjectId)?.name ||
+                "Unknown Subject"
+              : "",
+            description: existingQueue?.description || "",
+            position: queueData?.position || 0,
+            estimatedWait: queueData?.estimatedWait || "15-20 minutes",
+          };
 
     return (
       <Box p="xl" maw={600} mx="auto">

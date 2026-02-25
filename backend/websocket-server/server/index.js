@@ -3,7 +3,12 @@ const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const dotenv = require('dotenv');
 const store = require('./daxSTORE');
-const { subscribeQueue, unsubscribeQueue, broadcastQueueUpdate } = require('./QueueManager');
+const {
+  subscribeQueue,
+  unsubscribeQueue,
+  broadcastQueueUpdate,
+  acceptQueue,
+} = require('./QueueManager');
 const { handleIdentify } = require('./IdentityManager');
 const {
   pushRoomListUpdate,
@@ -37,7 +42,9 @@ const server = new WebSocket.Server({ server: httpServer });
 // Active socket bookkeeping only. All persistence lives in DynamoDB/DAX.
 const liveRooms = new Map(); // roomId -> { name, clients: Map<WebSocket, User>, lastActivity }
 const connectedUsers = new Map(); // userId -> { id, username, type, ws, currentRoomId }
-const queueSubscribers = new Map(); // userId -> { ws, role }
+const queueInstructors = new Map();
+const queueStudents = new Map();
+const queueAdmins = new Map();
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
@@ -190,19 +197,13 @@ server.on('connection', ws => {
          * QUEUE COMMANDS
          */
         case 'SUBSCRIBE_QUEUE':
-          subscribeQueue(ws, actingUser, queueSubscribers);
+          subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmins);
           break;
         case 'UNSUBSCRIBE_QUEUE':
-          unsubscribeQueue(ws, queueSubscribers);
+          unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmins);
           break;
-        case 'QUEUE_UPDATED':
-          console.log('📨 Received QUEUE_UPDATED message:', JSON.stringify(data, null, 2));
-          if (payload?.queueData) {
-            console.log('📢 Broadcasting queue update to subscribers...');
-            broadcastQueueUpdate(payload.queueData);
-          } else {
-            console.warn('⚠️  QUEUE_UPDATED message missing queueData:', payload);
-          }
+        case 'ACCEPT_QUEUE':
+          acceptQueue(ws, payload, queueInstructors, queueStudents, queueAdmins);
           break;
         default:
           console.log('Unknown message type:', type);
@@ -235,7 +236,9 @@ server.on('connection', ws => {
         if (user.currentRoomId) {
           await leaveRoom(ws, user.currentRoomId, userId, false);
         }
-        queueSubscribers.delete(userId);
+        queueStudents.delete(userId);
+        queueInstructors.delete(userId);
+        queueAdmins.delete(userId);
         connectedUsers.delete(userId);
         // Skip DynamoDB cleanup - using in-memory map only
         try {

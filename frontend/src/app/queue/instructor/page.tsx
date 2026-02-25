@@ -45,7 +45,7 @@ export default function InstructorQueuePage() {
 
   // Use WebSocket hook for real-time updates
   const { isConnected, connectionError, queueItems, reconnect } =
-    useQueueWebSocket("INSTRUCTOR");
+    useQueueWebSocket(user);
 
   // Use WebSocket queue items if available, otherwise fall back to API-loaded items
   const displayQueueItems = queueItems.length > 0 ? queueItems : fallbackQueueItems;

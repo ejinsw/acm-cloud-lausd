@@ -36,7 +36,8 @@ interface SessionAdminControlsProps {
   onDeleteMessage: (messageId: string) => void;
   onKickUser: (userId: string) => void;
   onSessionUpdated: () => void;
-  onSessionEnded?: (sessionId: string) => Promise<void> | void;
+  /** Notify the room via WebSocket that the meeting has ended (so all clients redirect and create history). */
+  onNotifySessionEnded?: (sessionId: string) => void;
 }
 
 export default function SessionAdminControls({
@@ -47,7 +48,7 @@ export default function SessionAdminControls({
   onDeleteMessage,
   onKickUser,
   onSessionUpdated,
-  onSessionEnded,
+  onNotifySessionEnded,
 }: SessionAdminControlsProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
@@ -139,8 +140,9 @@ export default function SessionAdminControls({
       });
 
       closeEndModal();
+      // Notify all participants via WebSocket so they redirect and create history
+      onNotifySessionEnded?.(sessionId);
       onSessionUpdated();
-      await onSessionEnded?.(sessionId);
     } catch (error) {
       console.error("Failed to end session:", error);
       notifications.show({

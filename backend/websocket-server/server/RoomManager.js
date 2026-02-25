@@ -478,6 +478,31 @@ async function notifySessionUpdate(sessionId, userId, liveRooms) {
   console.log(`Session ${sessionId} update notification sent by user ${userId}`);
 }
 
+/**
+ * Notify all users in a session room that the instructor has ended the meeting.
+ * Clients should redirect and create history items when they receive SESSION_ENDED.
+ */
+function notifySessionEnded(sessionId, liveRooms) {
+  const roomState = liveRooms.get(sessionId);
+
+  if (!roomState) {
+    console.log(`Room ${sessionId} not found in liveRooms for SESSION_ENDED`);
+    return;
+  }
+
+  const message = {
+    type: 'SESSION_ENDED',
+    payload: {
+      sessionId,
+      timestamp: Date.now(),
+    },
+  };
+
+  broadcastToRoom(sessionId, message, liveRooms);
+
+  console.log(`Session ${sessionId} ended – SESSION_ENDED broadcast to room`);
+}
+
 module.exports = {
   // Server setup
   setServer,
@@ -495,4 +520,5 @@ module.exports = {
   kickUser,
   // Session updates
   notifySessionUpdate,
+  notifySessionEnded,
 };

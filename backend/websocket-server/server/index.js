@@ -21,6 +21,7 @@ const {
   editMessage,
   kickUser,
   notifySessionUpdate,
+  notifySessionEnded,
 } = require('./RoomManager');
 const { sanitizeInput } = require('./Utilities');
 
@@ -220,6 +221,28 @@ server.on('connection', ws => {
               JSON.stringify({
                 type: 'ERROR',
                 payload: { message: 'Invalid session update data or user not identified.' },
+              })
+            );
+          }
+          break;
+        case 'NOTIFY_SESSION_ENDED':
+          if (payload?.sessionId && ws.userId) {
+            const user = connectedUsers.get(ws.userId);
+            if (user?.currentRoomId === payload.sessionId) {
+              notifySessionEnded(payload.sessionId, liveRooms);
+            } else {
+              ws.send(
+                JSON.stringify({
+                  type: 'ERROR',
+                  payload: { message: 'You must be in the session room to end the session.' },
+                })
+              );
+            }
+          } else {
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: { message: 'Invalid session end data or user not identified.' },
               })
             );
           }

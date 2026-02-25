@@ -60,6 +60,7 @@ interface UseSessionWebSocketReturn {
   deleteMessage: (roomId: string, messageId: string) => void;
   kickUser: (roomId: string, userIdToKick: string) => void;
   notifySessionUpdate: (sessionId: string) => void;
+  notifySessionEnded: (sessionId: string) => void;
 }
 
 interface UseSessionWebSocketOptions {
@@ -548,6 +549,31 @@ export function useSessionWebSocket(
     );
   }, []);
 
+  /**
+   * Notify all users in the room that the instructor has ended the meeting.
+   * Server broadcasts SESSION_ENDED so every client can redirect and create history.
+   * @param sessionId - The session/room ID
+   */
+  const notifySessionEnded = useCallback((sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error("[Session WS] Cannot notify session ended - WebSocket not connected");
+      return;
+    }
+
+    if (!userRef.current) {
+      console.error("[Session WS] Cannot notify session ended - User not identified");
+      return;
+    }
+
+    console.log(`[Session WS] Notifying session ended: ${sessionId}`);
+    wsRef.current.send(
+      JSON.stringify({
+        type: "NOTIFY_SESSION_ENDED",
+        payload: { sessionId },
+      }),
+    );
+  }, []);
+
   useEffect(() => {
     connect();
 
@@ -588,5 +614,6 @@ export function useSessionWebSocket(
     deleteMessage,
     kickUser,
     notifySessionUpdate,
+    notifySessionEnded,
   };
 }

@@ -209,6 +209,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     deleteMessage: wsDeleteMessage,
     kickUser: wsKickUser,
     notifySessionUpdate,
+    notifySessionEnded,
   } = useSessionWebSocket(currentUser, {
     onSessionUpdated: refetchSession,
     onSessionEnded: handleSessionEnded,
@@ -849,7 +850,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               onDeleteMessage={handleDeleteMessage}
               onKickUser={handleKickUser}
               onSessionUpdated={handleSessionUpdated}
-              onSessionEnded={handleSessionEnded}
+              onNotifySessionEnded={notifySessionEnded}
             />
           </Drawer>
         )}
@@ -1224,7 +1225,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               onDeleteMessage={handleDeleteMessage}
               onKickUser={handleKickUser}
               onSessionUpdated={handleSessionUpdated}
-              onSessionEnded={handleSessionEnded}
+              onNotifySessionEnded={notifySessionEnded}
             />
           </Drawer>
         )}

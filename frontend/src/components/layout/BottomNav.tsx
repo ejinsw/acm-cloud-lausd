@@ -55,6 +55,7 @@ export default function BottomNav() {
 
   const joinRoute = getJoinRoute();
   const historyRoute = routes.history;
+  const dashboardRoute = routes.dashboard((user?.role ?? "STUDENT").toLowerCase());
 
   // Check if current path matches the route (including query params for history)
   const isActive = (route: string) => {
@@ -81,8 +82,8 @@ export default function BottomNav() {
     {
       label: "Profile",
       icon: User,
-      href: routes.settings,
-      active: pathname === routes.settings || pathname.includes("/profile"),
+      href: dashboardRoute,
+      active: pathname.startsWith("/dashboard"),
     },
   ];
 

@@ -8,7 +8,7 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
 
   const { role, data } = payload;
 
-  switch (role.toLower()) {
+  switch (role.toLowerCase()) {
     case 'student':
       queueStudents.set(ws.userId, { id: ws.userId, ws, role, data });
       console.log(`Student ${ws.userId} subscribed to queue updates`);
@@ -46,14 +46,20 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
       queueInstructors.set(ws.userId, { ws, role });
       console.log(`Instructor ${ws.userId} subscribed to queue updates`);
       ws.send(
-        JSON.stringify({ type: 'QUEUE_SUBSCRIBED', payload: { students: queueStudents.values() } })
+        JSON.stringify({
+          type: 'QUEUE_SUBSCRIBED',
+          payload: { students: Array.from(queueStudents.values()) },
+        })
       );
       break;
     case 'admin':
       queueAdmins.set(ws.userId, { ws, role });
       console.log(`Student ${ws.userId} subscribed to queue updates`);
       ws.send(
-        JSON.stringify({ type: 'QUEUE_SUBSCRIBED', payload: { students: queueStudents.values() } })
+        JSON.stringify({
+          type: 'QUEUE_SUBSCRIBED',
+          payload: { students: Array.from(queueStudents.values()) },
+        })
       );
       break;
   }
@@ -67,7 +73,7 @@ function unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdm
 
   const { role, data } = payload;
 
-  switch (role.toLower()) {
+  switch (role.toLowerCase()) {
     case 'student':
       queueStudents.delete(ws.userId);
       console.log(`Student ${ws.userId} subscribed to queue updates`);
@@ -123,11 +129,19 @@ function acceptQueue(ws, payload, queueInstructors, queueStudents, queueAdmins) 
   const { role, data } = payload;
 
   console.log(`Instructor ${ws.userId} accepted ${data.studentId}'s queue request`);
-  const student = queueStudents[data.studentId].ws;
+  const studentEntry = queueStudents.get(data.studentId);
+
+  if (!studentEntry) {
+    console.log(`Student ${data.studentId} not found in queue`);
+    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Student not found in queue.' } }));
+    return;
+  }
+
+  const student = studentEntry.ws;
 
   // NOTIFY WAITING STUDENT
   if (student.readyState !== WebSocket.OPEN) {
-    console.log(`Instructor ${ws.userId} connection is not ready. Skipping...`);
+    console.log(`Student ${data.studentId} connection is not ready. Skipping...`);
     return;
   }
   student.send(

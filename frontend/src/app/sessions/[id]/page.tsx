@@ -109,6 +109,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     }
   }, [room?.id]);
 
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -226,7 +231,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     return (
       <Box
         style={{
-          height: "100vh",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           display: "flex",
           flexDirection: "column",
           background: "var(--mantine-color-body)",
@@ -238,8 +247,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           radius={0}
           style={{
             borderBottom: "1px solid var(--mantine-color-default-border)",
-            position: "sticky",
-            top: 0,
+            flexShrink: 0,
             zIndex: 100,
           }}
         >
@@ -316,95 +324,109 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         </Paper>
 
         {/* Messages Area */}
-        <ScrollArea
-          style={{ flex: 1 }}
-          viewportRef={messagesEndRef}
-          type="auto"
+        <Box
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            position: "relative",
+          }}
         >
-          <Box p="md">
-            <Stack gap="md">
-              {messages.length === 0 ? (
-                <Center h={200}>
-                  <Stack align="center" gap="xs">
-                    <Text size="sm" c="dimmed" ta="center">
-                      No messages yet
-                    </Text>
-                    <Text size="xs" c="dimmed" ta="center">
-                      Start the conversation!
-                    </Text>
-                  </Stack>
-                </Center>
-              ) : (
-                messages.map((message) => {
-                  const isCurrentUser = message.sender.id === currentUser.id;
-                  return (
-                    <Group
-                      key={message.id}
-                      gap="xs"
-                      align="flex-start"
-                      style={{
-                        flexDirection: isCurrentUser ? "row-reverse" : "row",
-                      }}
-                    >
-                      {!isCurrentUser && (
-                        <Avatar size="sm" radius="xl">
-                          {getInitials(message.sender.username)}
-                        </Avatar>
-                      )}
-                      <Stack
-                        gap={4}
+          <ScrollArea
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            type="auto"
+          >
+            <Box p="md" pb="xl">
+              <Stack gap="md">
+                {messages.length === 0 ? (
+                  <Center h={200}>
+                    <Stack align="center" gap="xs">
+                      <Text size="sm" c="dimmed" ta="center">
+                        No messages yet
+                      </Text>
+                      <Text size="xs" c="dimmed" ta="center">
+                        Start the conversation!
+                      </Text>
+                    </Stack>
+                  </Center>
+                ) : (
+                  messages.map((message) => {
+                    const isCurrentUser = message.sender.id === currentUser.id;
+                    return (
+                      <Group
+                        key={message.id}
+                        gap="xs"
+                        align="flex-start"
                         style={{
-                          maxWidth: "75%",
-                          alignItems: isCurrentUser ? "flex-end" : "flex-start",
+                          flexDirection: isCurrentUser ? "row-reverse" : "row",
                         }}
                       >
                         {!isCurrentUser && (
-                          <Text size="xs" fw={500} c="dimmed">
-                            {message.sender.username}
-                          </Text>
+                          <Avatar size="sm" radius="xl">
+                            {getInitials(message.sender.username)}
+                          </Avatar>
                         )}
-                        <Box
+                        <Stack
+                          gap={4}
                           style={{
-                            backgroundColor: isCurrentUser
-                              ? "var(--mantine-color-blue-6)"
-                              : "var(--mantine-color-gray-2)",
-                            color: isCurrentUser ? "white" : "inherit",
-                            padding: "10px 14px",
-                            borderRadius: "18px",
-                            borderTopLeftRadius: !isCurrentUser ? "4px" : "18px",
-                            borderTopRightRadius: isCurrentUser ? "4px" : "18px",
+                            maxWidth: "75%",
+                            alignItems: isCurrentUser ? "flex-end" : "flex-start",
                           }}
                         >
-                          <Text size="sm" style={{ wordBreak: "break-word" }}>
-                            {message.text}
+                          {!isCurrentUser && (
+                            <Text size="xs" fw={500} c="dimmed">
+                              {message.sender.username}
+                            </Text>
+                          )}
+                          <Box
+                            style={{
+                              backgroundColor: isCurrentUser
+                                ? "var(--mantine-color-blue-6)"
+                                : "var(--mantine-color-gray-2)",
+                              color: isCurrentUser ? "white" : "inherit",
+                              padding: "10px 14px",
+                              borderRadius: "18px",
+                              borderTopLeftRadius: !isCurrentUser ? "4px" : "18px",
+                              borderTopRightRadius: isCurrentUser ? "4px" : "18px",
+                            }}
+                          >
+                            <Text size="sm" style={{ wordBreak: "break-word" }}>
+                              {message.text}
+                            </Text>
+                          </Box>
+                          <Text size="xs" c="dimmed">
+                            {message.createdAt
+                              ? new Date(message.createdAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : ""}
                           </Text>
-                        </Box>
-                        <Text size="xs" c="dimmed">
-                          {message.createdAt
-                            ? new Date(message.createdAt).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : ""}
-                        </Text>
-                      </Stack>
-                    </Group>
-                  );
-                })
-              )}
-            </Stack>
-          </Box>
-        </ScrollArea>
+                        </Stack>
+                      </Group>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </Stack>
+            </Box>
+          </ScrollArea>
+        </Box>
 
-        {/* Message Input - Sticky Bottom */}
+        {/* Message Input - Above BottomNav */}
         <Paper
           p="md"
           radius={0}
           style={{
             borderTop: "1px solid var(--mantine-color-default-border)",
-            position: "sticky",
-            bottom: 0,
+            flexShrink: 0,
             background: "var(--mantine-color-body)",
+            marginBottom: "calc(60px + env(safe-area-inset-bottom))", // Height of BottomNav
           }}
         >
           <Group gap="xs" wrap="nowrap">

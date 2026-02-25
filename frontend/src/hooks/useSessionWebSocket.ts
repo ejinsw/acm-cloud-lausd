@@ -42,6 +42,9 @@ interface SessionWebSocketMessage {
     | "USER_KICKED"
     | "YOU_WERE_KICKED"
     | "ROOM_LIST_UPDATED"
+    | "UPDATE_SESSION"
+    | "SESSION_UPDATED"
+    | "SESSION_ENDED"
     | "ERROR";
   payload?: any;
 }
@@ -56,6 +59,7 @@ interface UseSessionWebSocketReturn {
   sendMessage: (roomId: string, text: string) => void;
   deleteMessage: (roomId: string, messageId: string) => void;
   kickUser: (roomId: string, userIdToKick: string) => void;
+  notifySessionUpdate: (sessionId: string) => void;
 }
 
 export function useSessionWebSocket(user: User | null): UseSessionWebSocketReturn {
@@ -254,6 +258,33 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
               setConnectionError(
                 message.payload?.reason || "You were removed from the room",
               );
+              break;
+
+            case "SESSION_UPDATED":
+              console.log("[Session WS] 🔄 Session updated, please refetch");
+              if (typeof window !== "undefined") {
+                const { notifications } = require("@mantine/notifications");
+                notifications.show({
+                  title: "Session Updated",
+                  message: "Session details have been updated",
+                  color: "blue",
+                  autoClose: 3000,
+                });
+              }
+              break;
+
+            case "SESSION_ENDED":
+              console.log("[Session WS] 🔚 Session has ended");
+              setRoom(null);
+              if (typeof window !== "undefined") {
+                const { notifications } = require("@mantine/notifications");
+                notifications.show({
+                  title: "Session Ended",
+                  message: "This session has been ended by the instructor",
+                  color: "orange",
+                  autoClose: false,
+                });
+              }
               break;
 
             case "ERROR":
@@ -462,6 +493,36 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
     );
   }, []);
 
+  /**
+   * Notify all users in a room that the session has been updated
+   * @param sessionId - The session/room ID
+   *
+   * Sends: { type: "UPDATE_SESSION", payload: { sessionId, userId } }
+   * Server broadcasts: { type: "SESSION_UPDATED", payload: { sessionId } }
+   */
+  const notifySessionUpdate = useCallback((sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error("[Session WS] Cannot notify update - WebSocket not connected");
+      return;
+    }
+
+    if (!userRef.current) {
+      console.error("[Session WS] Cannot notify update - User not identified");
+      return;
+    }
+
+    console.log(`[Session WS] Notifying session update: ${sessionId}`);
+    wsRef.current.send(
+      JSON.stringify({
+        type: "UPDATE_SESSION",
+        payload: {
+          sessionId,
+          userId: userRef.current.id,
+        },
+      }),
+    );
+  }, []);
+
   useEffect(() => {
     connect();
 
@@ -501,5 +562,6 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
     sendMessage,
     deleteMessage,
     kickUser,
+    notifySessionUpdate,
   };
 }

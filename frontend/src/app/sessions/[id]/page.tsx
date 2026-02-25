@@ -33,9 +33,13 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconDots,
+  IconSettings,
+  IconShield,
 } from "@tabler/icons-react";
 import PageWrapper from "@/components/PageWrapper";
 import ZoomMeeting from "@/components/sessions/ZoomMeeting";
+import SessionSettingsDrawer from "@/components/sessions/SessionSettingsDrawer";
+import SessionAdminControls from "@/components/sessions/SessionAdminControls";
 import { Session, User } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 import { useAuth } from "@/components/AuthProvider";
@@ -59,11 +63,14 @@ const getInitials = (value: string) =>
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const router = useRouter();
   const [messageInput, setMessageInput] = useState("");
+  const [localSession, setLocalSession] = useState<Session>(session);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isMobile = useMediaQuery(`(max-width: ${em(768)})`);
   
   const [participantsOpened, { open: openParticipants, close: closeParticipants }] = useDisclosure(false);
   const [videoOpened, { open: openVideo, close: closeVideo }] = useDisclosure(false);
+  const [settingsOpened, { open: openSettings, close: closeSettings }] = useDisclosure(false);
+  const [adminOpened, { open: openAdmin, close: closeAdmin }] = useDisclosure(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   const {
@@ -75,17 +82,19 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     sendMessage: wsSendMessage,
     deleteMessage: wsDeleteMessage,
     kickUser: wsKickUser,
+    notifySessionUpdate,
   } = useSessionWebSocket(currentUser);
 
   const messages = room?.messages || [];
   const participants = room?.users || [];
+  const isInstructor = currentUser.role === "INSTRUCTOR" || currentUser.role === "ADMIN";
 
   // Join room when connected
   useEffect(() => {
-    if (isConnected && session.id) {
-      joinRoom(session.id);
+    if (isConnected && localSession.id) {
+      joinRoom(localSession.id);
     }
-  }, [isConnected, session.id, joinRoom]);
+  }, [isConnected, localSession.id, joinRoom]);
 
   // Show connection error notifications
   useEffect(() => {
@@ -114,17 +123,60 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Update local session when prop changes
+  useEffect(() => {
+    setLocalSession(session);
+  }, [session]);
+
+  const refetchSession = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${localSession.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch session");
+      }
+
+      const data = await response.json();
+      setLocalSession(data.session as Session);
+    } catch (error) {
+      console.error("Failed to refetch session:", error);
+    }
+  };
+
+  const handleSessionUpdated = async () => {
+    await refetchSession();
+    notifySessionUpdate(localSession.id);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    wsDeleteMessage(session.id, messageId);
+  };
+
+  const handleKickUser = (userId: string) => {
+    wsKickUser(session.id, userId);
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = () => {
     const text = messageInput.trim();
-    if (!text || !session.id) {
+    if (!text || !localSession.id) {
       return;
     }
 
-    wsSendMessage(session.id, text);
+    wsSendMessage(localSession.id, text);
     setMessageInput("");
   };
 
@@ -154,7 +206,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const canJoinSession = () => {
     if (currentUser.role.toUpperCase() === "INSTRUCTOR" || currentUser.role.toUpperCase() == "ADMIN") return true;
 
-    const request = session.students?.find(
+    const request = localSession.students?.find(
       (student) => student.id === currentUser.id
     );
 
@@ -167,7 +219,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
       if (!token) return;
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions/${session.id}/leave`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions/${localSession.id}/leave`,
         {
           method: "POST",
           headers: {
@@ -255,7 +307,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Group justify="space-between" wrap="nowrap">
               <Box style={{ flex: 1, minWidth: 0 }}>
                 <Text size="lg" fw={600} truncate="end">
-                  {session.name}
+                  {localSession.name}
                 </Text>
                 <Group gap="xs">
                   <Badge
@@ -271,7 +323,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 </Group>
               </Box>
               <Group gap="xs">
-                {session.zoomLink && (
+                {localSession.zoomLink && (
                   <ActionIcon
                     variant="subtle"
                     color="blue"
@@ -289,6 +341,26 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 >
                   <IconUsers size={20} />
                 </ActionIcon>
+                {isInstructor && (
+                  <>
+                    <ActionIcon
+                      variant="subtle"
+                      color="orange"
+                      size="lg"
+                      onClick={openAdmin}
+                    >
+                      <IconShield size={20} />
+                    </ActionIcon>
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size="lg"
+                      onClick={openSettings}
+                    >
+                      <IconSettings size={20} />
+                    </ActionIcon>
+                  </>
+                )}
                 <ActionIcon
                   variant="subtle"
                   color="gray"
@@ -307,15 +379,15 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Collapse in={!headerCollapsed}>
               <Stack gap="xs" mt="xs">
                 <Text size="sm" c="dimmed" lineClamp={2}>
-                  {session.description}
+                  {localSession.description}
                 </Text>
                 <Group gap="xs">
                   <Badge
                     size="xs"
-                    color={session.status === "IN_PROGRESS" ? "green" : "blue"}
+                    color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
                     variant="light"
                   >
-                    {session.status || "SCHEDULED"}
+                    {localSession.status || "SCHEDULED"}
                   </Badge>
                 </Group>
               </Stack>
@@ -480,11 +552,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                       {participant.type.toUpperCase()}
                     </Text>
                   </Box>
-                  {participant.id === session.instructorId && (
-                    <Badge size="xs" color="blue">
-                      Instructor
-                    </Badge>
-                  )}
+                          {participant.id === localSession.instructorId && (
+                            <Badge size="xs" color="blue">
+                              Instructor
+                            </Badge>
+                          )}
                 </Group>
               ))
             )}
@@ -499,10 +571,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           size="xl"
           fullScreen={isMobile}
         >
-          {session.zoomLink ? (
+          {localSession.zoomLink ? (
             <Box style={{ height: "70vh" }}>
               <ZoomMeeting
-                sessionId={session.id}
+                sessionId={localSession.id}
                 userName={`${currentUser.firstName} ${currentUser.lastName}`}
                 userEmail={currentUser.email}
                 onMeetingEnd={handleZoomMeetingEnd}
@@ -515,6 +587,37 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Center>
           )}
         </Modal>
+
+        {/* Settings Drawer */}
+        {isInstructor && (
+          <SessionSettingsDrawer
+            opened={settingsOpened}
+            onClose={closeSettings}
+            session={localSession}
+            onSessionUpdated={handleSessionUpdated}
+          />
+        )}
+
+        {/* Admin Controls Drawer */}
+        {isInstructor && (
+          <Drawer
+            opened={adminOpened}
+            onClose={closeAdmin}
+            title="Admin Controls"
+            position="right"
+            size="md"
+          >
+            <SessionAdminControls
+              sessionId={localSession.id}
+              currentUserId={currentUser.id}
+              messages={messages}
+              participants={participants}
+              onDeleteMessage={handleDeleteMessage}
+              onKickUser={handleKickUser}
+              onSessionUpdated={handleSessionUpdated}
+            />
+          </Drawer>
+        )}
       </Box>
     );
   }
@@ -527,16 +630,16 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         <Paper p="xl" radius="md" mb="lg">
           <Group justify="space-between" wrap="wrap">
             <Stack gap="xs" style={{ flex: 1 }}>
-              <Title order={2}>{session.name}</Title>
+              <Title order={2}>{localSession.name}</Title>
               <Text size="sm" c="dimmed">
-                {session.description}
+                {localSession.description}
               </Text>
               <Group gap="md">
                 <Badge
-                  color={session.status === "IN_PROGRESS" ? "green" : "blue"}
+                  color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
                   variant="light"
                 >
-                  {session.status || "SCHEDULED"}
+                  {localSession.status || "SCHEDULED"}
                 </Badge>
                 <Badge
                   color={isConnected ? "green" : "red"}
@@ -550,15 +653,36 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 </Group>
               </Group>
             </Stack>
-            {session.zoomLink && (
-              <Button
-                leftSection={<IconVideo size={16} />}
-                variant="light"
-                onClick={openVideo}
-              >
-                Join Video
-              </Button>
-            )}
+            <Group gap="sm">
+              {localSession.zoomLink && (
+                <Button
+                  leftSection={<IconVideo size={16} />}
+                  variant="light"
+                  onClick={openVideo}
+                >
+                  Join Video
+                </Button>
+              )}
+              {isInstructor && (
+                <>
+                  <Button
+                    leftSection={<IconShield size={16} />}
+                    variant="light"
+                    color="orange"
+                    onClick={openAdmin}
+                  >
+                    Admin
+                  </Button>
+                  <Button
+                    leftSection={<IconSettings size={16} />}
+                    variant="light"
+                    onClick={openSettings}
+                  >
+                    Settings
+                  </Button>
+                </>
+              )}
+            </Group>
           </Group>
         </Paper>
 
@@ -696,12 +820,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               </Stack>
             </Paper>
 
-            {Array.isArray(session.materials) && session.materials.length > 0 && (
+            {Array.isArray(localSession.materials) && localSession.materials.length > 0 && (
               <Paper p="md" radius="md">
                 <Stack gap="sm">
                   <Text fw={600}>Materials</Text>
                   <Stack gap="xs">
-                    {session.materials.map((material, index) => (
+                    {localSession.materials.map((material, index) => (
                       <Text key={index} size="sm">
                         • {material}
                       </Text>
@@ -711,12 +835,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               </Paper>
             )}
 
-            {Array.isArray(session.objectives) && session.objectives.length > 0 && (
+            {Array.isArray(localSession.objectives) && localSession.objectives.length > 0 && (
               <Paper p="md" radius="md">
                 <Stack gap="sm">
                   <Text fw={600}>Objectives</Text>
                   <Stack gap="xs">
-                    {session.objectives.map((objective, index) => (
+                    {localSession.objectives.map((objective, index) => (
                       <Text key={index} size="sm">
                         • {objective}
                       </Text>
@@ -735,10 +859,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           title="Video Meeting"
           size="xl"
         >
-          {session.zoomLink ? (
+          {localSession.zoomLink ? (
             <Box style={{ height: "70vh" }}>
               <ZoomMeeting
-                sessionId={session.id}
+                sessionId={localSession.id}
                 userName={`${currentUser.firstName} ${currentUser.lastName}`}
                 userEmail={currentUser.email}
                 onMeetingEnd={handleZoomMeetingEnd}
@@ -751,6 +875,37 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             </Center>
           )}
         </Modal>
+
+        {/* Settings Drawer */}
+        {isInstructor && (
+          <SessionSettingsDrawer
+            opened={settingsOpened}
+            onClose={closeSettings}
+            session={localSession}
+            onSessionUpdated={handleSessionUpdated}
+          />
+        )}
+
+        {/* Admin Controls Drawer */}
+        {isInstructor && (
+          <Drawer
+            opened={adminOpened}
+            onClose={closeAdmin}
+            title="Admin Controls"
+            position="right"
+            size="md"
+          >
+            <SessionAdminControls
+              sessionId={localSession.id}
+              currentUserId={currentUser.id}
+              messages={messages}
+              participants={participants}
+              onDeleteMessage={handleDeleteMessage}
+              onKickUser={handleKickUser}
+              onSessionUpdated={handleSessionUpdated}
+            />
+          </Drawer>
+        )}
       </Container>
     </PageWrapper>
   );

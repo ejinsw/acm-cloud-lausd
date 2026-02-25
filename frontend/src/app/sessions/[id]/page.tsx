@@ -469,13 +469,13 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   };
 
   const canJoinSession = () => {
-    if (currentUser.role === "INSTRUCTOR") return true;
+    if (currentUser.role.toUpperCase() === "INSTRUCTOR" || currentUser.role.toUpperCase() == "ADMIN") return true;
 
-    const request = currentUser.sessionRequests?.find(
-      (req: SessionRequest) => req.sessionId === session.id
+    const request = session.students?.find(
+      (student) => student.id === currentUser.id
     );
 
-    return request?.status === "ACCEPTED";
+    return !!request
   };
 
   const handleLeaveSession = async () => {

@@ -33,7 +33,7 @@ import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 import { useZoomStatus } from "../../../hooks/useZoomStatus";
 import { notifications } from "@mantine/notifications";
-import { XCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 interface EnrichedQueueItem {
   id: number;
@@ -135,10 +135,11 @@ export default function InstructorQueuePage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: `${queueItem.subject} Session with ${queueItem.student}`,
+            name: `${queueItem.subject?.name} Session with ${queueItem.student?.firstName} ${queueItem.student?.lastName}`,
             description: queueItem.description,
             startTime: Date.now(),
             endTime: new Date(Date.now() + 30 * 60 * 1000),
+            maxAttendees: 2,
             students: [queueItem.studentId],
             subjects: [queueItem.subjectId],
           }),
@@ -176,6 +177,14 @@ export default function InstructorQueuePage() {
       console.log(
         "[Instructor Queue] Notifying queue acceptance via WebSocket...",
       );
+
+      notifications.show({
+        title: "Success!",
+        message: `Accepted ${queueItem.student?.firstName} ${queueItem.student?.lastName}'s request. Redirecting...`,
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+      });
       acceptQueue(queueItem.studentId, sessionId);
 
       // Step 3: Redirect to session

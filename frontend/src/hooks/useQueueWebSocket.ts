@@ -164,18 +164,24 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
           switch (message.type) {
             case "USER_IDENTIFIED":
               console.log("[WS] ✅ User identified successfully");
-              // Once identified, subscribe to queue updates
+              // Only auto-subscribe for instructors and admins (they watch the queue)
+              // Students should manually call subscribeQueue() with their queue data when joining
               if (!isSubscribed.current && userRef.current) {
-                console.log("[WS] Sending SUBSCRIBE_QUEUE message");
-                ws.send(
-                  JSON.stringify({
-                    type: "SUBSCRIBE_QUEUE",
-                    payload: {
-                      role: userRef.current.role.toLowerCase(),
-                    },
-                  }),
-                );
-                isSubscribed.current = true;
+                const role = userRef.current.role.toUpperCase();
+                if (role === "INSTRUCTOR" || role === "ADMIN") {
+                  console.log(`[WS] Auto-subscribing as ${role}`);
+                  ws.send(
+                    JSON.stringify({
+                      type: "SUBSCRIBE_QUEUE",
+                      payload: {
+                        role: userRef.current.role.toLowerCase(),
+                      },
+                    }),
+                  );
+                  isSubscribed.current = true;
+                } else {
+                  console.log("[WS] Student detected - waiting for manual subscribeQueue() call with data");
+                }
               }
               break;
 

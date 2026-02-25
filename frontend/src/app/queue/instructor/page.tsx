@@ -64,16 +64,9 @@ export default function InstructorQueuePage() {
   const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
 
   // Use WebSocket hook for real-time updates
-  const { isConnected, connectionError, queueItems, reconnect, subscribeQueue, acceptQueue } =
+  // Note: Hook auto-subscribes instructors/admins after USER_IDENTIFIED
+  const { isConnected, connectionError, queueItems, reconnect, acceptQueue } =
     useQueueWebSocket(user);
-
-  // Subscribe to queue on mount and when reconnecting
-  useEffect(() => {
-    if (isConnected && user?.role === "INSTRUCTOR") {
-      console.log("[Instructor Queue] Subscribing to queue as instructor");
-      subscribeQueue("instructor");
-    }
-  }, [isConnected, subscribeQueue, user?.role]);
 
   // Enrich queue items with subject and student data from API
   useEffect(() => {
@@ -258,12 +251,7 @@ export default function InstructorQueuePage() {
               </Tooltip>
             ) : (
               <Tooltip label="Connection lost - click to reconnect">
-                <ActionIcon variant="subtle" color="red" onClick={() => {
-                  reconnect();
-                  if (user?.role === "INSTRUCTOR") {
-                    subscribeQueue("instructor");
-                  }
-                }}>
+                <ActionIcon variant="subtle" color="red" onClick={reconnect}>
                   <IconWifiOff size={20} />
                 </ActionIcon>
               </Tooltip>
@@ -281,12 +269,7 @@ export default function InstructorQueuePage() {
         >
           <Group justify="space-between">
             <Text>{connectionError}</Text>
-            <Button size="xs" variant="light" onClick={() => {
-              reconnect();
-              if (user?.role === "INSTRUCTOR") {
-                subscribeQueue("instructor");
-              }
-            }}>
+            <Button size="xs" variant="light" onClick={reconnect}>
               <IconRefresh size={14} />
             </Button>
           </Group>

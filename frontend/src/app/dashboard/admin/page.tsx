@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import {
   Container,
   Title,
-  Paper,
   Tabs,
   Text,
   Group,
   Button,
   Loader,
-  Grid,
-  Card,
+  Box,
   Badge,
   ActionIcon,
   Modal,
@@ -22,6 +20,9 @@ import {
   Table,
   Pagination,
   Tooltip,
+  SimpleGrid,
+  Divider,
+  Center,
 } from "@mantine/core";
 import { 
   Users, 
@@ -347,47 +348,45 @@ function AdminDashboardContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader size="lg" />
-      </div>
+      <Container size="xl" py="xl">
+        <Center py="xl" style={{ minHeight: 400 }}>
+          <Loader size="lg" />
+        </Center>
+      </Container>
     );
   }
 
-  const StatCard = ({ title, value, icon: Icon, color }: {
+  const StatItem = ({ title, value, icon: Icon, color }: {
     title: string;
     value: number;
-    icon: React.ComponentType<{ size: number; color?: string }>;
+    icon: React.ComponentType<{ size?: number; color?: string }>;
     color: string;
   }) => (
-    <Card shadow="sm" padding="lg" radius="md" withBorder>
-      <Group justify="space-between">
-        <div>
-          <Text size="sm" c="dimmed" fw={500}>
-            {title}
-          </Text>
-          <Text fw={700} size="xl">
-            {value}
-          </Text>
-        </div>
-        <Icon size={32} color={color} />
-      </Group>
-    </Card>
+    <Group gap="sm">
+      <Icon size={24} color={color} />
+      <Box>
+        <Text size="sm" c="dimmed" tt="uppercase">{title}</Text>
+        <Text fw={700} size="xl">{value}</Text>
+      </Box>
+    </Group>
   );
 
   return (
     <Container size="xl" py="xl">
-      <Group justify="space-between" mb="xl">
-        <div>
-          <Title order={1}>Admin Dashboard</Title>
-          <Text c="dimmed">Manage users, instructors, and system settings</Text>
-        </div>
-        <Button
-          leftSection={<Plus size={16} />}
-          onClick={openCreateAdmin}
-        >
-          Create Admin Account
-        </Button>
-      </Group>
+      <Box pb="lg" mb="xl" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+        <Group justify="space-between" wrap="wrap">
+          <div>
+            <Title order={1}>Admin Dashboard</Title>
+            <Text c="dimmed" mt="xs" size="sm">Manage users, instructors, and system settings</Text>
+          </div>
+          <Button
+            leftSection={<Plus size={16} />}
+            onClick={openCreateAdmin}
+          >
+            Create Admin Account
+          </Button>
+        </Group>
+      </Box>
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List grow>
@@ -414,61 +413,21 @@ function AdminDashboardContent() {
 
         <Tabs.Panel value="overview" pt="xl">
           {stats && (
-            <Grid>
-              <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-                <StatCard
-                  title="Total Users"
-                  value={stats.users.total}
-                  icon={Users}
-                  color="#1971c2"
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-                <StatCard
-                  title="Students"
-                  value={stats.users.students}
-                  icon={Users}
-                  color="#2f9e44"
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-                <StatCard
-                  title="Instructors"
-                  value={stats.users.instructors}
-                  icon={UserCheck}
-                  color="#f08c00"
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-                <StatCard
-                  title="Admins"
-                  value={stats.users.admins}
-                  icon={Shield}
-                  color="#9775fa"
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <StatCard
-                  title="Total Sessions"
-                  value={stats.sessions.total}
-                  icon={Users}
-                  color="#20c997"
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <StatCard
-                  title="Pending Verifications"
-                  value={stats.users.unverifiedInstructors}
-                  icon={AlertCircle}
-                  color="#fa5252"
-                />
-              </Grid.Col>
-            </Grid>
+            <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+              <SimpleGrid cols={{ base: 2, sm: 4, lg: 6 }} spacing="lg">
+                <StatItem title="Total Users" value={stats.users.total} icon={Users} color="#1971c2" />
+                <StatItem title="Students" value={stats.users.students} icon={Users} color="#2f9e44" />
+                <StatItem title="Instructors" value={stats.users.instructors} icon={UserCheck} color="#f08c00" />
+                <StatItem title="Admins" value={stats.users.admins} icon={Shield} color="#9775fa" />
+                <StatItem title="Total Sessions" value={stats.sessions.total} icon={Users} color="#20c997" />
+                <StatItem title="Pending Verifications" value={stats.users.unverifiedInstructors} icon={AlertCircle} color="#fa5252" />
+              </SimpleGrid>
+            </Box>
           )}
         </Tabs.Panel>
 
         <Tabs.Panel value="users" pt="xl">
-          <Paper shadow="sm" p="md" mb="md">
+          <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
             <Group justify="space-between" mb="md">
               <Text fw={500}>User Management</Text>
               <Button
@@ -591,11 +550,11 @@ function AdminDashboardContent() {
                 total={Math.ceil(usersTotal / 10)}
               />
             </Group>
-          </Paper>
+          </Box>
         </Tabs.Panel>
 
         <Tabs.Panel value="instructors" pt="xl">
-          <Paper shadow="sm" p="md">
+          <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
             <Group justify="space-between" mb="md">
               <Text fw={500}>Instructor Verification</Text>
               <Button
@@ -612,10 +571,11 @@ function AdminDashboardContent() {
                 No instructors pending verification
               </Text>
             ) : (
-              <Grid>
-                {unverifiedInstructors.map((instructor) => (
-                  <Grid.Col key={instructor.id} span={{ base: 12, md: 6 }}>
-                    <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Stack gap={0}>
+                {unverifiedInstructors.map((instructor, index) => (
+                  <Box key={instructor.id}>
+                    {index > 0 && <Divider />}
+                    <Box py="lg">
                       <Group justify="space-between" mb="xs">
                         <Text fw={500}>{instructor.firstName} {instructor.lastName}</Text>
                         <Badge color="orange" variant="light">
@@ -656,12 +616,12 @@ function AdminDashboardContent() {
                           Verify
                         </Button>
                       </Group>
-                    </Card>
-                  </Grid.Col>
+                    </Box>
+                  </Box>
                 ))}
-              </Grid>
+              </Stack>
             )}
-          </Paper>
+          </Box>
         </Tabs.Panel>
       </Tabs>
 

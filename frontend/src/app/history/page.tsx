@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import {
   Container,
   Title,
-  Paper,
   Text,
   Loader,
   Alert,
   Box,
+  Center,
 } from "@mantine/core";
 import { AlertCircle } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
@@ -60,11 +60,11 @@ function HistoryContent() {
   if (!isAuthenticated) {
     return (
       <Container size="xl" py="xl">
-        <Paper p="xl" radius="md" withBorder>
+        <Box py="xl" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
           <Text ta="center" fw={500}>
             Please sign in to view your session history.
           </Text>
-        </Paper>
+        </Box>
       </Container>
     );
   }
@@ -72,12 +72,14 @@ function HistoryContent() {
   if (isLoading) {
     return (
       <Container size="xl" py="xl">
-        <Paper p="xl" radius="md" withBorder>
-          <Box ta="center" py="xl">
+        <Box py="xl">
+          <Center>
             <Loader size="lg" />
-            <Text mt="md">Loading your history...</Text>
-          </Box>
-        </Paper>
+          </Center>
+          <Text mt="md" ta="center">
+            Loading your history...
+          </Text>
+        </Box>
       </Container>
     );
   }
@@ -85,23 +87,21 @@ function HistoryContent() {
   if (error) {
     return (
       <Container size="xl" py="xl">
-        <Paper p="xl" radius="md" withBorder>
-          <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
-            {error}
-          </Alert>
-        </Paper>
+        <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
+          {error}
+        </Alert>
       </Container>
     );
   }
 
   return (
     <Container size="xl" py="xl">
-      <Title order={2} mb="sm">
-        Session History
-      </Title>
-      <Text c="dimmed" mb="xl">
-        A record of every tutoring session you've completed.
-      </Text>
+      <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+        <Title order={2}>Session History</Title>
+        <Text c="dimmed" mt="xs" size="sm">
+          A record of every tutoring session you&apos;ve completed.
+        </Text>
+      </Box>
 
       <SessionHistoryTab sessionHistory={sessionHistory} onReviewClick={() => {}} />
     </Container>

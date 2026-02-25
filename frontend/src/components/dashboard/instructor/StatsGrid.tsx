@@ -1,11 +1,29 @@
-import { Grid, Paper, Text, Title, Group } from "@mantine/core";
-import { Star } from "lucide-react";
+import { Text, Title, Group, Box, SimpleGrid } from "@mantine/core";
+import { Star, Users, Clock } from "lucide-react";
 
 interface StatsGridProps {
   totalStudents: number;
   hoursTutored: number;
   averageRating: number;
   totalSessions: number;
+}
+
+function StatItem({ label, value, subtext, icon: Icon }: { 
+  label: string; 
+  value: React.ReactNode; 
+  subtext?: string; 
+  icon?: React.ComponentType<{ size?: number; color?: string }> 
+}) {
+  return (
+    <Group gap="sm">
+      {Icon && <Icon size={20} color="#1971C2" />}
+      <Box>
+        <Text size="xs" c="dimmed" tt="uppercase">{label}</Text>
+        <Title order={3} fw={700} mt={4}>{value}</Title>
+        {subtext && <Text size="sm" c="dimmed" mt="xs">{subtext}</Text>}
+      </Box>
+    </Group>
+  );
 }
 
 export function StatsGrid({
@@ -15,43 +33,40 @@ export function StatsGrid({
   totalSessions,
 }: StatsGridProps) {
   return (
-    <Grid mb="xl">
-      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-        <Paper p="md" radius="md" withBorder h={130}>
-          <Text size="xs" c="dimmed" tt="uppercase">Total Students</Text>
-          <Title order={3} fw={700} mt="xs">{totalStudents}</Title>
-          <Text size="sm" c="dimmed" mt="md">
-            Across {totalSessions} sessions
-          </Text>
-        </Paper>
-      </Grid.Col>
-      
-      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-        <Paper p="md" radius="md" withBorder h={130}>
-          <Text size="xs" c="dimmed" tt="uppercase">Hours Tutored</Text>
-          <Title order={3} fw={700} mt="xs">{hoursTutored}</Title>
-          <Text size="sm" c="dimmed" mt="md">
-            Over {totalSessions} sessions
-          </Text>
-        </Paper>
-      </Grid.Col>
-      
-      <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-        <Paper p="md" radius="md" withBorder h={130}>
-          <Text size="xs" c="dimmed" tt="uppercase">Average Rating</Text>
-          <Title order={3} fw={700} mt="xs">{averageRating.toFixed(1)}</Title>
-          <Group mt="md">
-            {[...Array(5)].map((_, i) => (
-              <Star
-                key={i}
-                size={14}
-                fill={i < Math.round(averageRating) ? "#FFD700" : "none"}
-                color={i < Math.round(averageRating) ? "#FFD700" : "#CCC"}
-              />
-            ))}
-          </Group>
-        </Paper>
-      </Grid.Col>
-    </Grid>
+    <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+        <StatItem 
+          label="Total Students" 
+          value={totalStudents} 
+          subtext={`Across ${totalSessions} sessions`}
+          icon={Users}
+        />
+        <StatItem 
+          label="Hours Tutored" 
+          value={hoursTutored} 
+          subtext={`Over ${totalSessions} sessions`}
+          icon={Clock}
+        />
+        <StatItem 
+          label="Average Rating" 
+          value={
+            <Group gap="xs">
+              <span>{averageRating.toFixed(1)}</span>
+              <Group gap={2}>
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    size={12}
+                    fill={i < Math.round(averageRating) ? "#FFD700" : "none"}
+                    color={i < Math.round(averageRating) ? "#FFD700" : "#CCC"}
+                  />
+                ))}
+              </Group>
+            </Group>
+          }
+          icon={Star}
+        />
+      </SimpleGrid>
+    </Box>
   );
 }

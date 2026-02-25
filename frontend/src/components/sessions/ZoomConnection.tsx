@@ -226,18 +226,18 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
   return (
     <>
       <Stack gap="md">
-        {/* Connection Status */}
-        <Group justify="space-between">
-          <Group gap="xs">
-            <IconVideo size={20} />
-            <Text fw={500}>Zoom Integration</Text>
+        <Box pb="md" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+          <Group justify="space-between">
+            <Group gap="xs">
+              <IconVideo size={20} />
+              <Text fw={500}>Zoom Integration</Text>
+            </Group>
+            <Badge color={zoomStatus.connected ? "green" : "red"} variant="light" size="sm">
+              {zoomStatus.connected ? "Connected" : "Not Connected"}
+            </Badge>
           </Group>
-          <Badge color={zoomStatus.connected ? "green" : "red"} variant="light">
-            {zoomStatus.connected ? "Connected" : "Not Connected"}
-          </Badge>
-        </Group>
+        </Box>
 
-        {/* Status Messages */}
         {zoomStatus.expired && (
           <Alert color="yellow" icon={<IconX size={16} />}>
             Your Zoom connection has expired. Please reconnect to continue
@@ -252,7 +252,6 @@ const ZoomConnection: React.FC<ZoomConnectionProps> = ({
           </Alert>
         )}
 
-        {/* Action Buttons */}
         <Group gap="sm">
           {zoomStatus.connected && !zoomStatus.expired ? (
             <>

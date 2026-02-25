@@ -1,4 +1,4 @@
-import { Paper, Group, Text, Progress, RingProgress } from "@mantine/core";
+import { Group, Text, Progress, RingProgress, Box } from "@mantine/core";
 
 interface ProgressOverviewProps {
   completedLessons: number;
@@ -8,35 +8,33 @@ interface ProgressOverviewProps {
 
 export function ProgressOverview({ completedLessons, totalLessons, overallProgress }: ProgressOverviewProps) {
   return (
-    <Paper p="md" radius="md" withBorder mb="xl">
-      <Group align="flex-start">
-        <div style={{ flex: 1 }}>
+    <Box pb="xl" mb="xl" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+      <Group align="flex-start" wrap="nowrap">
+        <Box style={{ flex: 1 }}>
           <Text fw={500} mb="xs">Overall Learning Progress</Text>
           <Progress 
             value={overallProgress} 
             size="lg" 
-            radius="md" 
+            radius="xs"
             color={overallProgress < 30 ? "red" : overallProgress < 70 ? "yellow" : "green"}
             mb="xs"
           />
           <Text size="sm" c="dimmed">
             {completedLessons} of {totalLessons} lessons completed ({overallProgress}%)
           </Text>
-        </div>
+        </Box>
         <RingProgress
-          size={120}
-          thickness={12}
+          size={100}
+          thickness={10}
           roundCaps
-          sections={[
-            { value: overallProgress, color: "blue" },
-          ]}
+          sections={[{ value: overallProgress, color: "blue" }]}
           label={
-            <Text ta="center" fw={700} size="xl">
+            <Text ta="center" fw={700} size="lg">
               {overallProgress}%
             </Text>
           }
         />
       </Group>
-    </Paper>
+    </Box>
   );
 } 

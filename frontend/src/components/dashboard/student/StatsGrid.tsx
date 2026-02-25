@@ -1,4 +1,4 @@
-import { Grid, Paper, Text, Group } from "@mantine/core";
+import { Group, Text, Box, SimpleGrid } from "@mantine/core";
 import { BookOpen, Clock, Sparkles } from "lucide-react";
 
 interface StatsGridProps {
@@ -8,45 +8,27 @@ interface StatsGridProps {
   streak: number;
 }
 
+function StatItem({ label, value, icon: Icon }: { label: string; value: number; icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }> }) {
+  return (
+    <Group gap="sm">
+      <Icon size={20} color="#1971C2" strokeWidth={1.5} />
+      <Box>
+        <Text size="sm" c="dimmed" tt="uppercase">{label}</Text>
+        <Text fw={700} size="xl">{value}</Text>
+      </Box>
+    </Group>
+  );
+}
+
 export function StatsGrid({ totalSessions, hoursLearned, subjectsCovered, streak }: StatsGridProps) {
   return (
-    <Grid mb="xl">
-      <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-        <Paper p="md" radius="md" withBorder>
-          <Text size="sm" c="dimmed" tt="uppercase" mb="xs">Total Sessions</Text>
-          <Group align="center">
-            <BookOpen size={20} color="#1971C2" strokeWidth={1.5} />
-            <Text fw={700} size="xl">{totalSessions}</Text>
-          </Group>
-        </Paper>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-        <Paper p="md" radius="md" withBorder>
-          <Text size="sm" c="dimmed" tt="uppercase" mb="xs">Hours Learned</Text>
-          <Group align="center">
-            <Clock size={20} color="#1971C2" strokeWidth={1.5} />
-            <Text fw={700} size="xl">{hoursLearned}</Text>
-          </Group>
-        </Paper>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-        <Paper p="md" radius="md" withBorder>
-          <Text size="sm" c="dimmed" tt="uppercase" mb="xs">Subjects</Text>
-          <Group align="center">
-            <BookOpen size={20} color="#1971C2" strokeWidth={1.5} />
-            <Text fw={700} size="xl">{subjectsCovered}</Text>
-          </Group>
-        </Paper>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-        <Paper p="md" radius="md" withBorder>
-          <Text size="sm" c="dimmed" tt="uppercase" mb="xs">Day Streak</Text>
-          <Group align="center">
-            <Sparkles size={20} color="#1971C2" strokeWidth={1.5} />
-            <Text fw={700} size="xl">{streak}</Text>
-          </Group>
-        </Paper>
-      </Grid.Col>
-    </Grid>
+    <Box mb="xl" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="lg" py="lg">
+        <StatItem label="Total Sessions" value={totalSessions} icon={BookOpen} />
+        <StatItem label="Hours Learned" value={hoursLearned} icon={Clock} />
+        <StatItem label="Subjects" value={subjectsCovered} icon={BookOpen} />
+        <StatItem label="Day Streak" value={streak} icon={Sparkles} />
+      </SimpleGrid>
+    </Box>
   );
 } 

@@ -357,7 +357,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     variant="subtle"
                     color="green"
                     size="lg"
-                    onClick={openVideo}
+                    component="a"
+                    href={localSession.zoomLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     <IconVideo size={20} />
                   </ActionIcon>

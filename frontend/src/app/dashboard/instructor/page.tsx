@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Container,
   Title,
-  Paper,
   Tabs,
   Text,
   Group,
@@ -16,6 +15,8 @@ import {
   Stack,
   Avatar,
   Rating,
+  Divider,
+  Center,
 } from "@mantine/core";
 import { Search, Sparkles, AlertCircle, History, Video, Star } from "lucide-react";
 import Link from "next/link";
@@ -220,12 +221,12 @@ function InstructorDashboardContent() {
   if (isLoading) {
     return (
       <Container size="xl" py="xl">
-        <Paper p="xl" radius="md" withBorder>
-          <Box ta="center" py="xl">
+        <Center py="xl">
+          <Stack align="center" gap="md">
             <Loader size="lg" />
-            <Text mt="md">Loading your dashboard...</Text>
-          </Box>
-        </Paper>
+            <Text>Loading your dashboard...</Text>
+          </Stack>
+        </Center>
       </Container>
     );
   }
@@ -233,28 +234,23 @@ function InstructorDashboardContent() {
   if (error) {
     return (
       <Container size="xl" py="xl">
-        <Paper p="xl" radius="md" withBorder>
-          <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
-            {error}
-          </Alert>
-        </Paper>
+        <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
+          {error}
+        </Alert>
       </Container>
     );
   }
 
   return (
     <Container size="xl" py="xl">
-      <Paper p="xl" radius="md" withBorder mb="xl">
-        <Group justify="space-between" mb="xl">
-          <div>
-            <Title order={2}>Instructor Dashboard</Title>
-            <Text c="dimmed">
-              Manage your tutoring sessions and track your progress
-            </Text>
-          </div>
-        </Group>
+      <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+        <Title order={2}>Instructor Dashboard</Title>
+        <Text c="dimmed" mt="xs" size="sm">
+          Manage your tutoring sessions and track your progress
+        </Text>
+      </Box>
 
-        <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
+      <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
             <Tabs.Tab value="overview" leftSection={<Sparkles size={16} />}>
               Overview
@@ -270,66 +266,60 @@ function InstructorDashboardContent() {
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="overview">
-            <Box pt="md">
-              {/* Zoom Connection Warning */}
-              {!zoomLoading && (!zoomConnected || zoomExpired) && (
-                <Alert
-                  icon={<Video size={20} />}
-                  color="yellow"
-                  title="Action Required: Connect Your Zoom Account"
-                  mb="xl"
-                >
-                  <Stack gap="sm">
-                    <Text size="sm">
-                      {zoomExpired 
-                        ? "Your Zoom connection has expired. You must reconnect your Zoom account to create sessions and accept queue requests."
-                        : "You must connect your Zoom account before you can create sessions or accept queue requests. All tutoring sessions use Zoom for video meetings."
-                      }
-                    </Text>
-                    <Button
-                      leftSection={<Video size={16} />}
-                      onClick={() => setActiveTab('zoom')}
-                      size="sm"
-                      style={{ width: 'fit-content' }}
-                    >
-                      {zoomExpired ? 'Reconnect Zoom Now' : 'Connect Zoom Now'}
-                    </Button>
-                  </Stack>
-                </Alert>
-              )}
-              
-              <StatsGrid {...statsData} />
-            </Box>
+          <Tabs.Panel value="overview" pt="lg">
+            {/* Zoom Connection Warning */}
+            {!zoomLoading && (!zoomConnected || zoomExpired) && (
+              <Alert
+                icon={<Video size={20} />}
+                color="yellow"
+                title="Action Required: Connect Your Zoom Account"
+                mb="xl"
+              >
+                <Stack gap="sm">
+                  <Text size="sm">
+                    {zoomExpired 
+                      ? "Your Zoom connection has expired. You must reconnect your Zoom account to create sessions and accept queue requests."
+                      : "You must connect your Zoom account before you can create sessions or accept queue requests. All tutoring sessions use Zoom for video meetings."
+                    }
+                  </Text>
+                  <Button
+                    leftSection={<Video size={16} />}
+                    onClick={() => setActiveTab('zoom')}
+                    size="sm"
+                    style={{ width: 'fit-content' }}
+                  >
+                    {zoomExpired ? 'Reconnect Zoom Now' : 'Connect Zoom Now'}
+                  </Button>
+                </Stack>
+              </Alert>
+            )}
+            <StatsGrid {...statsData} />
           </Tabs.Panel>
 
-          <Tabs.Panel value="history">
-            <Box pt="md">
-              <SessionHistoryTab
-                sessionHistory={sessionHistory}
-                onReviewClick={() => {}} // Instructors don't review sessions, but keep interface consistent
-              />
-            </Box>
+          <Tabs.Panel value="history" pt="lg">
+            <SessionHistoryTab
+              sessionHistory={sessionHistory}
+              onReviewClick={() => {}}
+            />
           </Tabs.Panel>
 
-          <Tabs.Panel value="reviews">
-            <Box pt="md">
-              {reviews.length === 0 ? (
-                <Paper withBorder radius="md" p="xl" ta="center">
-                  <Text fw={500} size="lg" mb="xs">
-                    No reviews yet
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    Reviews from your students will appear here once they start leaving feedback.
-                  </Text>
-                </Paper>
-              ) : (
-                <Stack gap="md">
-                  {reviews.map((review) => (
-                    <Paper key={review.id} withBorder radius="md" p="md">
+          <Tabs.Panel value="reviews" pt="lg">
+            {reviews.length === 0 ? (
+              <Box py="xl" ta="center">
+                <Text fw={500} size="lg" mb="xs">No reviews yet</Text>
+                <Text size="sm" c="dimmed">
+                  Reviews from your students will appear here once they start leaving feedback.
+                </Text>
+              </Box>
+            ) : (
+              <Stack gap={0}>
+                {reviews.map((review, index) => (
+                  <Box key={review.id}>
+                    {index > 0 && <Divider />}
+                    <Box py="lg">
                       <Group justify="space-between" align="flex-start">
                         <Group align="center">
-                          <Avatar color="blue">
+                          <Avatar color="blue" size="sm">
                             {review.owner?.firstName?.charAt(0)}
                             {review.owner?.lastName?.charAt(0)}
                           </Avatar>
@@ -344,7 +334,7 @@ function InstructorDashboardContent() {
                             </Text>
                           </div>
                         </Group>
-                        <Rating value={review.rating} readOnly fractions={2} />
+                        <Rating value={review.rating} readOnly fractions={2} size="sm" />
                       </Group>
 
                       {review.sessionHistoryItem?.name && (
@@ -358,23 +348,20 @@ function InstructorDashboardContent() {
                           {review.comment}
                         </Text>
                       )}
-                    </Paper>
-                  ))}
-                </Stack>
-              )}
-            </Box>
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>
+            )}
           </Tabs.Panel>
 
-          <Tabs.Panel value="zoom">
-            <Box pt="md">
-              <ZoomConnection
-                onConnected={handleSessionUpdate}
-                onDisconnected={handleSessionUpdate}
-              />
-            </Box>
+          <Tabs.Panel value="zoom" pt="lg">
+            <ZoomConnection
+              onConnected={handleSessionUpdate}
+              onDisconnected={handleSessionUpdate}
+            />
           </Tabs.Panel>
         </Tabs>
-      </Paper>
     </Container>
   );
 }

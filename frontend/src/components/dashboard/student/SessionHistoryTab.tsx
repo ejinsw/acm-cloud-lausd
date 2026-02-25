@@ -1,4 +1,4 @@
-import { Grid, Card, Group, Text, Badge, Button, Rating, Stack } from "@mantine/core";
+import { Group, Text, Badge, Button, Rating, Stack, Box, Divider } from "@mantine/core";
 import { Calendar, Star, Clock, User } from "lucide-react";
 import { SessionHistoryItem } from "@/lib/types";
 
@@ -35,44 +35,41 @@ export function SessionHistoryTab({ sessionHistory, onReviewClick }: SessionHist
   
   if (sessionHistory.length === 0) {
     return (
-      <Card withBorder shadow="sm" p="xl" ta="center">
-        <Text size="lg" fw={500} mb="md">No session history yet</Text>
+      <Box py="xl" ta="center">
+        <Text size="lg" fw={500} mb="xs">No session history yet</Text>
         <Text size="sm" c="dimmed">Your session history will appear here</Text>
-      </Card>
+      </Box>
     );
   }
 
   return (
-    <Grid>
-      {sessionHistory.map((session) => {
+    <Stack gap={0}>
+      {sessionHistory.map((session, index) => {
         const duration = session.startTime && session.endTime 
           ? getSessionDuration(session.startTime, session.endTime)
           : 0;
 
         return (
-          <Grid.Col key={session.id} span={{ base: 12, md: 6 }}>
-            <Card withBorder radius="md" p="md">
-              <Group justify="space-between" mb="xs">
+          <Box key={session.id}>
+            {index > 0 && <Divider />}
+            <Box py="lg">
+              <Group justify="space-between" mb="sm" wrap="wrap">
                 <Text fw={500} size="lg">{session.name}</Text>
-                <Badge color="blue">Completed</Badge>
+                <Badge color="blue" variant="light" size="sm">Completed</Badge>
               </Group>
               
               <Stack gap="xs" mb="md">
                 {session.instructorName && (
                   <Group gap="xs">
                     <User size={14} />
-                    <Text size="sm">
-                      {session.instructorName}
-                    </Text>
+                    <Text size="sm">{session.instructorName}</Text>
                   </Group>
                 )}
                 
                 {session.startTime && (
                   <Group gap="xs">
                     <Calendar size={14} />
-                    <Text size="sm">
-                      {formatSessionDate(session.startTime)}
-                    </Text>
+                    <Text size="sm">{formatSessionDate(session.startTime)}</Text>
                   </Group>
                 )}
                 
@@ -91,14 +88,14 @@ export function SessionHistoryTab({ sessionHistory, onReviewClick }: SessionHist
               </Stack>
               
               {session.relatedReview ? (
-                <Stack gap="xs" mb="md">
+                <Stack gap="xs">
                   <Group gap="xs">
                     <Rating value={session.relatedReview.rating} readOnly size="sm" />
-                    <Text size="sm" fw={500}>{session.relatedReview.rating}/5 - Your Review</Text>
+                    <Text size="sm" fw={500}>{session.relatedReview.rating}/5 — Your Review</Text>
                   </Group>
                   {session.relatedReview.comment && (
-                    <Text size="xs" c="dimmed" lineClamp={2} style={{ fontStyle: 'italic' }}>
-                      "{session.relatedReview.comment}"
+                    <Text size="xs" c="dimmed" lineClamp={2} fs="italic">
+                      &ldquo;{session.relatedReview.comment}&rdquo;
                     </Text>
                   )}
                 </Stack>
@@ -112,10 +109,10 @@ export function SessionHistoryTab({ sessionHistory, onReviewClick }: SessionHist
                   Leave Review
                 </Button>
               )}
-            </Card>
-          </Grid.Col>
+            </Box>
+          </Box>
         );
       })}
-    </Grid>
+    </Stack>
   );
 } 

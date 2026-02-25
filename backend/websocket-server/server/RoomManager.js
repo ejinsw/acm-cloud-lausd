@@ -388,6 +388,28 @@ async function kickUser(ws, roomId, userIdToKick, liveRooms, connectedUsers) {
   );
 }
 
+async function notifySessionUpdate(sessionId, userId, liveRooms) {
+  const roomState = liveRooms.get(sessionId);
+
+  if (!roomState) {
+    console.log(`Room ${sessionId} not found in liveRooms`);
+    return;
+  }
+
+  const message = {
+    type: 'SESSION_UPDATED',
+    payload: {
+      sessionId,
+      updatedBy: userId,
+      timestamp: Date.now(),
+    },
+  };
+
+  broadcastToRoom(sessionId, message, liveRooms);
+
+  console.log(`Session ${sessionId} update notification sent by user ${userId}`);
+}
+
 module.exports = {
   // Server setup
   setServer,
@@ -402,4 +424,6 @@ module.exports = {
   handleMessage,
   deleteMessage,
   kickUser,
+  // Session updates
+  notifySessionUpdate,
 };

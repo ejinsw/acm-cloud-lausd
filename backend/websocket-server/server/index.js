@@ -19,6 +19,7 @@ const {
   leaveRoom,
   deleteMessage,
   kickUser,
+  notifySessionUpdate,
 } = require('./RoomManager');
 const { sanitizeInput } = require('./Utilities');
 
@@ -194,6 +195,18 @@ server.on('connection', ws => {
               JSON.stringify({
                 type: 'ERROR',
                 payload: { message: 'Invalid kick user data or user not identified.' },
+              })
+            );
+          }
+          break;
+        case 'UPDATE_SESSION':
+          if (payload?.sessionId && ws.userId) {
+            await notifySessionUpdate(payload.sessionId, ws.userId, liveRooms);
+          } else {
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: { message: 'Invalid session update data or user not identified.' },
               })
             );
           }

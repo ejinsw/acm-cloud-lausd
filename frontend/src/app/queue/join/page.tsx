@@ -57,11 +57,15 @@ export default function JoinQueuePage() {
 
   // Find the current user's queue item from the queue items
   const queueItemsArray = Array.from(queueItems.values());
+  console.log("[Student Queue] Queue items array:", queueItemsArray);
+  console.log("[Student Queue] User ID:", user?.id);
   const myQueueItem = queueItemsArray.find((item) => {
     // Handle both formats: item.student.id (from instructor endpoint) and item.studentId (from student endpoint)
     const studentId = item.student?.id || item.studentId;
+    console.log("[Student Queue] Checking item:", { itemStudentId: studentId, itemStatus: item.status, userId: user?.id });
     return studentId === user?.id && item.status === "PENDING";
   });
+  console.log("[Student Queue] My queue item:", myQueueItem);
   const isInQueue = !!myQueueItem;
   const queueData = myQueueItem
     ? {

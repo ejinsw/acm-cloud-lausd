@@ -196,10 +196,13 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
               if (pendingStudentData.current && userRef.current) {
                 const studentId = userRef.current.id;
                 console.log("[WS] Adding student's own queue data to local state");
+                console.log("[WS] Student ID:", studentId);
+                console.log("[WS] Queue data:", pendingStudentData.current);
                 setQueueItems((prev) => {
                   const newMap = new Map(prev);
                   newMap.set(studentId, pendingStudentData.current!);
                   console.log("[WS] Student added themselves. Total students:", newMap.size);
+                  console.log("[WS] Queue items Map:", Array.from(newMap.entries()));
                   return newMap;
                 });
                 pendingStudentData.current = null; // Clear pending data
@@ -359,7 +362,10 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
         pendingStudentData.current = {
           ...data,
           studentId: userRef.current.id,
+          status: "PENDING",
+          createdAt: new Date().toISOString(),
         };
+        console.log("[WS] Stored pending student data:", pendingStudentData.current);
       }
 
       console.log(`[WS] Subscribing to queue as ${role}`);

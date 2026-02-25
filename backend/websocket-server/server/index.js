@@ -11,6 +11,7 @@ const {
 } = require('./QueueManager');
 const { handleIdentify } = require('./IdentityManager');
 const {
+  setServer,
   pushRoomListUpdate,
   createRoom,
   joinRoom,
@@ -38,6 +39,9 @@ const httpServer = http.createServer((req, res) => {
 });
 
 const server = new WebSocket.Server({ server: httpServer });
+
+// Initialize RoomManager with server instance
+setServer(server);
 
 // Active socket bookkeeping only. All persistence lives in DynamoDB/DAX.
 const liveRooms = new Map(); // roomId -> { name, clients: Map<WebSocket, User>, lastActivity }

@@ -27,6 +27,7 @@ interface SessionWebSocketMessage {
   type:
     | "USER_IDENTIFIED"
     | "IDENTIFY_USER"
+    | "REQUEST_USER_INFO"
     | "JOIN_ROOM"
     | "ROOM_JOINED"
     | "LEAVE_ROOM"
@@ -40,28 +41,9 @@ interface SessionWebSocketMessage {
     | "KICK_USER"
     | "USER_KICKED"
     | "YOU_WERE_KICKED"
+    | "ROOM_LIST_UPDATED"
     | "ERROR";
-  payload?: {
-    id?: string;
-    roomId?: string;
-    name?: string;
-    users?: RoomUser[];
-    messages?: RoomMessage[];
-    user?: RoomUser;
-    userId?: string;
-    username?: string;
-    text?: string;
-    messageId?: string;
-    deletedBy?: string;
-    userIdToKick?: string;
-    kickedUserId?: string;
-    kickedUsername?: string;
-    kickedBy?: string;
-    roomName?: string;
-    reason?: string;
-    message?: string;
-    token?: string;
-  };
+  payload?: any;
 }
 
 interface UseSessionWebSocketReturn {
@@ -154,9 +136,17 @@ export function useSessionWebSocket(user: User | null): UseSessionWebSocketRetur
           console.log("[Session WS] 📨 Parsed message:", message);
 
           switch (message.type) {
+            case "REQUEST_USER_INFO":
+              console.log("[Session WS] 📋 Server requested user info (already sent during IDENTIFY_USER)");
+              break;
+
             case "USER_IDENTIFIED":
               console.log("[Session WS] ✅ User identified successfully");
               isIdentified.current = true;
+              break;
+
+            case "ROOM_LIST_UPDATED":
+              console.log("[Session WS] 📋 Room list updated (ignored in session view)");
               break;
 
             case "ROOM_JOINED":

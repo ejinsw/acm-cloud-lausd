@@ -274,16 +274,27 @@ async function listMembers(roomId) {
 
 async function addUserToRoom(roomId, userId) {
   const now = Date.now();
+  const room = await getRoom(roomId);
+  
+  if (!room) {
+    throw new Error('Room not found');
+  }
+  
+  const currentUserIds = room.userIds || [];
+  if (!currentUserIds.includes(userId)) {
+    currentUserIds.push(userId);
+  }
+  
   await docCall('update', {
     TableName: tables.rooms,
     Key: { roomId },
     UpdateExpression:
-      'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = participantCount + :inc ADD userIds :userId',
+      'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = :count, userIds = :userIds',
     ExpressionAttributeValues: {
       ':now': now,
       ':expiresAt': defaultExpiry(),
-      ':inc': 1,
-      ':userId': dynamoDocClient.createSet([userId]),
+      ':count': currentUserIds.length,
+      ':userIds': currentUserIds,
     },
   });
 }
@@ -291,16 +302,25 @@ async function addUserToRoom(roomId, userId) {
 async function removeUserFromRoom(roomId, userId) {
   const now = Date.now();
   try {
+    const room = await getRoom(roomId);
+    
+    if (!room) {
+      return 0;
+    }
+    
+    const currentUserIds = room.userIds || [];
+    const updatedUserIds = currentUserIds.filter(id => id !== userId);
+    
     const result = await docCall('update', {
       TableName: tables.rooms,
       Key: { roomId },
       UpdateExpression:
-        'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = participantCount - :dec DELETE userIds :userId',
+        'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = :count, userIds = :userIds',
       ExpressionAttributeValues: {
         ':now': now,
         ':expiresAt': defaultExpiry(),
-        ':dec': 1,
-        ':userId': dynamoDocClient.createSet([userId]),
+        ':count': updatedUserIds.length,
+        ':userIds': updatedUserIds,
       },
       ReturnValues: 'UPDATED_NEW',
     });

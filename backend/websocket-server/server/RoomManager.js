@@ -4,6 +4,12 @@ const store = require('./daxSTORE');
 const { v4: uuidv4 } = require('uuid');
 const { sanitizeInput } = require('./Utilities');
 
+let wsServer = null;
+
+function setServer(server) {
+  wsServer = server;
+}
+
 function getRoomState(roomId, liveRooms, defaultName = null) {
   if (!liveRooms.has(roomId)) {
     liveRooms.set(roomId, { name: defaultName, clients: new Map(), lastActivity: Date.now() });
@@ -41,8 +47,8 @@ async function pushRoomListUpdate(targetWs = null) {
       if (targetWs.readyState === WebSocket.OPEN) {
         targetWs.send(JSON.stringify(payload));
       }
-    } else {
-      broadcastToAll(payload);
+    } else if (wsServer) {
+      broadcastToAll(wsServer, payload);
     }
   } catch (err) {
     console.error('Failed to fetch room list:', err);
@@ -249,7 +255,7 @@ async function handleMessage(ws, messageData, liveRooms) {
   try {
     const savedMessage = await store.saveMessage(messageData.roomId, message);
     roomState.lastActivity = Date.now();
-    broadcastToRoom(messageData.roomId, { type: 'NEW_MESSAGE', payload: savedMessage });
+    broadcastToRoom(messageData.roomId, { type: 'NEW_MESSAGE', payload: savedMessage }, liveRooms);
     if (messageData.text !== filteredText) {
       console.log(
         `[${roomState.name}] ${senderInfo.username}: ${filteredText} (Original: "${messageData.text}")`
@@ -293,10 +299,14 @@ async function deleteMessage(ws, roomId, messageId, liveRooms) {
     return;
   }
 
-  broadcastToRoom(roomId, {
-    type: 'MESSAGE_DELETED',
-    payload: { roomId, messageId, deletedBy: requesterInfo.id },
-  });
+  broadcastToRoom(
+    roomId,
+    {
+      type: 'MESSAGE_DELETED',
+      payload: { roomId, messageId, deletedBy: requesterInfo.id },
+    },
+    liveRooms
+  );
   console.log(`Message ${messageId} deleted from ${roomState.name} by ${requesterInfo.username}`);
 }
 
@@ -379,6 +389,8 @@ async function kickUser(ws, roomId, userIdToKick, liveRooms, connectedUsers) {
 }
 
 module.exports = {
+  // Server setup
+  setServer,
   // Room
   broadcastToRoom,
   broadcastToAll,

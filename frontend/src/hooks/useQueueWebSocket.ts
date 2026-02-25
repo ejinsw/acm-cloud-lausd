@@ -14,11 +14,14 @@ interface QueueItem {
     firstName: string;
     lastName: string;
     email: string;
+    cognitoId?: string;
   };
   subject?: {
     id: string;
     name: string;
     level: string | null;
+    description?: string;
+    category?: string;
   };
   canTeach?: boolean;
 }

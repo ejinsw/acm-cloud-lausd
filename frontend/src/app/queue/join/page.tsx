@@ -229,7 +229,7 @@ export default function JoinQueuePage() {
   // The student will be redirected when they receive the QUEUE_UPDATE message
 
   const handleJoinQueue = async () => {
-    if (!formData.subjectId || !formData.description.trim()) {
+    if (!formData.subjectId || !formData.description.trim() || !user) {
       return;
     }
     setIsLoading(true);
@@ -240,14 +240,43 @@ export default function JoinQueuePage() {
         throw new Error("No authentication token available");
       }
 
-      console.log("Sending queue request:", {
-        subjectId: formData.subjectId,
-        description: formData.description,
-      });
+      console.log("Fetching subject data and joining queue...");
 
+      // Fetch subject data to send enriched payload
+      const subjectResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/subjects/${formData.subjectId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!subjectResponse.ok) {
+        throw new Error("Failed to fetch subject data");
+      }
+
+      const subject = await subjectResponse.json();
+
+      // Send enriched data to WebSocket
       subscribeQueue("student", {
         description: formData.description,
         subjectId: formData.subjectId,
+        student: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          cognitoId: (user as any).cognitoId || user.id, // Use id as fallback if cognitoId not present
+        },
+        subject: {
+          id: subject.id,
+          name: subject.name,
+          level: subject.level || null,
+          description: subject.description || "",
+          category: subject.category || "",
+        },
       });
 
       notifications.show({

@@ -4,6 +4,7 @@
 
 export interface User {
   id: string;
+  cognitoId?: string;
   email: string;
   role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
   firstName: string;

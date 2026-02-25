@@ -68,68 +68,45 @@ export default function InstructorQueuePage() {
   const { isConnected, connectionError, queueItems, reconnect, acceptQueue } =
     useQueueWebSocket(user);
 
-  // Enrich queue items with subject and student data from API
+  // Convert queueItems Map to enriched array
+  // Server now sends enriched data with student and subject info
   useEffect(() => {
-    const enrichQueueItems = async () => {
-      if (queueItems.size === 0) {
-        setEnrichedQueueItems([]);
-        return;
-      }
+    if (queueItems.size === 0) {
+      setEnrichedQueueItems([]);
+      return;
+    }
 
-      try {
-        const token = await getToken();
-        const enrichedItems: EnrichedQueueItem[] = [];
+    const enrichedItems: EnrichedQueueItem[] = [];
 
-        for (const [id, item] of queueItems.entries()) {
-          // Fetch subject data
-          const subjectResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/subjects/${item.subjectId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
+    for (const [cognitoId, item] of queueItems.entries()) {
+      // Check if instructor can teach this subject
+      const canTeach = user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
 
-          // Fetch student data
-          const studentResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/users/${item.studentId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
+      enrichedItems.push({
+        id: item.id || 0,
+        description: item.description || "",
+        status: item.status || "PENDING",
+        createdAt: item.createdAt || new Date().toISOString(),
+        studentId: item.studentId || cognitoId,
+        subjectId: item.subjectId || "",
+        // Server provides enriched student and subject data
+        student: item.student || {
+          id: cognitoId,
+          firstName: "Student",
+          lastName: "(Loading...)",
+          email: "",
+        },
+        subject: item.subject || {
+          id: item.subjectId || "",
+          name: "Unknown Subject",
+          level: null,
+        },
+        canTeach,
+      });
+    }
 
-          const subject = subjectResponse.ok ? await subjectResponse.json() : null;
-          const student = studentResponse.ok ? await studentResponse.json() : null;
-
-          // Check if instructor can teach this subject
-          const canTeach = user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
-
-          enrichedItems.push({
-            id: item.id || 0,
-            description: item.description,
-            status: item.status || "PENDING",
-            createdAt: item.createdAt || new Date().toISOString(),
-            studentId: item.studentId || "",
-            subjectId: item.subjectId || "",
-            subject,
-            student,
-            canTeach,
-          });
-        }
-
-        setEnrichedQueueItems(enrichedItems);
-        console.log("[Instructor Queue] Enriched queue items:", enrichedItems);
-      } catch (error) {
-        console.error("[Instructor Queue] Failed to enrich queue items:", error);
-      }
-    };
-
-    enrichQueueItems();
+    setEnrichedQueueItems(enrichedItems);
+    console.log("[Instructor Queue] Enriched queue items:", enrichedItems.length);
   }, [queueItems, user?.subjects]);
 
 

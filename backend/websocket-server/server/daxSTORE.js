@@ -156,7 +156,7 @@ async function deleteAllRoomItems(tableName, sortKeyName, roomId) {
   } while (lastKey);
 }
 
-async function createRoom({ id, name, ownerId, settings }) {
+async function createRoom({ id, name, ownerId, settings, userIds = [] }) {
   const now = Date.now();
   await docCall('put', {
     TableName: tables.rooms,
@@ -165,9 +165,10 @@ async function createRoom({ id, name, ownerId, settings }) {
       name,
       ownerId,
       settings,
+      userIds: userIds,
       createdAt: now,
       lastActivity: now,
-      participantCount: 0,
+      participantCount: userIds.length,
       messageCount: 0,
       expiresAt: defaultExpiry(),
     },
@@ -269,6 +270,51 @@ async function listMembers(roomId) {
     username: item.username,
     type: item.type,
   }));
+}
+
+async function addUserToRoom(roomId, userId) {
+  const now = Date.now();
+  await docCall('update', {
+    TableName: tables.rooms,
+    Key: { roomId },
+    UpdateExpression:
+      'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = participantCount + :inc ADD userIds :userId',
+    ExpressionAttributeValues: {
+      ':now': now,
+      ':expiresAt': defaultExpiry(),
+      ':inc': 1,
+      ':userId': dynamoDocClient.createSet([userId]),
+    },
+  });
+}
+
+async function removeUserFromRoom(roomId, userId) {
+  const now = Date.now();
+  try {
+    const result = await docCall('update', {
+      TableName: tables.rooms,
+      Key: { roomId },
+      UpdateExpression:
+        'SET lastActivity = :now, expiresAt = :expiresAt, participantCount = participantCount - :dec DELETE userIds :userId',
+      ExpressionAttributeValues: {
+        ':now': now,
+        ':expiresAt': defaultExpiry(),
+        ':dec': 1,
+        ':userId': dynamoDocClient.createSet([userId]),
+      },
+      ReturnValues: 'UPDATED_NEW',
+    });
+    return Math.max(0, result.Attributes?.participantCount ?? 0);
+  } catch (err) {
+    if (
+      err.code === 'ValidationException' ||
+      err.code === 'ConditionalCheckFailedException' ||
+      err.code === 'ResourceNotFoundException'
+    ) {
+      return 0;
+    }
+    throw err;
+  }
 }
 
 async function saveMessage(roomId, message) {
@@ -438,6 +484,8 @@ module.exports = {
   addMember,
   removeMember,
   listMembers,
+  addUserToRoom,
+  removeUserFromRoom,
   saveMessage,
   fetchMessages,
   deleteMessage,

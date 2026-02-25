@@ -49,19 +49,13 @@ async function pushRoomListUpdate(targetWs = null) {
   }
 }
 
-async function createRoom(ws, roomName, user) {
-  const roomId = uuidv4();
-  const cleanRoomName = sanitizeInput(roomName) || `Room-${roomId.slice(0, 6)}`;
-
+async function createRoom(ws, roomId, user) {
   try {
     await store.createRoom({
       id: roomId,
-      name: cleanRoomName,
-      ownerId: user.id,
-      settings: {},
+      name: roomId,
+      userIds: [user.id],
     });
-    console.log(`Room created: ${cleanRoomName} (ID: ${roomId}) by ${user.username}`);
-    await joinRoom(ws, roomId, user);
   } catch (err) {
     console.error('Failed to create room:', err);
     ws.send(
@@ -73,32 +67,35 @@ async function createRoom(ws, roomName, user) {
   }
 }
 
-async function joinRoom(ws, roomId, user, connectedUsers) {
-  const room = await store.getRoom(roomId);
-  if (!room) {
-    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Room not found.' } }));
-    return;
-  }
+async function joinRoom(ws, roomId, user, liveRooms, connectedUsers) {
   const sanitizedUser = {
     id: user.id,
     username: sanitizeInput(user.username),
     type: user.type,
   };
 
+  let room = await store.getRoom(roomId);
+  if (!room) {
+    await createRoom(ws, roomId, sanitizedUser);
+    room = await store.getRoom(roomId);
+  }
+
   const existingUserEntry = connectedUsers.get(user.id);
-  if (
-    existingUserEntry &&
-    existingUserEntry.currentRoomId &&
-    existingUserEntry.currentRoomId !== roomId
-  ) {
-    await leaveRoom(existingUserEntry.ws, existingUserEntry.currentRoomId, user.id, false);
+  if (existingUserEntry?.currentRoomId && existingUserEntry.currentRoomId !== roomId) {
+    await leaveRoom(
+      existingUserEntry.ws,
+      existingUserEntry.currentRoomId,
+      user.id,
+      liveRooms,
+      connectedUsers,
+      false
+    );
   }
 
   try {
-    await store.addMember(roomId, sanitizedUser);
-    await store.setUserSession({ ...sanitizedUser, currentRoomId: roomId });
+    await store.addUserToRoom(roomId, sanitizedUser.id);
   } catch (err) {
-    console.error('Failed to persist membership record:', err);
+    console.error('Failed to add user to room:', err);
     ws.send(
       JSON.stringify({
         type: 'ERROR',
@@ -108,16 +105,15 @@ async function joinRoom(ws, roomId, user, connectedUsers) {
     return;
   }
 
-  const roomState = getRoomState(roomId, room.name);
+  const roomState = getRoomState(roomId, liveRooms, room.name);
   roomState.clients.set(ws, sanitizedUser);
   roomState.lastActivity = Date.now();
+
   connectedUsers.set(user.id, { ...sanitizedUser, ws, currentRoomId: roomId });
   ws.userId = sanitizedUser.id;
 
-  const [members, messages] = await Promise.all([
-    store.listMembers(roomId),
-    store.fetchMessages(roomId),
-  ]);
+  const messages = await store.fetchMessages(roomId);
+  const connectedUsersList = Array.from(roomState.clients.values());
 
   ws.send(
     JSON.stringify({
@@ -125,7 +121,7 @@ async function joinRoom(ws, roomId, user, connectedUsers) {
       payload: {
         id: roomId,
         name: roomState.name,
-        users: members,
+        users: connectedUsersList,
         messages,
       },
     })
@@ -140,12 +136,11 @@ async function joinRoom(ws, roomId, user, connectedUsers) {
         user: sanitizedUser,
       },
     },
+    liveRooms,
     ws
   );
 
-  console.log(
-    `${sanitizedUser.username} (ID: ${sanitizedUser.id}, Type: ${sanitizedUser.type}) joined room: ${roomState.name}`
-  );
+  console.log(`${sanitizedUser.username} joined room: ${roomState.name}`);
   await pushRoomListUpdate();
 }
 
@@ -179,15 +174,9 @@ async function leaveRoom(
   }
 
   try {
-    await store.removeMember(roomId, userId);
-    await store.setUserSession({
-      id: userId,
-      username: departingInfo?.username || activeUser?.username || `User ${userId}`,
-      type: departingInfo?.type || activeUser?.type || 'student',
-      currentRoomId: null,
-    });
+    await store.removeUserFromRoom(roomId, userId);
   } catch (err) {
-    console.error(`Failed to update membership/session for user ${userId}:`, err);
+    console.error(`Failed to remove user ${userId} from room:`, err);
   }
 
   const currentEntry = connectedUsers.get(userId);
@@ -200,10 +189,14 @@ async function leaveRoom(
   }
 
   if (departingInfo) {
-    broadcastToRoom(roomId, {
-      type: 'USER_LEFT',
-      payload: { roomId, userId: departingInfo.id, username: departingInfo.username },
-    });
+    broadcastToRoom(
+      roomId,
+      {
+        type: 'USER_LEFT',
+        payload: { roomId, userId: departingInfo.id, username: departingInfo.username },
+      },
+      liveRooms
+    );
     console.log(
       `${departingInfo.username} (ID: ${departingInfo.id}) left room: ${roomState?.name || roomId}`
     );
@@ -307,7 +300,7 @@ async function deleteMessage(ws, roomId, messageId, liveRooms) {
   console.log(`Message ${messageId} deleted from ${roomState.name} by ${requesterInfo.username}`);
 }
 
-async function kickUser(ws, roomId, userIdToKick, liveRooms) {
+async function kickUser(ws, roomId, userIdToKick, liveRooms, connectedUsers) {
   const roomState = liveRooms.get(roomId);
   const requesterInfo = roomState ? roomState.clients.get(ws) : null;
 
@@ -364,7 +357,7 @@ async function kickUser(ws, roomId, userIdToKick, liveRooms) {
     })
   );
 
-  await leaveRoom(kickedUserSocket, roomId, kickedUserInfo.id, false);
+  await leaveRoom(kickedUserSocket, roomId, kickedUserInfo.id, liveRooms, connectedUsers, false);
 
   broadcastToRoom(
     roomId,
@@ -377,6 +370,7 @@ async function kickUser(ws, roomId, userIdToKick, liveRooms) {
         kickedBy: requesterInfo.id,
       },
     },
+    liveRooms,
     kickedUserSocket
   );
   console.log(

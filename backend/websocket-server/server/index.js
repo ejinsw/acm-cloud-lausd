@@ -140,7 +140,7 @@ server.on('connection', ws => {
          * SESSION ROOM COMMANDS
          */
         case 'CREATE_ROOM':
-          await createRoom(ws, payload?.roomName, payload?.user || actingUser);
+          await createRoom(ws, payload?.roomId, payload?.user || actingUser);
           break;
         case 'JOIN_ROOM':
           if (payload?.roomId && (payload?.user || connectedUsers.get(ws.userId))) {
@@ -148,14 +148,12 @@ server.on('connection', ws => {
               ws,
               payload.roomId,
               payload.user || connectedUsers.get(ws.userId),
+              liveRooms,
               connectedUsers
             );
           } else {
             ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Missing join data.' } }));
           }
-          break;
-        case 'SEND_MESSAGE':
-          await handleMessage(ws, payload, liveRooms);
           break;
         case 'LEAVE_ROOM':
           if (payload?.roomId && ws.userId) {
@@ -168,6 +166,9 @@ server.on('connection', ws => {
               })
             );
           }
+          break;
+        case 'SEND_MESSAGE':
+          await handleMessage(ws, payload, liveRooms);
           break;
         case 'DELETE_MESSAGE':
           if (payload?.roomId && payload?.messageId && ws.userId) {
@@ -183,7 +184,7 @@ server.on('connection', ws => {
           break;
         case 'KICK_USER':
           if (payload?.roomId && payload?.userIdToKick && ws.userId) {
-            await kickUser(ws, payload.roomId, payload.userIdToKick, liveRooms);
+            await kickUser(ws, payload.roomId, payload.userIdToKick, liveRooms, connectedUsers);
           } else {
             ws.send(
               JSON.stringify({
@@ -234,7 +235,7 @@ server.on('connection', ws => {
           `${user.username} (ID: ${user.id}, Type: ${user.type}) disconnected (ws: ${ws.userId || ws.tempId}).`
         );
         if (user.currentRoomId) {
-          await leaveRoom(ws, user.currentRoomId, userId, false);
+          await leaveRoom(ws, user.currentRoomId, userId, liveRooms, connectedUsers, false);
         }
         queueStudents.delete(userId);
         queueInstructors.delete(userId);

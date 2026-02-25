@@ -55,10 +55,40 @@ export const getSubjectByName = expressAsyncHandler(
 /**
  * @route POST /api/subjects
  * @desc Create a new subject
- * @access Private/Instructor
+ * @access Private/Admin
  */
 export const createSubject = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement create subject
+  const { name, description, category, level } = req.body as SubjectData;
+
+  if (!name) {
+    res.status(400).json({ error: 'Subject name is required' });
+    return;
+  }
+
+  try {
+    const existingSubject = await prisma.subject.findUnique({
+      where: { name },
+    });
+
+    if (existingSubject) {
+      res.status(409).json({ error: 'Subject with this name already exists' });
+      return;
+    }
+
+    const subject = await prisma.subject.create({
+      data: {
+        name,
+        description,
+        category,
+        level,
+      },
+    });
+
+    res.status(201).json(subject);
+  } catch (error) {
+    console.error('Error creating subject:', error);
+    res.status(500).json({ error: 'Failed to create subject' });
+  }
 });
 
 /**
@@ -67,25 +97,106 @@ export const createSubject = expressAsyncHandler(async (req: Request, res: Respo
  * @access Private
  */
 export const getSubject = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement get subject
+  const { id } = req.params;
+
+  try {
+    const subject = await prisma.subject.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        category: true,
+        level: true,
+      },
+    });
+
+    if (!subject) {
+      res.status(404).json({ error: 'Subject not found' });
+      return;
+    }
+
+    res.json(subject);
+  } catch (error) {
+    console.error('Error fetching subject:', error);
+    res.status(500).json({ error: 'Failed to fetch subject' });
+  }
 });
 
 /**
  * @route PUT /api/subjects/:id
  * @desc Update subject
- * @access Private/Instructor
+ * @access Private/Admin
  */
 export const updateSubject = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement update subject
+  const { id } = req.params;
+  const { name, description, category, level } = req.body as SubjectData;
+
+  try {
+    const existingSubject = await prisma.subject.findUnique({
+      where: { id },
+    });
+
+    if (!existingSubject) {
+      res.status(404).json({ error: 'Subject not found' });
+      return;
+    }
+
+    if (name && name !== existingSubject.name) {
+      const duplicateSubject = await prisma.subject.findUnique({
+        where: { name },
+      });
+
+      if (duplicateSubject) {
+        res.status(409).json({ error: 'Subject with this name already exists' });
+        return;
+      }
+    }
+
+    const updatedSubject = await prisma.subject.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(category !== undefined && { category }),
+        ...(level !== undefined && { level }),
+      },
+    });
+
+    res.json(updatedSubject);
+  } catch (error) {
+    console.error('Error updating subject:', error);
+    res.status(500).json({ error: 'Failed to update subject' });
+  }
 });
 
 /**
  * @route DELETE /api/subjects/:id
  * @desc Delete subject
- * @access Private/Instructor
+ * @access Private/Admin
  */
 export const deleteSubject = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement delete subject
+  const { id } = req.params;
+
+  try {
+    const existingSubject = await prisma.subject.findUnique({
+      where: { id },
+    });
+
+    if (!existingSubject) {
+      res.status(404).json({ error: 'Subject not found' });
+      return;
+    }
+
+    await prisma.subject.delete({
+      where: { id },
+    });
+
+    res.json({ message: 'Subject deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting subject:', error);
+    res.status(500).json({ error: 'Failed to delete subject' });
+  }
 });
 
 /**

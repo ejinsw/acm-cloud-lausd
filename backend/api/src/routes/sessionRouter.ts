@@ -24,6 +24,7 @@ const router = express.Router();
 router.post('/sessions', authenticateToken, checkRole(['INSTRUCTOR']), createSession); //works
 router.get('/sessions/:id', authenticateToken, getSessionById); //works
 router.put('/sessions/:id', authenticateToken, checkRole(['INSTRUCTOR']), updateSession); //works
+router.patch('/sessions/:id', authenticateToken, checkRole(['INSTRUCTOR']), updateSession); //works
 router.delete('/sessions/:id', authenticateToken, checkRole(['INSTRUCTOR']), deleteSession); //works
 router.get('/sessions', authenticateToken, getAllSessions); //works
 

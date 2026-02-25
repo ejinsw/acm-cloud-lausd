@@ -89,6 +89,7 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
   const isSubscribed = useRef(false);
   const isConnecting = useRef(false);
   const userRef = useRef(user);
+  const pendingStudentData = useRef<QueueItem | null>(null);
 
   // Keep userRef in sync with user prop
   useEffect(() => {
@@ -187,6 +188,22 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
 
             case "QUEUE_SUBSCRIBED":
               console.log("[WS] ✅ Successfully subscribed to queue updates");
+              
+              // Check if this is a student subscribing with their own data
+              if (pendingStudentData.current && userRef.current) {
+                const studentId = userRef.current.id;
+                console.log("[WS] Adding student's own queue data to local state");
+                setQueueItems((prev) => {
+                  const newMap = new Map(prev);
+                  newMap.set(studentId, pendingStudentData.current!);
+                  console.log("[WS] Student added themselves. Total students:", newMap.size);
+                  return newMap;
+                });
+                pendingStudentData.current = null; // Clear pending data
+                break;
+              }
+
+              // For instructors/admins, load all students in queue
               if (!message.payload) break;
               const { students } = message.payload;
 
@@ -195,9 +212,15 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
               const queuedStudents = new Map();
               for (const student of students) {
                 if (!student.data) continue;
-                queuedStudents.set(student.id, student.data);
+                // Merge student.id into the data object as studentId
+                const enrichedData = {
+                  ...student.data,
+                  studentId: student.id, // Add studentId from the parent object
+                };
+                queuedStudents.set(student.id, enrichedData);
               }
               setQueueItems(queuedStudents);
+              console.log("[WS] Queue items loaded:", queuedStudents.size, "students");
 
               break;
 
@@ -215,10 +238,17 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
 
               if (!id || !role || !data) break;
 
+              // Merge id into data as studentId
+              const enrichedJoinData = {
+                ...data,
+                studentId: id,
+              };
+
               // Create new Map to trigger React re-render
               setQueueItems((prev) => {
                 const newMap = new Map(prev);
-                newMap.set(id, data);
+                newMap.set(id, enrichedJoinData);
+                console.log("[WS] Student added to queue. Total students:", newMap.size);
                 return newMap;
               });
 
@@ -321,6 +351,14 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
         return;
       }
 
+      // Store student data temporarily to add to local state after QUEUE_SUBSCRIBED
+      if (role === "student" && data && userRef.current) {
+        pendingStudentData.current = {
+          ...data,
+          studentId: userRef.current.id,
+        };
+      }
+
       console.log(`[WS] Subscribing to queue as ${role}`);
       wsRef.current.send(
         JSON.stringify({
@@ -344,10 +382,22 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
    * Server expects: payload.role and optional payload.data
    */
   const unsubscribeQueue = useCallback(
-    (role: "student" | "instructor" | "admin") => {
+    (role: "student" | "instructor" | "admin", data?: QueueItem) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         console.error("[WS] Cannot unsubscribe - WebSocket not connected");
         return;
+      }
+
+      // Remove student from local queue items if they're leaving
+      if (role === "student" && userRef.current) {
+        const studentId = userRef.current.id;
+        setQueueItems((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(studentId);
+          console.log("[WS] Student removed themselves. Total students:", newMap.size);
+          return newMap;
+        });
+        pendingStudentData.current = null; // Clear any pending data
       }
 
       console.log(`[WS] Unsubscribing from queue as ${role}`);
@@ -356,6 +406,7 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
           type: "UNSUBSCRIBE_QUEUE",
           payload: {
             role: role.toLowerCase(),
+            data,
           },
         }),
       );

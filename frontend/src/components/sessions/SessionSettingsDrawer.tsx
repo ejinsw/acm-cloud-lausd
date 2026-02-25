@@ -40,6 +40,7 @@ export default function SessionSettingsDrawer({
     description: session.description || "",
     maxAttendees: session.maxAttendees || 10,
     endTime: session.endTime ? new Date(session.endTime) : null,
+    zoomLink: session.zoomLink || "",
     objectives: session.objectives || [],
     materials: session.materials || [],
   });
@@ -54,6 +55,7 @@ export default function SessionSettingsDrawer({
         description: session.description || "",
         maxAttendees: session.maxAttendees || 10,
         endTime: session.endTime ? new Date(session.endTime) : null,
+        zoomLink: session.zoomLink || "",
         objectives: session.objectives || [],
         materials: session.materials || [],
       });
@@ -120,6 +122,7 @@ export default function SessionSettingsDrawer({
             description: formData.description,
             maxAttendees: formData.maxAttendees,
             endTime: formData.endTime?.toISOString(),
+            zoomLink: formData.zoomLink,
             objectives: formData.objectives,
             materials: formData.materials,
           }),
@@ -199,6 +202,16 @@ export default function SessionSettingsDrawer({
             setFormData((prev) => ({ ...prev, endTime: value }))
           }
           clearable
+        />
+
+        <TextInput
+          label="Zoom Link"
+          placeholder="https://zoom.us/j/..."
+          value={formData.zoomLink}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, zoomLink: e.target.value }))
+          }
+          description="Video meeting link for this session"
         />
 
         <Divider />

@@ -21,6 +21,7 @@ import {
   Drawer,
   Collapse,
   Modal,
+  Divider,
   em,
 } from "@mantine/core";
 import { useMediaQuery, useDisclosure } from "@mantine/hooks";
@@ -35,6 +36,10 @@ import {
   IconDots,
   IconSettings,
   IconShield,
+  IconInfoCircle,
+  IconExternalLink,
+  IconTarget,
+  IconBook,
 } from "@tabler/icons-react";
 import PageWrapper from "@/components/PageWrapper";
 import ZoomMeeting from "@/components/sessions/ZoomMeeting";
@@ -71,6 +76,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const [videoOpened, { open: openVideo, close: closeVideo }] = useDisclosure(false);
   const [settingsOpened, { open: openSettings, close: closeSettings }] = useDisclosure(false);
   const [adminOpened, { open: openAdmin, close: closeAdmin }] = useDisclosure(false);
+  const [infoOpened, { open: openInfo, close: closeInfo }] = useDisclosure(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   const refetchSession = useCallback(async () => {
@@ -338,10 +344,18 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 </Group>
               </Box>
               <Group gap="xs">
+                <ActionIcon
+                  variant="subtle"
+                  color="blue"
+                  size="lg"
+                  onClick={openInfo}
+                >
+                  <IconInfoCircle size={20} />
+                </ActionIcon>
                 {localSession.zoomLink && (
                   <ActionIcon
                     variant="subtle"
-                    color="blue"
+                    color="green"
                     size="lg"
                     onClick={openVideo}
                   >
@@ -578,6 +592,119 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           </Stack>
         </Drawer>
 
+        {/* Info Drawer - Mobile */}
+        <Drawer
+          opened={infoOpened}
+          onClose={closeInfo}
+          title="Session Info"
+          position="right"
+          size="sm"
+        >
+          <Stack gap={0}>
+            {/* Zoom Link Section */}
+            {localSession.zoomLink && (
+              <>
+                <Box py="md">
+                  <Group gap="sm" mb="xs">
+                    <IconVideo size={18} color="var(--mantine-color-green-6)" />
+                    <Text fw={600} size="sm">
+                      Video Meeting
+                    </Text>
+                  </Group>
+                  <Button
+                    component="a"
+                    href={localSession.zoomLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    leftSection={<IconExternalLink size={16} />}
+                    fullWidth
+                    color="green"
+                    variant="light"
+                  >
+                    Join Zoom Meeting
+                  </Button>
+                </Box>
+                <Divider />
+              </>
+            )}
+
+            {/* Objectives Section */}
+            {Array.isArray(localSession.objectives) && localSession.objectives.length > 0 && (
+              <>
+                <Box py="md">
+                  <Group gap="sm" mb="md">
+                    <IconTarget size={18} color="var(--mantine-color-blue-6)" />
+                    <Text fw={600} size="sm">
+                      Learning Objectives
+                    </Text>
+                  </Group>
+                  <Stack gap="sm">
+                    {localSession.objectives.map((objective, index) => (
+                      <Group key={index} gap="sm" align="flex-start" wrap="nowrap">
+                        <Box
+                          style={{
+                            minWidth: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            background: "var(--mantine-color-blue-1)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Text size="xs" fw={600} c="blue">
+                            {index + 1}
+                          </Text>
+                        </Box>
+                        <Text size="sm" style={{ flex: 1 }}>
+                          {objective}
+                        </Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Box>
+                <Divider />
+              </>
+            )}
+
+            {/* Materials Section */}
+            {Array.isArray(localSession.materials) && localSession.materials.length > 0 && (
+              <>
+                <Box py="md">
+                  <Group gap="sm" mb="md">
+                    <IconBook size={18} color="var(--mantine-color-orange-6)" />
+                    <Text fw={600} size="sm">
+                      Materials
+                    </Text>
+                  </Group>
+                  <Stack gap="sm">
+                    {localSession.materials.map((material, index) => (
+                      <Group key={index} gap="sm" align="flex-start">
+                        <Text size="sm" c="orange" style={{ minWidth: 20 }}>
+                          •
+                        </Text>
+                        <Text size="sm" style={{ flex: 1 }}>
+                          {material}
+                        </Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Box>
+              </>
+            )}
+
+            {!localSession.zoomLink &&
+              (!localSession.objectives || localSession.objectives.length === 0) &&
+              (!localSession.materials || localSession.materials.length === 0) && (
+                <Center py="xl">
+                  <Text size="sm" c="dimmed" ta="center">
+                    No additional information available
+                  </Text>
+                </Center>
+              )}
+          </Stack>
+        </Drawer>
+
         {/* Video Modal */}
         <Modal
           opened={videoOpened}
@@ -642,8 +769,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     <PageWrapper>
       <Container size="xl" py="xl">
         {/* Desktop Header */}
-        <Paper p="xl" radius="md" mb="lg">
-          <Group justify="space-between" wrap="wrap">
+        <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+          <Group justify="space-between" wrap="wrap" align="flex-start">
             <Stack gap="xs" style={{ flex: 1 }}>
               <Title order={2}>{localSession.name}</Title>
               <Text size="sm" c="dimmed">
@@ -658,7 +785,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                 </Badge>
                 <Badge
                   color={isConnected ? "green" : "red"}
-                  variant="light"
+                  variant="dot"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
@@ -671,11 +798,15 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
             <Group gap="sm">
               {localSession.zoomLink && (
                 <Button
-                  leftSection={<IconVideo size={16} />}
+                  component="a"
+                  href={localSession.zoomLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  leftSection={<IconExternalLink size={16} />}
                   variant="light"
-                  onClick={openVideo}
+                  color="green"
                 >
-                  Join Video
+                  Join Zoom
                 </Button>
               )}
               {isInstructor && (
@@ -699,78 +830,84 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               )}
             </Group>
           </Group>
-        </Paper>
+        </Box>
 
-        <Group align="flex-start" gap="lg">
+        <Group align="flex-start" gap={0}>
           {/* Chat Area */}
-          <Paper
-            p="xl"
-            radius="md"
-            style={{ flex: 1, height: "calc(100vh - 300px)", minHeight: 500 }}
+          <Box
+            style={{ 
+              flex: 1, 
+              height: "calc(100vh - 300px)", 
+              minHeight: 500,
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            <Stack gap="md" h="100%">
+            <Box px="xl" pt="lg" pb="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
               <Group justify="space-between">
                 <Title order={3}>Chat</Title>
                 <Text size="sm" c="dimmed">
                   {participants.length} online
                 </Text>
               </Group>
+            </Box>
 
-              <ScrollArea style={{ flex: 1 }} viewportRef={messagesEndRef}>
-                <Stack gap="md">
-                  {messages.length === 0 ? (
-                    <Center h={200}>
-                      <Text c="dimmed">No messages yet. Start the conversation!</Text>
-                    </Center>
-                  ) : (
-                    messages.map((message) => {
-                      const isCurrentUser = message.sender.id === currentUser.id;
-                      return (
-                        <Group
-                          key={message.id}
-                          gap="sm"
-                          align="flex-start"
-                          style={{
-                            flexDirection: isCurrentUser ? "row-reverse" : "row",
-                          }}
-                        >
-                          <Avatar size="sm" radius="xl">
-                            {getInitials(message.sender.username)}
-                          </Avatar>
-                          <Stack gap={4} style={{ maxWidth: "70%" }}>
-                            <Group gap="xs">
-                              <Text size="sm" fw={500}>
-                                {message.sender.username}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {message.createdAt
-                                  ? new Date(message.createdAt).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : ""}
-                              </Text>
-                            </Group>
-                            <Box
-                              style={{
-                                backgroundColor: isCurrentUser
-                                  ? "var(--mantine-color-blue-6)"
-                                  : "var(--mantine-color-gray-2)",
-                                color: isCurrentUser ? "white" : "inherit",
-                                padding: "8px 12px",
-                                borderRadius: "var(--mantine-radius-md)",
-                              }}
-                            >
-                              <Text size="sm">{message.text}</Text>
-                            </Box>
-                          </Stack>
-                        </Group>
-                      );
-                    })
-                  )}
-                </Stack>
-              </ScrollArea>
+            <ScrollArea style={{ flex: 1 }} px="xl" py="md" viewportRef={messagesEndRef}>
+              <Stack gap="md">
+                {messages.length === 0 ? (
+                  <Center h={200}>
+                    <Text c="dimmed">No messages yet. Start the conversation!</Text>
+                  </Center>
+                ) : (
+                  messages.map((message) => {
+                    const isCurrentUser = message.sender.id === currentUser.id;
+                    return (
+                      <Group
+                        key={message.id}
+                        gap="sm"
+                        align="flex-start"
+                        style={{
+                          flexDirection: isCurrentUser ? "row-reverse" : "row",
+                        }}
+                      >
+                        <Avatar size="sm" radius="xl">
+                          {getInitials(message.sender.username)}
+                        </Avatar>
+                        <Stack gap={4} style={{ maxWidth: "70%" }}>
+                          <Group gap="xs">
+                            <Text size="sm" fw={500}>
+                              {message.sender.username}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {message.createdAt
+                                ? new Date(message.createdAt).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : ""}
+                            </Text>
+                          </Group>
+                          <Box
+                            style={{
+                              backgroundColor: isCurrentUser
+                                ? "var(--mantine-color-blue-6)"
+                                : "var(--mantine-color-gray-2)",
+                              color: isCurrentUser ? "white" : "inherit",
+                              padding: "10px 14px",
+                              borderRadius: "18px",
+                            }}
+                          >
+                            <Text size="sm">{message.text}</Text>
+                          </Box>
+                        </Stack>
+                      </Group>
+                    );
+                  })
+                )}
+              </Stack>
+            </ScrollArea>
 
+            <Box px="xl" py="md" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
               <Group gap="xs">
                 <TextInput
                   placeholder="Type your message..."
@@ -791,18 +928,49 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   <IconSend size={18} />
                 </ActionIcon>
               </Group>
-            </Stack>
-          </Paper>
+            </Box>
+          </Box>
 
           {/* Sidebar */}
-          <Stack gap="md" style={{ width: 300 }}>
-            <Paper p="md" radius="md">
-              <Stack gap="md">
-                <Group gap="xs">
+          <Box style={{ width: 320, borderLeft: "1px solid var(--mantine-color-gray-3)" }}>
+            <Stack gap={0}>
+              {/* Zoom Link Section */}
+              {localSession.zoomLink && (
+                <>
+                  <Box p="lg">
+                    <Group gap="sm" mb="sm">
+                      <IconVideo size={18} color="var(--mantine-color-green-6)" />
+                      <Text fw={600} size="sm">
+                        Video Meeting
+                      </Text>
+                    </Group>
+                    <Button
+                      component="a"
+                      href={localSession.zoomLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      leftSection={<IconExternalLink size={16} />}
+                      fullWidth
+                      color="green"
+                      variant="light"
+                      size="sm"
+                    >
+                      Join Zoom Meeting
+                    </Button>
+                  </Box>
+                  <Divider />
+                </>
+              )}
+
+              {/* Participants */}
+              <Box p="lg">
+                <Group gap="sm" mb="md">
                   <IconUsers size={18} />
-                  <Text fw={600}>Participants</Text>
+                  <Text fw={600} size="sm">
+                    Participants ({participants.length})
+                  </Text>
                 </Group>
-                <ScrollArea h={300}>
+                <ScrollArea h={240}>
                   <Stack gap="sm">
                     {participants.length === 0 ? (
                       <Text size="sm" c="dimmed" ta="center">
@@ -822,8 +990,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                               {participant.type.toUpperCase()}
                             </Text>
                           </Box>
-                          {participant.id === session.instructorId && (
-                            <Badge size="xs" color="blue">
+                          {participant.id === localSession.instructorId && (
+                            <Badge size="xs" color="blue" variant="light">
                               Host
                             </Badge>
                           )}
@@ -832,39 +1000,84 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     )}
                   </Stack>
                 </ScrollArea>
-              </Stack>
-            </Paper>
+              </Box>
 
-            {Array.isArray(localSession.materials) && localSession.materials.length > 0 && (
-              <Paper p="md" radius="md">
-                <Stack gap="sm">
-                  <Text fw={600}>Materials</Text>
-                  <Stack gap="xs">
-                    {localSession.materials.map((material, index) => (
-                      <Text key={index} size="sm">
-                        • {material}
+              {/* Objectives Section */}
+              {Array.isArray(localSession.objectives) && localSession.objectives.length > 0 && (
+                <>
+                  <Divider />
+                  <Box p="lg">
+                    <Group gap="sm" mb="md">
+                      <IconTarget size={18} color="var(--mantine-color-blue-6)" />
+                      <Text fw={600} size="sm">
+                        Learning Objectives
                       </Text>
-                    ))}
-                  </Stack>
-                </Stack>
-              </Paper>
-            )}
+                    </Group>
+                    <Stack gap="md">
+                      {localSession.objectives.map((objective, index) => (
+                        <Group key={index} gap="sm" align="flex-start" wrap="nowrap">
+                          <Box
+                            style={{
+                              minWidth: 28,
+                              height: 28,
+                              borderRadius: "50%",
+                              background: "var(--mantine-color-blue-1)",
+                              border: "2px solid var(--mantine-color-blue-3)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Text size="xs" fw={700} c="blue">
+                              {index + 1}
+                            </Text>
+                          </Box>
+                          <Text size="sm" style={{ flex: 1, lineHeight: 1.5 }}>
+                            {objective}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  </Box>
+                </>
+              )}
 
-            {Array.isArray(localSession.objectives) && localSession.objectives.length > 0 && (
-              <Paper p="md" radius="md">
-                <Stack gap="sm">
-                  <Text fw={600}>Objectives</Text>
-                  <Stack gap="xs">
-                    {localSession.objectives.map((objective, index) => (
-                      <Text key={index} size="sm">
-                        • {objective}
+              {/* Materials Section */}
+              {Array.isArray(localSession.materials) && localSession.materials.length > 0 && (
+                <>
+                  <Divider />
+                  <Box p="lg">
+                    <Group gap="sm" mb="md">
+                      <IconBook size={18} color="var(--mantine-color-orange-6)" />
+                      <Text fw={600} size="sm">
+                        Materials
                       </Text>
-                    ))}
-                  </Stack>
-                </Stack>
-              </Paper>
-            )}
-          </Stack>
+                    </Group>
+                    <Stack gap="sm">
+                      {localSession.materials.map((material, index) => (
+                        <Group key={index} gap="sm" align="flex-start" wrap="nowrap">
+                          <Box
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "var(--mantine-color-orange-6)",
+                              marginTop: 8,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Text size="sm" style={{ flex: 1 }}>
+                            {material}
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                  </Box>
+                </>
+              )}
+            </Stack>
+          </Box>
         </Group>
 
         {/* Desktop Video Modal */}

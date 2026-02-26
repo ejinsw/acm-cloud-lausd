@@ -588,14 +588,24 @@ export const forgotPassword = expressAsyncHandler(
  * @access Public
  * @body {
  *   email: string;
- *   code: string;
+ *   code: string; (or verificationCode)
  *   newPassword: string;
  * }
  */
 export const resetPassword = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, code, newPassword } = req.body;
+    const raw = req.body || {};
+    const bodyKeys = Object.keys(raw);
+    console.log('[reset-password] Received body keys:', bodyKeys.join(', ') || '(none)');
+
+    const email = typeof raw.email === 'string' ? raw.email.trim() : '';
+    const code = typeof raw.code === 'string'
+      ? raw.code.trim()
+      : (typeof raw.verificationCode === 'string' ? raw.verificationCode.trim() : '');
+    const newPassword = typeof raw.newPassword === 'string' ? raw.newPassword : '';
+
     if (!email || !code || !newPassword) {
+      console.log('[reset-password] Validation failed: hasEmail=', !!email, 'codeLen=', code.length, 'hasNewPassword=', !!newPassword);
       res.status(400).json({ error: 'Email, code, and new password are required' });
       return;
     }
@@ -613,9 +623,23 @@ export const resetPassword = expressAsyncHandler(
         SecretHash: hash,
       });
       await cognito.send(command);
+      console.log('[reset-password] Success for email:', email);
       res.status(200).json({ message: 'Password has been reset successfully.' });
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      const name = err?.name || '';
+      const cognitoMsg = err?.message || '';
+      console.error('[reset-password] Cognito error:', name, cognitoMsg);
+      let message = cognitoMsg || 'Failed to reset password.';
+      if (name === 'CodeMismatchException') {
+        message = 'Invalid verification code. Please check the code and try again, or request a new code.';
+      } else if (name === 'ExpiredCodeException') {
+        message = 'Verification code has expired. Please request a new code from the previous step.';
+      } else if (name === 'InvalidPasswordException') {
+        message = 'Password does not meet requirements. Use at least 8 characters with uppercase, lowercase, numbers, and symbols.';
+      } else if (name === 'UserNotFoundException') {
+        message = 'No account found with this email.';
+      }
+      res.status(400).json({ error: message });
     }
   }
 );

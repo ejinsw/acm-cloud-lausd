@@ -50,6 +50,8 @@ export default function ForgotPasswordPage() {
         currentStep === "reset" && value.length !== 6 ? "Verification code must be 6 digits" : null,
       newPassword: (value) =>
         currentStep === "reset" && value.length < 8 ? "Password must be at least 8 characters long" : null,
+      confirmPassword: (value, values) =>
+        currentStep === "reset" && value !== values?.newPassword ? "Passwords do not match" : null,
     },
   });
 
@@ -91,21 +93,64 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "Failed to send code");
+      }
+      notifications.show({
+        id: "resend-success",
+        title: "Code sent",
+        message: "A new verification code was sent to your email.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+        autoClose: 5000,
+        withCloseButton: true,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to resend code.";
+      notifications.show({
+        id: "resend-error",
+        title: "Error",
+        message: msg,
+        color: "red",
+        icon: <XCircle size={16} />,
+        autoClose: 5000,
+        withCloseButton: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetSubmit = async () => {
     setLoading(true);
     try {
+      const payload = {
+        email,
+        code: (form.values.verificationCode ?? "").trim(),
+        newPassword: form.values.newPassword ?? "",
+      };
       const response = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email,
-          code: form.values.verificationCode,
-          newPassword: form.values.newPassword,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to reset password");
-      
+      const data = await response.json().catch(() => ({}));
+      const errorMessage = typeof data?.error === "string" ? data.error : null;
+
+      if (!response.ok) {
+        throw new Error(errorMessage || "Failed to reset password");
+      }
+
       notifications.show({
         id: 'password-reset-success',
         title: "Password Reset Successful",
@@ -120,14 +165,15 @@ export default function ForgotPasswordPage() {
         router.push(routes.signIn);
       }, 1000);
       
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to reset password. Please try again.";
       notifications.show({
         id: 'password-reset-error',
         title: "Error",
-        message: "Failed to reset password. Please try again.",
+        message,
         color: "red",
         icon: <XCircle size={16} />,
-        autoClose: 5000,
+        autoClose: 7000,
         withCloseButton: true,
       });
     } finally {
@@ -206,19 +252,29 @@ export default function ForgotPasswordPage() {
             mt="md"
             fullWidth
             onClick={() => {
+              const validation = form.validate();
+              const { verificationCode, newPassword, confirmPassword } = form.values;
               if (
-                !form.errors.verificationCode &&
-                !form.errors.newPassword &&
-                !form.errors.confirmPassword &&
-                form.values.verificationCode &&
-                form.values.newPassword &&
-                form.values.confirmPassword
+                !validation.hasErrors &&
+                verificationCode &&
+                newPassword &&
+                confirmPassword &&
+                newPassword === confirmPassword
               ) {
                 handleResetSubmit();
               }
             }}
           >
             Reset Password
+          </Button>
+          <Button
+            variant="light"
+            size="sm"
+            fullWidth
+            loading={loading}
+            onClick={handleResendCode}
+          >
+            Resend verification code
           </Button>
         </Stack>
       );

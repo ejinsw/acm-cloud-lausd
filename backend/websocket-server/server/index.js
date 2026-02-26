@@ -6,8 +6,8 @@ const store = require('./daxSTORE');
 const {
   subscribeQueue,
   unsubscribeQueue,
-  broadcastQueueUpdate,
   acceptQueue,
+  removeStaleStudentQueues,
 } = require('./QueueManager');
 const { handleIdentify } = require('./IdentityManager');
 const {
@@ -56,6 +56,9 @@ const queueAdmins = new Map();
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 const ROOM_CLEANUP_INTERVAL = 5 * 60 * 1000;
 const PING_INTERVAL = 30 * 1000; // Send ping every 30 seconds
+const STUDENT_QUEUE_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min
+const STUDENT_QUEUE_CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 min
+const EMPTY_ROOM_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 httpServer.listen(PORT, () => {
   console.log(`WebSocket server started on port ${PORT}`);
@@ -324,7 +327,10 @@ server.on('connection', ws => {
  */
 process.on('SIGINT', () => {
   console.log('Server shutting down...');
-  clearInterval(heartbeatInterval); // Clean up heartbeat interval
+  clearInterval(heartbeatInterval);
+  clearInterval(roomCleanupInterval);
+  clearInterval(studentQueueCleanupInterval);
+  clearInterval(emptyRoomCleanupInterval);
   server.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(
@@ -345,7 +351,8 @@ process.on('SIGINT', () => {
 /*
  * "GARBAGE COLLECTION"
  */
-setInterval(() => {
+// Every 5 min: remove rooms that have been empty and inactive for INACTIVITY_TIMEOUT
+const roomCleanupInterval = setInterval(() => {
   (async () => {
     const now = Date.now();
     const expiredRooms = [];
@@ -371,3 +378,31 @@ setInterval(() => {
     await pushRoomListUpdate();
   })().catch(err => console.error('Room cleanup loop failed:', err));
 }, ROOM_CLEANUP_INTERVAL);
+
+// Every 15 min: remove student queue entries waiting longer than 15 min
+const studentQueueCleanupInterval = setInterval(() => {
+  removeStaleStudentQueues(queueStudents, queueInstructors, queueAdmins, STUDENT_QUEUE_MAX_WAIT_MS);
+}, STUDENT_QUEUE_CLEANUP_INTERVAL);
+
+// Every hour: remove rooms that have no active (connected) users
+const emptyRoomCleanupInterval = setInterval(() => {
+  (async () => {
+    const emptyRoomIds = [];
+    for (const [roomId, state] of liveRooms.entries()) {
+      if (state.clients.size === 0) {
+        emptyRoomIds.push(roomId);
+      }
+    }
+    if (emptyRoomIds.length === 0) return;
+    console.log('Hourly empty-room cleanup:', emptyRoomIds.join(', '));
+    for (const roomId of emptyRoomIds) {
+      liveRooms.delete(roomId);
+      try {
+        await store.expireRoom(roomId);
+      } catch (err) {
+        console.error(`Failed to expire room ${roomId}:`, err);
+      }
+    }
+    await pushRoomListUpdate();
+  })().catch(err => console.error('Empty room cleanup failed:', err));
+}, EMPTY_ROOM_CLEANUP_INTERVAL);

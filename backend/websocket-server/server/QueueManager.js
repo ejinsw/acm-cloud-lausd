@@ -10,7 +10,7 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
 
   switch (role.toLowerCase()) {
     case 'student': {
-      queueStudents.set(ws.userId, { id: ws.userId, ws, role, data });
+      queueStudents.set(ws.userId, { id: ws.userId, ws, role, data, joinedAt: Date.now() });
       console.log(`Student ${ws.userId} subscribed to queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_SUBSCRIBED', payload: {} }));
 
@@ -211,8 +211,54 @@ function acceptQueue(ws, payload, queueInstructors, queueStudents, queueAdmins) 
   ws.send(JSON.stringify({ type: 'QUEUE_ACCEPTED', payload: { data } }));
 }
 
+/**
+ * Remove student queue entries that have been waiting longer than maxWaitMs.
+ * Notifies removed students and broadcasts QUEUE_LEAVE to instructors and admins.
+ */
+function removeStaleStudentQueues(queueStudents, queueInstructors, queueAdmins, maxWaitMs) {
+  const now = Date.now();
+  const toRemove = [];
+
+  for (const [userId, entry] of queueStudents.entries()) {
+    const joinedAt = entry.joinedAt != null ? entry.joinedAt : now;
+    if (now - joinedAt >= maxWaitMs) {
+      toRemove.push({ userId, entry });
+    }
+  }
+
+  for (const { userId, entry } of toRemove) {
+    queueStudents.delete(userId);
+    if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+      entry.ws.send(
+        JSON.stringify({
+          type: 'QUEUE_LEAVE',
+          payload: { id: userId, role: 'student', reason: 'timeout' },
+        })
+      );
+    }
+    const leavePayload = { id: userId, role: 'student' };
+    queueInstructors.forEach(({ ws: instrWs }) => {
+      if (instrWs.readyState === WebSocket.OPEN) {
+        instrWs.send(JSON.stringify({ type: 'QUEUE_LEAVE', payload: leavePayload }));
+      }
+    });
+    queueAdmins.forEach(({ ws: adminWs }) => {
+      if (adminWs.readyState === WebSocket.OPEN) {
+        adminWs.send(JSON.stringify({ type: 'QUEUE_LEAVE', payload: leavePayload }));
+      }
+    });
+  }
+
+  if (toRemove.length > 0) {
+    console.log(
+      `Removed ${toRemove.length} student queue entries (wait time > ${maxWaitMs / 60000} min)`
+    );
+  }
+}
+
 module.exports = {
   subscribeQueue,
   unsubscribeQueue,
   acceptQueue,
+  removeStaleStudentQueues,
 };

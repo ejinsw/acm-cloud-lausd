@@ -27,7 +27,7 @@ import { useMemo, useState } from "react";
 const helpSections = [
   {
     title: "FAQs",
-    description: "Find answers to frequently asked questions about our tutoring services.",
+    description: "Find answers to common questions about using the app.",
     icon: <HelpCircle size={24} />,
     color: "blue",
     link: "/help/faq",

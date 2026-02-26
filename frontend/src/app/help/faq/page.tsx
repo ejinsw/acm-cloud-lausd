@@ -15,7 +15,6 @@ import {
   TextInput,
 } from "@mantine/core";
 import { 
-  BookOpen, 
   User, 
   Calendar, 
   Video, 
@@ -27,43 +26,24 @@ import Link from "next/link";
 import { routes } from "../../routes";
 import { useMemo, useState } from "react";
 
-// FAQ categories and questions
+// FAQ categories and questions (logistical & technical only)
 const faqCategories = [
-  {
-    title: "Getting Started",
-    icon: <BookOpen size={24} />,
-    color: "blue",
-    questions: [
-      {
-        question: "How do I sign up for tutoring sessions?",
-        answer: "To sign up for tutoring sessions, create an account on our platform, browse available tutors and subjects, and book a session that fits your schedule. You can filter by subject, grade level, and availability."
-      },
-      {
-        question: "What subjects are available for tutoring?",
-        answer: "We offer tutoring in a wide range of subjects including Mathematics, Science, English, History, Spanish, and Programming. Each subject has multiple tutors available with different specializations."
-      },
-      {
-        question: "How do I choose the right tutor?",
-        answer: "You can browse tutor profiles to see their qualifications, experience, ratings, and reviews from other students. Each profile includes their teaching style, subjects they specialize in, and their availability."
-      }
-    ]
-  },
   {
     title: "Account & Profile",
     icon: <User size={24} />,
     color: "violet",
     questions: [
       {
-        question: "How do I update my profile information?",
-        answer: "You can update your profile information by going to your account settings. Click on your profile picture in the top right corner and select 'Account Settings' to modify your personal information."
+        question: "How do I update my profile?",
+        answer: "Go to account settings to update your name, email, and other details."
       },
       {
-        question: "Can I change my email or password?",
-        answer: "Yes, you can change your email and password in your account settings. Go to the 'Security' tab in your account settings to make these changes."
+        question: "How do I change my password?",
+        answer: "Use the Security section in account settings to change your password."
       },
       {
-        question: "How do I manage my notification preferences?",
-        answer: "You can manage your notification preferences in your account settings under the 'Notifications' tab. Here you can choose which types of notifications you want to receive and how you want to receive them."
+        question: "How do I manage notifications?",
+        answer: "Adjust notification preferences in your account settings."
       }
     ]
   },
@@ -73,35 +53,35 @@ const faqCategories = [
     color: "teal",
     questions: [
       {
-        question: "How do I start a tutoring session?",
-        answer: "Open the queue, pick your subject, and describe your question. When an instructor accepts, you are redirected directly into a live session."
+        question: "How do I join the queue?",
+        answer: "Open the queue for your session, pick a subject or topic, and add a short description. You’ll be matched when someone is available."
       },
       {
-        question: "Can I cancel my request?",
-        answer: "Yes. While waiting in queue, use 'Leave Queue' to cancel your request immediately."
+        question: "How do I leave the queue?",
+        answer: "Use the 'Leave Queue' button while you’re waiting."
       },
       {
-        question: "What happens if I disconnect during a session?",
-        answer: "Re-open the same session link and you can rejoin. Chat history and participant state are synced in real time."
+        question: "What if I get disconnected during a session?",
+        answer: "Open the same session link again to rejoin. Your chat and session state will still be there."
       }
     ]
   },
   {
-    title: "Technical Support",
+    title: "Technical",
     icon: <Video size={24} />,
     color: "orange",
     questions: [
       {
-        question: "What are the technical requirements for online sessions?",
-        answer: "You'll need a stable internet connection, a webcam, and a microphone. We recommend using Chrome or Firefox browsers for the best experience. A quiet, well-lit environment is also recommended."
+        question: "What do I need for sessions?",
+        answer: "A stable internet connection, webcam, and microphone. Chrome or Firefox works best."
       },
       {
-        question: "What should I do if I have technical issues during a session?",
-        answer: "If you experience technical issues, refresh your browser first. If the problem persists, contact support through the Help section or email support@tutoringapp.org."
+        question: "What if I have technical issues?",
+        answer: "Refresh your browser first. If it continues, contact support from the Help or Contact page."
       },
       {
-        question: "How do I test my audio and video before a session?",
-        answer: "Test your device audio/video in your browser settings before joining. We recommend checking your setup a few minutes early."
+        question: "How do I test my camera and microphone?",
+        answer: "Check your browser or device settings before joining. Test a few minutes before your session."
       }
     ]
   }
@@ -134,7 +114,7 @@ export default function FAQPage() {
                 Frequently Asked Questions
               </Title>
               <Text size="lg" c="dimmed" maw={600} mx="auto">
-                Find answers to common questions about queue requests, live sessions, and technical support.
+                Find answers to common questions about using the app.
               </Text>
               <TextInput
                 mt="lg"

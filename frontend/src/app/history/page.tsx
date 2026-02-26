@@ -28,6 +28,12 @@ function HistoryContent() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<HistoryFilter>("all");
 
+  const filtered = useMemo(() => {
+    if (filter === "reviewed") return sessionHistory.filter((item) => !!item.relatedReview);
+    if (filter === "pending") return sessionHistory.filter((item) => !item.relatedReview);
+    return sessionHistory;
+  }, [filter, sessionHistory]);
+
   const fetchSessionHistory = async () => {
     try {
       const token = await getToken();
@@ -98,12 +104,6 @@ function HistoryContent() {
       </Box>
     );
   }
-
-  const filtered = useMemo(() => {
-    if (filter === "reviewed") return sessionHistory.filter((item) => !!item.relatedReview);
-    if (filter === "pending") return sessionHistory.filter((item) => !item.relatedReview);
-    return sessionHistory;
-  }, [filter, sessionHistory]);
 
   return (
     <Stack py="lg" className="app-page-grid">

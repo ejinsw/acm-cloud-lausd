@@ -99,6 +99,10 @@ export interface SessionRequest {
   createdAt?: string;
   updatedAt?: string;
   status?: "PENDING" | "ACCEPTED" | "REJECTED";
+  queuePosition?: number;
+  estimatedWaitMinutes?: number;
+  canTeach?: boolean;
+  priorityBand?: "high" | "medium" | "low";
 
   studentId: string;
   student?: User;

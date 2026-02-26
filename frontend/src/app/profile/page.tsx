@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Container,
   Title,
   Paper,
   Tabs,
@@ -20,15 +19,16 @@ import {
   Modal,
   Textarea,
   LoadingOverlay,
+  Affix,
+  Card,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
-import { User, Shield, CheckCircle2, XCircle, Video } from "lucide-react";
+import { User, Shield, CheckCircle2, XCircle, Link2 } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
 import { routes } from "../routes";
 import { getToken } from "@/actions/authentication";
 import { User as UserType } from "@/lib/types";
-import ZoomConnection from "@/components/sessions/ZoomConnection";
 
 function ProfileContent() {
   const searchParams = useSearchParams();
@@ -452,19 +452,19 @@ function ProfileContent() {
 
   if (!user) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <LoadingOverlay visible={loading} />
         <Paper p="xl" radius="md" withBorder>
           <Text ta="center">Loading profile...</Text>
         </Paper>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container size="xl" py="xl">
+    <Box py="lg" className="app-page-grid">
       <LoadingOverlay visible={loading} />
-      <Paper p="xl" radius="md" withBorder mb="xl">
+      <Paper p="xl" radius="md" withBorder mb="xl" className="app-glass">
         <Group justify="space-between" mb="xl">
           <div>
             <Title order={2}>Profile & Settings</Title>
@@ -487,7 +487,7 @@ function ProfileContent() {
                 leftSection={<User size={16} />}
                 rightSection={hasUnsavedChanges() ? <div className="w-2 h-2 bg-orange-500 rounded-full" /> : undefined}
               >
-                Parent Info
+                Academic
               </Tabs.Tab>
             )}
             <Tabs.Tab 
@@ -495,15 +495,18 @@ function ProfileContent() {
               leftSection={<User size={16} />}
               rightSection={hasUnsavedChanges() ? <div className="w-2 h-2 bg-orange-500 rounded-full" /> : undefined}
             >
-              Address
+              {user.role === "INSTRUCTOR" ? "Teaching" : "Address"}
+            </Tabs.Tab>
+            <Tabs.Tab value="security" leftSection={<Shield size={16} />}>
+              Security
             </Tabs.Tab>
             {user.role === "INSTRUCTOR" && (
-              <Tabs.Tab value="zoom" leftSection={<Video size={16} />}>
-                Zoom Integration
+              <Tabs.Tab value="integrations" leftSection={<Link2 size={16} />}>
+                Integrations
               </Tabs.Tab>
             )}
             <Tabs.Tab value="privacy" leftSection={<Shield size={16} />}>
-              Privacy
+              Danger Zone
             </Tabs.Tab>
           </Tabs.List>
 
@@ -806,22 +809,43 @@ function ProfileContent() {
             </Box>
           </Tabs.Panel>
 
-          {/* Zoom Integration Tab - Only for Instructors */}
+          {/* Integrations Tab - Only for Instructors */}
           {user.role === "INSTRUCTOR" && (
-            <Tabs.Panel value="zoom">
+            <Tabs.Panel value="integrations">
               <Box pt="md">
                 <Stack>
                   <Text size="lg" fw={500} mb="md">
-                    Zoom Integration
+                    Meeting Links
                   </Text>
                   <Text size="sm" c="dimmed" mb="md">
-                    Connect your Zoom account to automatically create video meetings for your tutoring sessions.
+                    Third-party video SDK integrations are disabled in this release.
+                    Add a meeting link directly in session settings when you are in a live session.
                   </Text>
-                  <ZoomConnection />
                 </Stack>
               </Box>
             </Tabs.Panel>
           )}
+
+          <Tabs.Panel value="security">
+            <Box pt="md">
+              <Stack>
+                <Text size="lg" fw={500}>
+                  Security
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Manage login safety and account recovery settings.
+                </Text>
+                <Group>
+                  <Button
+                    variant="light"
+                    onClick={() => router.push(routes.forgotPassword)}
+                  >
+                    Reset Password
+                  </Button>
+                </Group>
+              </Stack>
+            </Box>
+          </Tabs.Panel>
 
           <Tabs.Panel value="privacy">
             <Box pt="md">
@@ -906,7 +930,27 @@ function ProfileContent() {
           </Group>
         </Stack>
       </Modal>
-    </Container>
+      {hasUnsavedChanges() && (
+        <Affix position={{ bottom: 18, left: 18, right: 18 }}>
+          <Card className="app-glass" p="md" shadow="lg">
+            <Group justify="space-between" wrap="wrap">
+              <Stack gap={0}>
+                <Text fw={600}>Unsaved changes</Text>
+                <Text size="sm" c="dimmed">
+                  {getChangedFields().join(", ")}
+                </Text>
+              </Stack>
+              <Group>
+                <Button variant="light" onClick={handleResetChanges}>
+                  Reset
+                </Button>
+                <Button onClick={handleSaveProfile}>Save all changes</Button>
+              </Group>
+            </Group>
+          </Card>
+        </Affix>
+      )}
+    </Box>
   );
 }
 

@@ -1,5 +1,5 @@
-import { Group, Text, Badge, Button, Rating, Stack, Box, Divider } from "@mantine/core";
-import { Calendar, Star, Clock, User } from "lucide-react";
+import { Group, Text, Badge, Button, Rating, Stack, Box, Divider, ThemeIcon } from "@mantine/core";
+import { Calendar, Star, Clock, User, CheckCircle2 } from "lucide-react";
 import { SessionHistoryItem } from "@/lib/types";
 
 export interface PastSession extends SessionHistoryItem {
@@ -32,7 +32,6 @@ function getSessionDuration(startTime: string, endTime: string): number {
 }
 
 export function SessionHistoryTab({ sessionHistory, onReviewClick }: SessionHistoryTabProps) {
-  
   if (sessionHistory.length === 0) {
     return (
       <Box py="xl" ta="center">
@@ -42,77 +41,123 @@ export function SessionHistoryTab({ sessionHistory, onReviewClick }: SessionHist
     );
   }
 
-  return (
-    <Stack gap={0}>
-      {sessionHistory.map((session, index) => {
-        const duration = session.startTime && session.endTime 
-          ? getSessionDuration(session.startTime, session.endTime)
-          : 0;
+  const grouped = sessionHistory.reduce<Record<string, SessionHistoryItem[]>>((acc, session) => {
+    const key = (session.startTime || session.endTime || session.createdAt || "").slice(0, 10) || "Unknown";
+    acc[key] = [...(acc[key] || []), session];
+    return acc;
+  }, {});
 
-        return (
-          <Box key={session.id}>
-            {index > 0 && <Divider />}
-            <Box py="lg">
-              <Group justify="space-between" mb="sm" wrap="wrap">
-                <Text fw={500} size="lg">{session.name}</Text>
-                <Badge color="blue" variant="light" size="sm">Completed</Badge>
-              </Group>
-              
-              <Stack gap="xs" mb="md">
-                {session.instructorName && (
-                  <Group gap="xs">
-                    <User size={14} />
-                    <Text size="sm">{session.instructorName}</Text>
+  const sortedKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  return (
+    <Stack gap="lg">
+      {sortedKeys.map((dateKey) => (
+        <Box key={dateKey}>
+          <Text size="sm" fw={700} c="dimmed" mb="xs">
+            {dateKey === "Unknown"
+              ? "Unknown date"
+              : new Date(dateKey).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+          </Text>
+          <Stack gap={0}>
+            {grouped[dateKey].map((session, index) => {
+              const duration =
+                session.startTime && session.endTime
+                  ? getSessionDuration(session.startTime, session.endTime)
+                  : 0;
+
+              return (
+                <Box key={session.id}>
+                  {index > 0 && <Divider />}
+                  <Group align="flex-start" gap="md" py="lg" wrap="nowrap">
+                    <ThemeIcon
+                      radius="xl"
+                      size="md"
+                      color={session.relatedReview ? "green" : "yellow"}
+                      variant="light"
+                      mt={2}
+                    >
+                      {session.relatedReview ? <CheckCircle2 size={14} /> : <Star size={14} />}
+                    </ThemeIcon>
+                    <Box style={{ flex: 1 }}>
+                      <Group justify="space-between" mb="sm" wrap="wrap">
+                        <Text fw={600}>{session.name}</Text>
+                        <Group gap="xs">
+                          <Badge color="blue" variant="light" size="sm">
+                            Completed
+                          </Badge>
+                          <Badge
+                            color={session.relatedReview ? "green" : "yellow"}
+                            variant="outline"
+                            size="sm"
+                          >
+                            {session.relatedReview ? "Reviewed" : "Review pending"}
+                          </Badge>
+                        </Group>
+                      </Group>
+
+                      <Stack gap={4} mb="md">
+                        {session.instructorName && (
+                          <Group gap="xs">
+                            <User size={14} />
+                            <Text size="sm">{session.instructorName}</Text>
+                          </Group>
+                        )}
+                        {session.startTime && (
+                          <Group gap="xs">
+                            <Calendar size={14} />
+                            <Text size="sm">{formatSessionDate(session.startTime)}</Text>
+                          </Group>
+                        )}
+                        {duration > 0 && (
+                          <Group gap="xs">
+                            <Clock size={14} />
+                            <Text size="sm">{duration} minutes</Text>
+                          </Group>
+                        )}
+                        {session.description && (
+                          <Text size="sm" c="dimmed" lineClamp={2}>
+                            {session.description}
+                          </Text>
+                        )}
+                      </Stack>
+
+                      {session.relatedReview ? (
+                        <Stack gap="xs">
+                          <Group gap="xs">
+                            <Rating value={session.relatedReview.rating} readOnly size="sm" />
+                            <Text size="sm" fw={500}>
+                              {session.relatedReview.rating}/5
+                            </Text>
+                          </Group>
+                          {session.relatedReview.comment && (
+                            <Text size="xs" c="dimmed" lineClamp={2} fs="italic">
+                              &ldquo;{session.relatedReview.comment}&rdquo;
+                            </Text>
+                          )}
+                        </Stack>
+                      ) : (
+                        <Button
+                          variant="light"
+                          size="xs"
+                          onClick={() => onReviewClick(session as PastSession)}
+                          leftSection={<Star size={14} />}
+                        >
+                          Review now
+                        </Button>
+                      )}
+                    </Box>
                   </Group>
-                )}
-                
-                {session.startTime && (
-                  <Group gap="xs">
-                    <Calendar size={14} />
-                    <Text size="sm">{formatSessionDate(session.startTime)}</Text>
-                  </Group>
-                )}
-                
-                {duration > 0 && (
-                  <Group gap="xs">
-                    <Clock size={14} />
-                    <Text size="sm">{duration} minutes</Text>
-                  </Group>
-                )}
-                
-                {session.description && (
-                  <Text size="sm" c="dimmed" lineClamp={2}>
-                    {session.description}
-                  </Text>
-                )}
-              </Stack>
-              
-              {session.relatedReview ? (
-                <Stack gap="xs">
-                  <Group gap="xs">
-                    <Rating value={session.relatedReview.rating} readOnly size="sm" />
-                    <Text size="sm" fw={500}>{session.relatedReview.rating}/5 — Your Review</Text>
-                  </Group>
-                  {session.relatedReview.comment && (
-                    <Text size="xs" c="dimmed" lineClamp={2} fs="italic">
-                      &ldquo;{session.relatedReview.comment}&rdquo;
-                    </Text>
-                  )}
-                </Stack>
-              ) : (
-                <Button 
-                  variant="light" 
-                  size="xs" 
-                  onClick={() => onReviewClick(session as PastSession)}
-                  leftSection={<Star size={14} />}
-                >
-                  Leave Review
-                </Button>
-              )}
-            </Box>
-          </Box>
-        );
-      })}
+                </Box>
+              );
+            })}
+          </Stack>
+        </Box>
+      ))}
     </Stack>
   );
-} 
+}

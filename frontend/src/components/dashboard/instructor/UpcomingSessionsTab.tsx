@@ -1,7 +1,6 @@
 import { Title, Grid, Text, Box } from "@mantine/core";
 import { Session } from "@/lib/types";
 import { SessionCard } from "./SessionCard";
-import { ZoomProtectedLink } from "@/components/sessions/ZoomProtectedLink";
 
 interface UpcomingSessionsTabProps {
   sessions: Session[];
@@ -18,16 +17,7 @@ export function UpcomingSessionsTab({ sessions }: UpcomingSessionsTabProps) {
       <Box>
         <Title order={4} mb="md">Upcoming Sessions</Title>
         <Text c="dimmed" ta="center" py="xl">
-          No upcoming sessions scheduled. 
-          <ZoomProtectedLink
-            href="/sessions/create" 
-            variant="subtle" 
-            size="sm" 
-            ml="xs"
-            requireZoom={true}
-          >
-            Create your first session
-          </ZoomProtectedLink>
+          No upcoming sessions scheduled.
         </Text>
       </Box>
     );

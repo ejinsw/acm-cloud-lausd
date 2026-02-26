@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Container,
   Title,
   Text,
   Loader,
   Alert,
   Box,
   Center,
+  SegmentedControl,
+  Stack,
+  Card,
 } from "@mantine/core";
 import { AlertCircle } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
@@ -17,11 +19,14 @@ import { SessionHistoryItem } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
 import { getToken } from "@/actions/authentication";
 
+type HistoryFilter = "all" | "reviewed" | "pending";
+
 function HistoryContent() {
   const { isAuthenticated } = useAuth();
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<HistoryFilter>("all");
 
   const fetchSessionHistory = async () => {
     try {
@@ -59,19 +64,19 @@ function HistoryContent() {
 
   if (!isAuthenticated) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Box py="xl" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
           <Text ta="center" fw={500}>
             Please sign in to view your session history.
           </Text>
         </Box>
-      </Container>
+      </Box>
     );
   }
 
   if (isLoading) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Box py="xl">
           <Center>
             <Loader size="lg" />
@@ -80,31 +85,47 @@ function HistoryContent() {
             Loading your history...
           </Text>
         </Box>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
           {error}
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
-  return (
-    <Container size="xl" py="xl">
-      <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-        <Title order={2}>Session History</Title>
-        <Text c="dimmed" mt="xs" size="sm">
-          A record of every tutoring session you&apos;ve completed.
-        </Text>
-      </Box>
+  const filtered = useMemo(() => {
+    if (filter === "reviewed") return sessionHistory.filter((item) => !!item.relatedReview);
+    if (filter === "pending") return sessionHistory.filter((item) => !item.relatedReview);
+    return sessionHistory;
+  }, [filter, sessionHistory]);
 
-      <SessionHistoryTab sessionHistory={sessionHistory} onReviewClick={() => {}} />
-    </Container>
+  return (
+    <Stack py="lg" className="app-page-grid">
+      <Card className="app-glass" p="xl">
+        <Title order={2}>Session Timeline</Title>
+        <Text c="dimmed" mt="xs" size="sm">
+          Organized by date with review status and direct follow-up actions.
+        </Text>
+        <SegmentedControl
+          mt="md"
+          value={filter}
+          onChange={(value) => setFilter(value as HistoryFilter)}
+          data={[
+            { label: `All (${sessionHistory.length})`, value: "all" },
+            { label: `Reviewed (${sessionHistory.filter((item) => !!item.relatedReview).length})`, value: "reviewed" },
+            { label: `Pending (${sessionHistory.filter((item) => !item.relatedReview).length})`, value: "pending" },
+          ]}
+        />
+      </Card>
+
+      <SessionHistoryTab sessionHistory={filtered} onReviewClick={() => {}} />
+    </Stack>
   );
 }
 
@@ -115,4 +136,3 @@ export default function HistoryPage() {
     </PageWrapper>
   );
 }
-

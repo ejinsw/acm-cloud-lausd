@@ -22,7 +22,7 @@ export function SearchBar({
   onSearch,
   initialParams = {},
   isLoading = false,
-  disabled = true
+  disabled = false
 }: SearchBarProps) {
   const [searchParams, setSearchParams] = useState<SearchParams>({
     query: '',
@@ -54,6 +54,7 @@ export function SearchBar({
               { value: 'instructor', label: 'Instructor' },
             ]}
             disabled={isLoading || disabled}
+            variant="filled"
           />
         
         <TextInput
@@ -63,6 +64,7 @@ export function SearchBar({
           onChange={(e) => updateParams('query', e.target.value)}
           style={{ flex: 1 }}
           disabled={isLoading || disabled}
+          variant="filled"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleSearch();

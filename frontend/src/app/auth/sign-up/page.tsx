@@ -19,6 +19,7 @@ import {
   Image,
   MultiSelect,
   Loader,
+  Badge,
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
@@ -306,9 +307,15 @@ export default function SignUpPage() {
 
   return (
     <main>
-      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+      <Box
+        py={90}
+        style={{
+          background:
+            "radial-gradient(circle at 10% 20%, rgba(39,116,174,0.18), transparent 28%), radial-gradient(circle at 90% 0%, rgba(255,209,0,0.2), transparent 25%), #f4f8fc",
+        }}
+      >
         <Container size="sm">
-          <Paper radius="md" p={40} withBorder>
+          <Paper radius="md" p={40} withBorder className="app-glass">
             <Stack gap="xl">
               <div style={{ textAlign: "center" }}>
                 <Title order={1} size="h1" fw={900} mb="md">
@@ -317,6 +324,9 @@ export default function SignUpPage() {
                 <Text size="lg" c="dimmed">
                   Join our tutoring platform and start your learning journey
                 </Text>
+                <Badge mt="sm" color="blue" variant="light">
+                  Step 1 of 2: Account Setup
+                </Badge>
               </div>
 
               <form onSubmit={form.onSubmit(handleSubmit)}>

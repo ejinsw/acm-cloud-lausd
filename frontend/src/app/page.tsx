@@ -36,9 +36,9 @@ import { routes } from "./routes";
 
 const stats = [
   {
-    label: "Certified LAUSD teachers",
+    label: "Verified instructors",
     value: "540+",
-    description: "Active across the district",
+    description: "Active on the platform",
     icon: <ShieldCheck size={24} />,
   },
   {
@@ -59,43 +59,43 @@ const pillars = [
   {
     title: "Curriculum aligned",
     description:
-      "Every session follows LAUSD pacing guides and current classroom assignments.",
+      "Every session is organized around specific academic goals and assignment context.",
     icon: <BookMarked size={22} />,
   },
   {
     title: "Live instruction",
     description:
-      "Students meet in real time with credentialed teachers who know their campus.",
+      "Students meet in real time with instructors who specialize in each subject area.",
     icon: <Radio size={22} />,
   },
   {
     title: "Accountability",
     description:
-      "Transparent scheduling, attendance logging, and outcome reporting for families.",
+      "Transparent queue updates, attendance logging, and outcome reporting for families.",
     icon: <Award size={22} />,
   },
 ];
 
 const highlights = [
-  "Live tutoring from LAUSD credentialed teachers",
-  "Secure, district-managed platform",
+  "Live tutoring from verified instructors",
+  "Secure, privacy-first platform",
   "Language support for multilingual families",
 ];
 
 const processSteps = [
   {
     title: "Submit a tutoring request",
-    description: "Families or counselors share the student's goals and schedule.",
+    description: "Share the topic, class context, and what you are stuck on.",
     icon: <FileText size={24} />,
   },
   {
-    title: "Match with an educator",
-    description: "The district pairs students with available subject-matter experts.",
+    title: "Match with an instructor",
+    description: "The live queue routes requests to available subject-matter experts.",
     icon: <Calendar size={24} />,
   },
   {
     title: "Join the live session",
-    description: "Students connect through secure video with district resources on screen.",
+    description: "Students connect through a secure session link and continue in real time chat.",
     icon: <Video size={24} />,
   },
 ];
@@ -104,7 +104,7 @@ const galleryImages = [
   {
     src: "https://images.unsplash.com/photo-1522202176988-66270c353a1d?q=80&w=1200&auto=format&fit=crop",
     title: "Classroom instruction",
-    subtitle: "Students learning with a teacher in a district classroom.",
+    subtitle: "Students learning with a teacher in a classroom environment.",
   },
   {
     src: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=1200&auto=format&fit=crop",
@@ -120,8 +120,15 @@ const galleryImages = [
 
 export default function Home() {
   return (
-    <main style={{ backgroundColor: "#f5f7fb" }}>
-      <Box py={80} style={{ borderBottom: "1px solid #e1e6ef" }}>
+    <main>
+      <Box
+        py={92}
+        style={{
+          background:
+            "radial-gradient(circle at 15% 20%, rgba(39,116,174,0.22), transparent 30%), radial-gradient(circle at 90% 0%, rgba(255,209,0,0.2), transparent 28%), linear-gradient(180deg, #f4f8fc 0%, #edf4fb 100%)",
+          borderBottom: "1px solid rgba(39,116,174,0.14)",
+        }}
+      >
         <Container size="lg">
           <Grid gutter={60} align="center">
             <Grid.Col span={{ base: 12, md: 6 }}>
@@ -133,31 +140,31 @@ export default function Home() {
                   size="lg"
                   style={{ width: "fit-content", letterSpacing: 0.5 }}
                 >
-                  Los Angeles Unified School District
+                  Live, queue-based tutoring
                 </Badge>
                 <Title order={1} size="h1" fw={800} style={{ lineHeight: 1.2 }}>
-                  Official Live Tutoring Support
+                  Fast 1:1 tutoring when you need it
                 </Title>
                 <Text size="lg" c="dimmed" maw={540}>
-                  The LAUSD Tutoring Initiative connects students with verified district
-                  teachers for real-time academic support across core curriculum areas.
+                  Connect with available instructors in real time, launch a live session, and
+                  keep progress moving with a clean, focused learning workspace.
                 </Text>
                 <Group gap="md">
                   <Button
                     component={Link}
-                    href={routes.exploreSessions}
+                    href={routes.signUp}
                     size="lg"
                     rightSection={<ArrowRight size={18} />}
                   >
-                    Request a Tutor
+                    Create Account
                   </Button>
                   <Button
                     component={Link}
-                    href={routes.signUp}
+                    href={routes.signIn}
                     size="lg"
                     variant="outline"
                   >
-                    View Programs
+                    Sign In
                   </Button>
                 </Group>
                 <Stack gap="sm">
@@ -173,10 +180,10 @@ export default function Home() {
               </Stack>
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
-              <Paper radius="lg" withBorder p="sm" style={{ backgroundColor: "white" }}>
+              <Paper radius="lg" withBorder p="sm" className="app-glass">
                 <Image
                   src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=1200&auto=format&fit=crop"
-                  alt="LAUSD students in a classroom with a teacher"
+                  alt="Students in a classroom with a teacher"
                   radius="md"
                   height={360}
                   style={{ objectFit: "cover" }}
@@ -187,10 +194,10 @@ export default function Home() {
                   </ThemeIcon>
                   <Stack gap={0}>
                     <Text size="sm" fw={600}>
-                      District classrooms in focus
+                      Classroom learning in focus
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Photography from LAUSD campuses and tutoring centers.
+                      Real classroom and tutoring environments.
                     </Text>
                   </Stack>
                 </Group>
@@ -209,7 +216,7 @@ export default function Home() {
                 withBorder
                 radius="md"
                 p="xl"
-                style={{ backgroundColor: "white" }}
+                className="app-glass"
               >
                 <Group align="flex-start" gap="md">
                   <ThemeIcon size={46} radius="md" variant="light" color="blue">
@@ -238,8 +245,8 @@ export default function Home() {
               <Stack gap="md">
                 <Title order={2}>Academic assurances</Title>
                 <Text size="md" c="dimmed">
-                  The tutoring program is administered by LAUSD staff with an emphasis on
-                  transparency, student safety, and measurable academic gains.
+                  The tutoring program emphasizes transparency, student safety,
+                  and measurable academic gains.
                 </Text>
                 <Divider my="md" variant="dashed" />
                 <Stack gap="lg">
@@ -262,7 +269,7 @@ export default function Home() {
             <Grid.Col span={{ base: 12, md: 7 }}>
               <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
                 {galleryImages.map((photo) => (
-                  <Card key={photo.title} withBorder radius="md" p="sm" style={{ backgroundColor: "white" }}>
+                  <Card key={photo.title} withBorder radius="md" p="sm" className="app-glass">
                     <Image
                       src={photo.src}
                       alt={photo.title}
@@ -296,7 +303,7 @@ export default function Home() {
           </Stack>
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mt={40}>
             {processSteps.map((step, index) => (
-              <Card key={step.title} withBorder radius="md" p="xl" style={{ backgroundColor: "white" }}>
+              <Card key={step.title} withBorder radius="md" p="xl" className="app-glass">
                 <Stack gap="md" align="flex-start">
                   <Badge color="blue" variant="light">
                     Step {index + 1}
@@ -315,21 +322,35 @@ export default function Home() {
         </Container>
       </Box>
 
-      <Box py={80} style={{ backgroundColor: "#0f172a" }}>
+      <Box
+        py={80}
+        style={{
+          background:
+            "linear-gradient(130deg, #0B1F3B 0%, #132F54 55%, #1A3A60 100%)",
+        }}
+      >
         <Container size="lg">
-          <Paper radius="md" p={40} style={{ backgroundColor: "#13223B" }}>
+          <Paper
+            radius="md"
+            p={40}
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(19,34,59,0.95), rgba(15,44,80,0.92))",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
             <Grid gutter={30} align="center">
               <Grid.Col span={{ base: 12, md: 8 }}>
                 <Stack gap="sm">
                   <Badge variant="light" color="blue" radius="sm" maw={200}>
-                    District program access
+                    Platform access
                   </Badge>
                   <Title order={2} c="white">
                     Connect with a live tutor this week
                   </Title>
                   <Text c="gray.4">
-                    LAUSD families can request a session at any time. A district coordinator will
-                    confirm schedules, share resources, and ensure the student is ready.
+                    Families can request tutoring any time. Instructors respond through
+                    the live queue and move directly into a session when accepted.
                   </Text>
                 </Stack>
               </Grid.Col>
@@ -345,12 +366,12 @@ export default function Home() {
                   </Button>
                   <Button
                     component={Link}
-                    href={routes.exploreSessions}
+                    href={routes.help}
                     variant="white"
                     color="dark"
                     size="lg"
                   >
-                    View Schedule
+                    Learn More
                   </Button>
                 </Stack>
               </Grid.Col>

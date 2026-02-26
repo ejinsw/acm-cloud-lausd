@@ -8,7 +8,6 @@ import {
   Breadcrumbs,
   Button,
   Card,
-  Container,
   Group,
   Loader,
   Paper,
@@ -335,32 +334,32 @@ export default function CreateReviewPage() {
 
   if (!isAuthenticated) {
     return (
-      <Container size="md" py="xl">
+      <Stack py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Authentication Required" color="red">
           You must be logged in to leave reviews.
         </Alert>
-      </Container>
+      </Stack>
     );
   }
 
   if (loading) {
     return (
-      <Container size="md" py="xl">
+      <Stack py="xl">
         <Stack align="center" gap="md">
           <Loader size="lg" />
           <Text>Loading review details...</Text>
         </Stack>
-      </Container>
+      </Stack>
     );
   }
 
   if (error && !sessionData) {
     return (
-      <Container size="md" py="xl">
+      <Stack py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
           {error}
         </Alert>
-      </Container>
+      </Stack>
     );
   }
 
@@ -371,7 +370,7 @@ export default function CreateReviewPage() {
     : "Instructor";
 
   return (
-    <Container size="md" py="xl">
+    <Stack py="lg" maw={820} mx="auto" className="app-page-grid">
       <Breadcrumbs mb="lg">
         <Anchor onClick={() => router.push(`/dashboard/${user?.role?.toLowerCase() || "student"}`)}>
           Dashboard
@@ -379,7 +378,7 @@ export default function CreateReviewPage() {
         <Text>Session Review</Text>
       </Breadcrumbs>
 
-      <Paper shadow="sm" p="xl" radius="md">
+      <Paper shadow="sm" p="xl" radius="md" className="app-glass">
         <Stack gap="lg">
           <div>
             <Title order={2} mb="xs">
@@ -521,6 +520,6 @@ export default function CreateReviewPage() {
           )}
         </Stack>
       </Paper>
-    </Container>
+    </Stack>
   );
 }

@@ -20,7 +20,6 @@ import {
   ActionIcon,
   Drawer,
   Collapse,
-  Modal,
   Divider,
   em,
 } from "@mantine/core";
@@ -42,7 +41,6 @@ import {
   IconBook,
 } from "@tabler/icons-react";
 import PageWrapper from "@/components/PageWrapper";
-import ZoomMeeting from "@/components/sessions/ZoomMeeting";
 import SessionSettingsDrawer from "@/components/sessions/SessionSettingsDrawer";
 import SessionAdminControls from "@/components/sessions/SessionAdminControls";
 import { Session, User } from "@/lib/types";
@@ -74,7 +72,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const isMobile = useMediaQuery(`(max-width: ${em(768)})`);
   
   const [participantsOpened, { open: openParticipants, close: closeParticipants }] = useDisclosure(false);
-  const [videoOpened, { open: openVideo, close: closeVideo }] = useDisclosure(false);
   const [settingsOpened, { open: openSettings, close: closeSettings }] = useDisclosure(false);
   const [adminOpened, { open: openAdmin, close: closeAdmin }] = useDisclosure(false);
   const [infoOpened, { open: openInfo, close: closeInfo }] = useDisclosure(false);
@@ -298,22 +295,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
     }
   };
 
-  const handleZoomMeetingEnd = () => {
-    notifications.show({
-      title: "Meeting Ended",
-      message: "The Zoom meeting has ended",
-      color: "blue",
-    });
-  };
-
-  const handleZoomError = (error: string) => {
-    notifications.show({
-      title: "Zoom Error",
-      message: error,
-      color: "red",
-    });
-  };
-
   const canJoinSession = () => {
     if (currentUser.role.toUpperCase() === "INSTRUCTOR" || currentUser.role.toUpperCase() == "ADMIN") return true;
 
@@ -509,7 +490,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
                     variant="light"
                   >
-                    {localSession.status || "SCHEDULED"}
+                    {localSession.status || "LIVE"}
                   </Badge>
                 </Group>
               </Stack>
@@ -694,7 +675,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           size="sm"
         >
           <Stack gap={0}>
-            {/* Zoom Link Section */}
+            {/* Meeting Link Section */}
             {localSession.zoomLink && (
               <>
                 <Box py="md">
@@ -714,7 +695,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     color="green"
                     variant="light"
                   >
-                    Join Zoom Meeting
+                    Open Meeting Link
                   </Button>
                 </Box>
                 <Divider />
@@ -799,30 +780,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
         </Drawer>
 
         {/* Video Modal */}
-        <Modal
-          opened={videoOpened}
-          onClose={closeVideo}
-          title="Video Meeting"
-          size="xl"
-          fullScreen={isMobile}
-        >
-          {localSession.zoomLink ? (
-            <Box style={{ height: "70vh" }}>
-              <ZoomMeeting
-                sessionId={localSession.id}
-                userName={`${currentUser.firstName} ${currentUser.lastName}`}
-                userEmail={currentUser.email}
-                onMeetingEnd={handleZoomMeetingEnd}
-                onError={handleZoomError}
-              />
-            </Box>
-          ) : (
-            <Center h={200}>
-              <Text c="dimmed">No video meeting available</Text>
-            </Center>
-          )}
-        </Modal>
-
         {/* Settings Drawer */}
         {isInstructor && (
           <SessionSettingsDrawer
@@ -875,7 +832,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
                   variant="light"
                 >
-                  {localSession.status || "SCHEDULED"}
+                  {localSession.status || "LIVE"}
                 </Badge>
                 <Badge
                   color={isConnected ? "green" : "red"}
@@ -900,7 +857,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   variant="light"
                   color="green"
                 >
-                  Join Zoom
+                  Open Meeting Link
                 </Button>
               )}
               {isInstructor && (
@@ -1028,7 +985,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           {/* Sidebar */}
           <Box style={{ width: 320, borderLeft: "1px solid var(--mantine-color-gray-3)" }}>
             <Stack gap={0}>
-              {/* Zoom Link Section */}
+              {/* Meeting Link Section */}
               {localSession.zoomLink && (
                 <>
                   <Box p="lg">
@@ -1049,7 +1006,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                       variant="light"
                       size="sm"
                     >
-                      Join Zoom Meeting
+                      Open Meeting Link
                     </Button>
                   </Box>
                   <Divider />
@@ -1174,30 +1131,6 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
           </Box>
         </Group>
 
-        {/* Desktop Video Modal */}
-        <Modal
-          opened={videoOpened}
-          onClose={closeVideo}
-          title="Video Meeting"
-          size="xl"
-        >
-          {localSession.zoomLink ? (
-            <Box style={{ height: "70vh" }}>
-              <ZoomMeeting
-                sessionId={localSession.id}
-                userName={`${currentUser.firstName} ${currentUser.lastName}`}
-                userEmail={currentUser.email}
-                onMeetingEnd={handleZoomMeetingEnd}
-                onError={handleZoomError}
-              />
-            </Box>
-          ) : (
-            <Center h={200}>
-              <Text c="dimmed">No video meeting available</Text>
-            </Center>
-          )}
-        </Modal>
-
         {/* Settings Drawer */}
         {isInstructor && (
           <SessionSettingsDrawer
@@ -1311,9 +1244,9 @@ const LiveSessionPage: React.FC = () => {
                 </Text>
                 <Button
                   variant="outline"
-                  onClick={() => router.push(routes.exploreSessions)}
+                  onClick={() => router.push(routes.queue)}
                 >
-                  Back to Sessions
+                  Back to Queue
                 </Button>
               </Stack>
             </Center>

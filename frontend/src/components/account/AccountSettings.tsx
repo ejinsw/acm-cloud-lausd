@@ -302,7 +302,7 @@ export function AccountSettings({ userRole, student, instructor, subjects = [], 
 
                 <TextInput
                   label="Credentials"
-                  placeholder="e.g., Ph.D. in Mathematics, UCLA"
+                  placeholder="e.g., M.S. in Mathematics"
                   mt="md"
                   {...instructorForm.getInputProps('credentials')}
                 />

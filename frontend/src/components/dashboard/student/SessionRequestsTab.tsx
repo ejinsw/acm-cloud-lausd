@@ -1,5 +1,5 @@
 import { Grid, Card, Group, Text, Badge, Button, Stack } from "@mantine/core";
-import { Calendar, User, BookOpen, X } from "lucide-react";
+import { Calendar, User, Clock3, X } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { SessionRequest } from "@/lib/types";
@@ -38,10 +38,10 @@ export function SessionRequestsTab({ sessionRequests, onCancelRequest }: Session
         <Text size="lg" fw={500} mb="md">You don&apos;t have any session requests</Text>
         <Button 
           component={Link} 
-          href={routes.exploreSessions}
-          leftSection={<BookOpen size={16} />}
+          href={routes.joinQueue}
+          leftSection={<Clock3 size={16} />}
         >
-          Explore Sessions
+          Join Queue
         </Button>
       </Card>
     );
@@ -86,11 +86,11 @@ export function SessionRequestsTab({ sessionRequests, onCancelRequest }: Session
             <Group justify="space-between">
               <Button 
                 component={Link} 
-                href={routes.sessionDetails(request.session?.id || '')} 
+                href={request.session?.id ? routes.session(request.session.id) : routes.history} 
                 variant="light" 
                 size="xs"
               >
-                View Session
+                Open Session
               </Button>
               
               {request.status === 'PENDING' && (

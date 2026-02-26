@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Container,
   Title,
   Tabs,
   Text,
@@ -17,8 +16,12 @@ import {
   Rating,
   Divider,
   Center,
+  Card,
+  SimpleGrid,
+  ThemeIcon,
+  Badge,
 } from "@mantine/core";
-import { Search, Sparkles, AlertCircle, History, Video, Star } from "lucide-react";
+import { Sparkles, AlertCircle, History, Star, ArrowRight, Activity } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { StatsGrid } from "@/components/dashboard/instructor/StatsGrid";
@@ -26,13 +29,10 @@ import { SessionsByWeekChart } from "@/components/dashboard/student/SessionsByWe
 import { UnreviewedSessions } from "@/components/dashboard/student/UnreviewedSessions";
 import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistoryTab";
 import { PastSession } from "@/components/dashboard/student/SessionHistoryTab";
-import ZoomConnection from "@/components/sessions/ZoomConnection";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
 import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
-import { useZoomStatus } from "@/hooks/useZoomStatus";
-import { notifications } from "@mantine/notifications";
 
 function InstructorDashboardContent() {
   const { user } = useAuth();
@@ -49,9 +49,6 @@ function InstructorDashboardContent() {
   // Get initial tab from URL or default to "overview"
   const initialTab = searchParams.get("tab") || "overview";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
-
-  // Check Zoom connection status
-  const { connected: zoomConnected, expired: zoomExpired, isLoading: zoomLoading } = useZoomStatus();
 
   // Fetch instructor sessions
   const fetchInstructorSessions = async () => {
@@ -109,22 +106,6 @@ function InstructorDashboardContent() {
       router.push(`?${params.toString()}`);
     }
   }, [activeTab, router, searchParams]);
-
-  // Check for Zoom connection success
-  useEffect(() => {
-    const zoomConnected = searchParams.get('zoom_connected');
-    if (zoomConnected === 'true') {
-      notifications.show({
-        title: 'Success',
-        message: 'Zoom account connected successfully!',
-        color: 'green',
-      });
-      // Clean up the URL
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete('zoom_connected');
-      router.replace(`?${params.toString()}`);
-    }
-  }, [searchParams, router]);
 
   // Calculate statistics
   const completedSessions = sessions.filter(
@@ -193,13 +174,6 @@ function InstructorDashboardContent() {
     }
   };
 
-  // Handle session updates
-  const handleSessionUpdate = () => {
-    fetchInstructorSessions();
-    fetchSessionHistory();
-    fetchReviews();
-  };
-
   const formatReviewDate = (dateString?: string) => {
     if (!dateString) return "";
     return new Date(dateString).toLocaleDateString(undefined, {
@@ -211,35 +185,74 @@ function InstructorDashboardContent() {
 
   if (isLoading) {
     return (
-      <Container size="xl" py="xl">
-        <Center py="xl">
+      <Box py="xl">
+        <Center py="xl" h={360}>
           <Stack align="center" gap="md">
             <Loader size="lg" />
             <Text>Loading your dashboard...</Text>
           </Stack>
         </Center>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
           {error}
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container size="xl" py="xl">
-      <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-        <Title order={2}>Instructor Dashboard</Title>
-        <Text c="dimmed" mt="xs" size="sm">
-          Manage your tutoring sessions and track your progress
-        </Text>
-      </Box>
+    <Box py="lg" className="app-page-grid">
+      <Card className="app-glass" p="xl">
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+          <Stack gap={8}>
+            <Group gap="xs">
+              <ThemeIcon size={28} radius="xl" color="blue" variant="light">
+                <Sparkles size={16} />
+              </ThemeIcon>
+              <Text fw={600} c="blue.7">
+                Instructor Workspace
+              </Text>
+            </Group>
+            <Title order={2}>Welcome back{user?.firstName ? `, ${user.firstName}` : ""}</Title>
+            <Text c="dimmed">
+              {totalSessions} sessions total, {hoursTutored} hours taught, {reviews.length} feedback entries.
+            </Text>
+            <Group>
+              <Button component={Link} href={routes.instructorQueue} rightSection={<ArrowRight size={16} />}>
+                Open TutorDeck
+              </Button>
+              <Button component={Link} href={routes.history} variant="light">
+                View History
+              </Button>
+            </Group>
+          </Stack>
+          <Card withBorder p="md">
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text fw={600}>Live readiness</Text>
+                <Badge color="green" variant="light">
+                  Ready
+                </Badge>
+              </Group>
+              <Group gap="xs">
+                <Activity size={16} />
+                <Text size="sm" c="dimmed">
+                  Queue availability and live session controls are ready.
+                </Text>
+              </Group>
+              <Alert color="green" variant="light">
+                Accept requests in TutorDeck and share a meeting link directly in session settings.
+              </Alert>
+            </Stack>
+          </Card>
+        </SimpleGrid>
+      </Card>
 
       <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
@@ -252,38 +265,9 @@ function InstructorDashboardContent() {
             <Tabs.Tab value="reviews" leftSection={<Star size={16} />}>
               Reviews ({reviews.length})
             </Tabs.Tab>
-            <Tabs.Tab value="zoom" leftSection={<Video size={16} />}>
-              Zoom Integration
-            </Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="overview" pt="lg">
-            {/* Zoom Connection Warning */}
-            {!zoomLoading && (!zoomConnected || zoomExpired) && (
-              <Alert
-                icon={<Video size={20} />}
-                color="yellow"
-                title="Action Required: Connect Your Zoom Account"
-                mb="xl"
-              >
-                <Stack gap="sm">
-                  <Text size="sm">
-                    {zoomExpired 
-                      ? "Your Zoom connection has expired. You must reconnect your Zoom account to create sessions and accept queue requests."
-                      : "You must connect your Zoom account before you can create sessions or accept queue requests. All tutoring sessions use Zoom for video meetings."
-                    }
-                  </Text>
-                  <Button
-                    leftSection={<Video size={16} />}
-                    onClick={() => setActiveTab('zoom')}
-                    size="sm"
-                    style={{ width: 'fit-content' }}
-                  >
-                    {zoomExpired ? 'Reconnect Zoom Now' : 'Connect Zoom Now'}
-                  </Button>
-                </Stack>
-              </Alert>
-            )}
             <StatsGrid
               totalSessions={totalSessions}
               hoursTutored={hoursTutored}
@@ -355,14 +339,8 @@ function InstructorDashboardContent() {
             )}
           </Tabs.Panel>
 
-          <Tabs.Panel value="zoom" pt="lg">
-            <ZoomConnection
-              onConnected={handleSessionUpdate}
-              onDisconnected={handleSessionUpdate}
-            />
-          </Tabs.Panel>
         </Tabs>
-    </Container>
+    </Box>
   );
 }
 

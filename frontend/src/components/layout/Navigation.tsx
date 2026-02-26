@@ -7,8 +7,6 @@ import {
   BookOpen,
   Home,
   LogIn,
-  Plus,
-  Search,
   Settings,
   User,
   Users,
@@ -29,7 +27,7 @@ function Logo() {
       <Group>
         <BookOpen size={24} />
         <Text fw={700} size="lg">
-          LAUSD Tutoring
+          Tutoring App
         </Text>
       </Group>
     </Link>
@@ -48,17 +46,6 @@ function DesktopNav({ routes }: NavigationProps) {
       >
         <Text fw={pathname === routes.home ? 700 : 400}>Home</Text>
       </Link>
-
-      {isAuthenticated && (
-        <Link
-          href={routes.exploreSessions}
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <Text fw={pathname.includes("/sessions/explore") ? 700 : 400}>
-            Explore
-          </Text>
-        </Link>
-      )}
 
       <Link
         href={routes.help}
@@ -84,16 +71,6 @@ function MobileNav({ routes }: NavigationProps) {
         active={pathname === routes.home}
       />
 
-      {isAuthenticated && (
-        <NavLink
-          label="Explore Sessions"
-          leftSection={<Search size={18} />}
-          component={Link}
-          href={routes.exploreSessions}
-          active={pathname.includes("/sessions/explore")}
-        />
-      )}
-
       {isAuthenticated && user?.role === "STUDENT" && (
         <NavLink
           label="Join Queue"
@@ -115,23 +92,13 @@ function MobileNav({ routes }: NavigationProps) {
       )}
 
       {isAuthenticated && user?.role === "INSTRUCTOR" && (
-        <>
-          <NavLink
-            label="Instructor Dashboard"
-            leftSection={<Users size={18} />}
-            component={Link}
-            href={routes.instructorDashboard}
-            active={pathname === routes.instructorDashboard}
-          />
-
-          <NavLink
-            label="Create Session"
-            leftSection={<Plus size={18} />}
-            component={Link}
-            href={routes.createSession}
-            active={pathname === routes.createSession}
-          />
-        </>
+        <NavLink
+          label="Instructor Dashboard"
+          leftSection={<Users size={18} />}
+          component={Link}
+          href={routes.instructorDashboard}
+          active={pathname === routes.instructorDashboard}
+        />
       )}
 
       <NavLink

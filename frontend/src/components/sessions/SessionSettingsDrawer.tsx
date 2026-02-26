@@ -205,13 +205,13 @@ export default function SessionSettingsDrawer({
         />
 
         <TextInput
-          label="Zoom Link"
-          placeholder="https://zoom.us/j/..."
+          label="Meeting Link"
+          placeholder="https://zoom.us/j/... or https://meet.google.com/..."
           value={formData.zoomLink}
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, zoomLink: e.target.value }))
           }
-          description="Video meeting link for this session"
+          description="External meeting URL for this session"
         />
 
         <Divider />

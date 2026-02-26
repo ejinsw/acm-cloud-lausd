@@ -1,5 +1,5 @@
 import { Grid, Card, Group, Text, Badge, Button, Stack } from "@mantine/core";
-import { Calendar, Video, BookOpen, Clock, User } from "lucide-react";
+import { Calendar, Video, Clock3, Clock, User } from "lucide-react";
 import Link from "next/link";
 import { routes } from "@/app/routes";
 import { Session } from "@/lib/types";
@@ -39,7 +39,6 @@ function isSessionNow(startTime: string, endTime: string) {
 // Determine status badge color
 function getStatusColor(status: string) {
   switch(status) {
-    case 'SCHEDULED': return 'blue';
     case 'IN_PROGRESS': return 'green';
     case 'COMPLETED': return 'gray';
     case 'CANCELLED': return 'red';
@@ -48,21 +47,20 @@ function getStatusColor(status: string) {
 }
 
 export function UpcomingSessionsTab({ sessions }: UpcomingSessionsTabProps) {
-  // Filter for upcoming sessions (scheduled or in progress)
-  const upcomingSessions = sessions.filter(session => 
-    session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS'
+  const upcomingSessions = sessions.filter((session) =>
+    session.status === "IN_PROGRESS"
   );
 
   if (upcomingSessions.length === 0) {
     return (
       <Card withBorder shadow="sm" p="xl" ta="center">
-        <Text size="lg" fw={500} mb="md">You don&apos;t have any upcoming sessions</Text>
+        <Text size="lg" fw={500} mb="md">You don&apos;t have any active sessions</Text>
         <Button 
           component={Link} 
-          href={routes.exploreSessions}
-          leftSection={<BookOpen size={16} />}
+          href={routes.joinQueue}
+          leftSection={<Clock3 size={16} />}
         >
-          Explore Sessions
+          Join Queue
         </Button>
       </Card>
     );
@@ -83,8 +81,8 @@ export function UpcomingSessionsTab({ sessions }: UpcomingSessionsTabProps) {
             <Card withBorder radius="md" p="md">
               <Group justify="space-between" mb="xs">
                 <Text fw={500} size="lg">{session.name}</Text>
-                <Badge color={getStatusColor(session.status || 'SCHEDULED')}>
-                  {session.status?.replace('_', ' ') || 'SCHEDULED'}
+                <Badge color={getStatusColor(session.status || 'IN_PROGRESS')}>
+                  {session.status?.replace('_', ' ') || 'IN_PROGRESS'}
                 </Badge>
               </Group>
               
@@ -124,11 +122,11 @@ export function UpcomingSessionsTab({ sessions }: UpcomingSessionsTabProps) {
               <Group justify="space-between">
                 <Button 
                   component={Link} 
-                  href={routes.sessionDetails(session.id)} 
+                  href={routes.session(session.id)} 
                   variant="light" 
                   size="xs"
                 >
-                  View Details
+                  Open Session
                 </Button>
                 
                 {isNow && session.zoomLink && (
@@ -140,7 +138,7 @@ export function UpcomingSessionsTab({ sessions }: UpcomingSessionsTabProps) {
                     size="xs"
                     leftSection={<Video size={14} />}
                   >
-                    Join Now
+                    Open Meeting Link
                   </Button>
                 )}
               </Group>

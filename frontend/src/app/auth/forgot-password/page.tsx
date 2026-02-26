@@ -12,6 +12,7 @@ import {
   Button,
   Group,
   Anchor,
+  Badge,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -226,9 +227,15 @@ export default function ForgotPasswordPage() {
 
   return (
     <main>
-      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+      <Box
+        py={90}
+        style={{
+          background:
+            "radial-gradient(circle at 10% 20%, rgba(39,116,174,0.2), transparent 28%), radial-gradient(circle at 90% 0%, rgba(255,209,0,0.2), transparent 24%), #f4f8fc",
+        }}
+      >
         <Container size="sm">
-          <Paper radius="md" p={40} withBorder>
+          <Paper radius="md" p={40} withBorder className="app-glass">
             <Stack gap="xl">
               <div style={{ textAlign: "center" }}>
                 <Title order={1} size="h1" fw={900} mb="md">
@@ -239,6 +246,9 @@ export default function ForgotPasswordPage() {
                   {currentStep === "email" && "Enter your email to receive a verification code"}
                   {currentStep === "reset" && "Create a new password for your account"}
                 </Text>
+                <Badge mt="sm" color="blue" variant="light">
+                  {currentStep === "email" ? "Step 1 of 2" : "Step 2 of 2"}
+                </Badge>
               </div>
 
               {renderStep()}

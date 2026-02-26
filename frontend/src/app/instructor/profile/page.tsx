@@ -76,8 +76,8 @@ export default function InstructorProfilePage() {
   };
 
   return (
-    <Container size="xl" py="xl">
-      <Paper radius="md" p="xl" withBorder>
+    <Container size="xl" py="lg">
+      <Paper radius="md" p="xl" withBorder className="app-glass">
         <Title order={2} mb="xl">Instructor Profile</Title>
 
         <form onSubmit={handleSubmit}>

@@ -3,7 +3,6 @@ import { Title, Grid, Text, Group, Button, Box, Tabs, Modal, Paper, Badge } from
 import { useDisclosure } from "@mantine/hooks";
 import { Session } from "@/lib/types";
 import { SessionCard } from "./SessionCard";
-import { ZoomProtectedLink } from "@/components/sessions/ZoomProtectedLink";
 
 interface SessionManagementTabProps {
   sessions: Session[];
@@ -85,17 +84,7 @@ export function SessionManagementTab({ sessions, onSessionUpdate }: SessionManag
             ) : (
               <Grid.Col span={12}>
                 <Paper p="xl" ta="center">
-                  <Text c="dimmed">No active sessions. 
-                    <ZoomProtectedLink
-                      href="/sessions/create" 
-                      variant="subtle" 
-                      size="sm" 
-                      ml="xs"
-                      requireZoom={true}
-                    >
-                      Create your first session
-                    </ZoomProtectedLink>
-                  </Text>
+                  <Text c="dimmed">No active sessions. New sessions begin from the live queue.</Text>
                 </Paper>
               </Grid.Col>
             )}

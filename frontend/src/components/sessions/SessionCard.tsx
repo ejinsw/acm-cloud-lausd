@@ -54,7 +54,7 @@ export function SessionCard({
   }) : null;
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder h="100%">
+    <Card className="app-glass dashboard-stagger" padding="md" radius="md" withBorder h="100%">
       {variant === 'detailed' ? (
         <>
           <Group mb="xs">
@@ -75,7 +75,7 @@ export function SessionCard({
             </div>
           </Group>
 
-          <Text fw={600} size="lg" mb="xs">{name}</Text>
+          <Text fw={700} size="lg" mb="xs">{name}</Text>
           
           {description && (
             <Text size="sm" lineClamp={2} mb="md" c="dimmed">
@@ -85,26 +85,26 @@ export function SessionCard({
 
           <Group gap="xs" mb="md">
             {subjects.map((subject) => (
-              <Badge key={subject.id} size="sm">{subject.name}</Badge>
+              <Badge key={subject.id} size="sm" color="blue" variant="light">{subject.name}</Badge>
             ))}
           </Group>
 
           {(startTime || price || duration) && (
             <Group mb="md">
               {startTime && (
-                <Group gap={4} wrap="nowrap">
+                <Group gap={4} wrap="nowrap" c="dimmed">
                   <Calendar size={16} />
                   <Text size="xs">{formattedDate} {formattedTime}</Text>
                 </Group>
               )}
               {duration && (
-                <Group gap={4} wrap="nowrap">
+                <Group gap={4} wrap="nowrap" c="dimmed">
                   <Clock size={16} />
                   <Text size="xs">{duration} min</Text>
                 </Group>
               )}
               {price !== undefined && (
-                <Group gap={4} wrap="nowrap">
+                <Group gap={4} wrap="nowrap" c="dimmed">
                   <DollarSign size={16} />
                   <Text size="xs">${price}</Text>
                 </Group>
@@ -147,7 +147,7 @@ export function SessionCard({
 
           <Group gap="xs" mb="xs">
             {subjects.slice(0, 2).map((subject) => (
-              <Badge key={subject.id} size="xs">{subject.name}</Badge>
+              <Badge key={subject.id} size="xs" color="blue" variant="light">{subject.name}</Badge>
             ))}
             {subjects.length > 2 && <Badge size="xs">+{subjects.length - 2}</Badge>}
           </Group>

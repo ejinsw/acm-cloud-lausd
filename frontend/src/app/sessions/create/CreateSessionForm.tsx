@@ -15,7 +15,7 @@ import {
   Modal,
   TextInput
 } from "@mantine/core";
-import { 
+import {
   SessionTitleBlock,
   SubjectAndLevelBlock,
   DescriptionBlock,
@@ -27,7 +27,7 @@ import {
   TagsBlock,
   BlockAdder
 } from "@/components/sessions/blocks";
-import { CheckCircle, AlertCircle, Save, Trash2, Video } from "lucide-react";
+import { CheckCircle, AlertCircle, Save, Trash2, Link2 } from "lucide-react";
 import { getToken } from "@/actions/authentication";
 import { Session } from "@/lib/types";
 
@@ -344,14 +344,7 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
 
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // Handle Zoom connection error specifically
-        if (errorData.needsZoomConnection) {
-          alert(`${errorData.message}\n\nYou will be redirected to connect your Zoom account.`);
-          window.location.href = '/dashboard/instructor?tab=zoom';
-          return;
-        }
-        
+
         throw new Error(errorData.message || `Failed to ${mode} session`);
       }
 
@@ -371,7 +364,7 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
   return (
     <>
       {/* Progress Bar */}
-      <Paper p="xl" radius="md" withBorder mb="xl">
+      <Paper p="xl" radius="md" withBorder mb="xl" className="app-glass">
         <Group justify="space-between" mb="lg">
           <div>
             <Title order={2}>
@@ -572,22 +565,21 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
               </div>
             ))}
             
-            {/* Zoom Integration Info */}
-            <Paper p="lg" radius="md" withBorder>
+            {/* Meeting Link Info */}
+            <Paper p="lg" radius="md" withBorder className="app-glass">
               <Stack gap="md">
                 <Group gap="xs">
-                  <Video size={18} color="#228BE6" />
-                  <Text size="sm" fw={500}>Video Meeting</Text>
+                  <Link2 size={18} color="#228BE6" />
+                  <Text size="sm" fw={500}>Meeting Link</Text>
                 </Group>
                 <Text size="xs" c="dimmed">
-                  Zoom meetings will be automatically created for your sessions. 
-                  Make sure you have connected your Zoom account in the dashboard.
+                  SDK meeting integrations are disabled. Add an external meeting link manually in session settings.
                 </Text>
               </Stack>
             </Paper>
             
             {/* Submit Section */}
-            <Paper p="lg" radius="md" withBorder>
+            <Paper p="lg" radius="md" withBorder className="app-glass">
               <Stack gap="md">
                 <Text size="lg" fw={500}>
                   Ready to {mode === "edit" ? "update" : "create"} your session?

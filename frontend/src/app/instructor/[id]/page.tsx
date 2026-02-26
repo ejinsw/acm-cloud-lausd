@@ -25,14 +25,12 @@ import { Users, Star, BookOpen, ArrowLeft, Mail, MapPin, GraduationCap, Award } 
 import PageWrapper from "@/components/PageWrapper";
 import { routes } from "@/app/routes";
 import { getToken } from "@/actions/authentication";
-import { User, Session } from "@/lib/types";
-import { SessionCard } from "@/components/sessions/SessionCard";
+import { User } from "@/lib/types";
 
 function InstructorProfileContent() {
   const params = useParams();
   const router = useRouter();
   const [instructor, setInstructor] = useState<User | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,21 +58,6 @@ function InstructorProfileContent() {
 
         const instructorData = await instructorResponse.json();
         setInstructor(instructorData.instructor);
-
-        // Fetch instructor's sessions
-        const sessionsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/sessions?instructorId=${params.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (sessionsResponse.ok) {
-          const sessionsData = await sessionsResponse.json();
-          setSessions(sessionsData.sessions || []);
-        }
       } catch (err) {
         console.error("Error fetching instructor data:", err);
         setError(err instanceof Error ? err.message : "Failed to load instructor profile");
@@ -128,10 +111,10 @@ function InstructorProfileContent() {
               </Text>
               <Button 
                 size="lg" 
-                onClick={() => router.push(routes.exploreSessions)}
+                onClick={() => router.push(routes.joinQueue)}
                 leftSection={<ArrowLeft size={20} />}
               >
-                Back to Sessions
+                Back to Queue
               </Button>
             </Stack>
           </Stack>
@@ -141,15 +124,15 @@ function InstructorProfileContent() {
   }
 
   return (
-    <Container size="xl" py="xl">
+    <Container size="xl" py="lg" className="app-page-enter">
       {/* Back Button */}
       <Button
         variant="subtle"
         leftSection={<ArrowLeft size={16} />}
-        onClick={() => router.push(routes.exploreSessions)}
+        onClick={() => router.push(routes.joinQueue)}
         mb="lg"
       >
-        Back to Sessions
+        Back to Queue
       </Button>
 
       {/* Main Content */}
@@ -158,7 +141,7 @@ function InstructorProfileContent() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack gap="lg">
             {/* Profile Card */}
-            <Card shadow="sm" p="xl" radius="md" withBorder>
+            <Card shadow="sm" p="xl" radius="md" withBorder className="app-glass">
               <Stack gap="lg">
                 <Box ta="center">
                   <Avatar
@@ -247,7 +230,7 @@ function InstructorProfileContent() {
             </Card>
 
             {/* Contact Info Card */}
-            <Card shadow="sm" p="lg" radius="md" withBorder>
+            <Card shadow="sm" p="lg" radius="md" withBorder className="app-glass">
               <Title order={3} mb="lg">Contact Information</Title>
               
               <Stack gap="md">
@@ -285,7 +268,7 @@ function InstructorProfileContent() {
           <Stack gap="lg">
             {/* About Me */}
             {instructor.bio && (
-              <Card shadow="sm" p="xl" radius="md" withBorder>
+              <Card shadow="sm" p="xl" radius="md" withBorder className="app-glass">
                 <Title order={3} mb="lg">About Me</Title>
                 <Text size="md" lh={1.6}>{instructor.bio}</Text>
               </Card>
@@ -293,7 +276,7 @@ function InstructorProfileContent() {
 
             {/* Teaching Experience */}
             {instructor.experience && instructor.experience.length > 0 && (
-              <Card shadow="sm" p="xl" radius="md" withBorder>
+              <Card shadow="sm" p="xl" radius="md" withBorder className="app-glass">
                 <Title order={3} mb="lg">Teaching Experience</Title>
                 <List size="md" spacing="sm">
                   {instructor.experience.map((exp: string, index: number) => (
@@ -305,31 +288,17 @@ function InstructorProfileContent() {
               </Card>
             )}
 
-            {/* Available Sessions */}
-            <Card shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="lg">Available Sessions</Title>
-              {sessions.length > 0 ? (
-                <Grid gutter="md">
-                  {sessions.map((session) => (
-                    <Grid.Col key={session.id} span={{ base: 12, sm: 6 }}>
-                      <SessionCard
-                        id={session.id}
-                        name={session.name}
-                        description={session.description}
-                        startTime={session.startTime ? new Date(session.startTime) : undefined}
-                        instructor={session.instructor || { id: session.instructorId }}
-                        subjects={session.subjects || []}
-                        variant="compact"
-                      />
-                    </Grid.Col>
-                  ))}
-                </Grid>
-              ) : (
-                <Box ta="center" py="xl">
-                  <Text size="lg" c="dimmed">No sessions available at the moment.</Text>
-                  <Text size="sm" c="dimmed" mt="xs">Check back later for new sessions.</Text>
-                </Box>
-              )}
+            <Card shadow="sm" p="xl" radius="md" withBorder className="app-glass">
+              <Title order={3} mb="lg">Availability</Title>
+              <Box ta="center" py="xl">
+                <Text size="lg" c="dimmed">Queue-based matching is currently enabled.</Text>
+                <Text size="sm" c="dimmed" mt="xs">
+                  Join the queue to request this instructor when available.
+                </Text>
+                <Button mt="md" onClick={() => router.push(routes.joinQueue)}>
+                  Join Queue
+                </Button>
+              </Box>
             </Card>
           </Stack>
         </Grid.Col>

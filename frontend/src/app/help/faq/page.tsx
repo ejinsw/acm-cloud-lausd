@@ -12,6 +12,7 @@ import {
   Group,
   Button,
   Divider,
+  TextInput,
 } from "@mantine/core";
 import { 
   BookOpen, 
@@ -19,10 +20,12 @@ import {
   Calendar, 
   Video, 
   MessageSquare,
-  ArrowLeft
+  ArrowLeft,
+  Search
 } from "lucide-react";
 import Link from "next/link";
 import { routes } from "../../routes";
+import { useMemo, useState } from "react";
 
 // FAQ categories and questions
 const faqCategories = [
@@ -65,21 +68,21 @@ const faqCategories = [
     ]
   },
   {
-    title: "Scheduling & Sessions",
+    title: "Queue & Sessions",
     icon: <Calendar size={24} />,
     color: "teal",
     questions: [
       {
-        question: "How do I schedule a tutoring session?",
-        answer: "To schedule a session, go to the 'Find Sessions' page, select your subject, choose a tutor, and pick an available time slot from their calendar. You'll receive a confirmation email with the session details."
+        question: "How do I start a tutoring session?",
+        answer: "Open the queue, pick your subject, and describe your question. When an instructor accepts, you are redirected directly into a live session."
       },
       {
-        question: "Can I reschedule or cancel a session?",
-        answer: "Yes, you can reschedule or cancel a session up to 24 hours before the scheduled time. Go to your 'Upcoming Sessions' page to make changes to your bookings."
+        question: "Can I cancel my request?",
+        answer: "Yes. While waiting in queue, use 'Leave Queue' to cancel your request immediately."
       },
       {
-        question: "What happens if I miss a session?",
-        answer: "If you miss a session without prior cancellation, it will be marked as a no-show. Multiple no-shows may affect your ability to book future sessions. We recommend canceling in advance if you can't attend."
+        question: "What happens if I disconnect during a session?",
+        answer: "Re-open the same session link and you can rejoin. Chat history and participant state are synced in real time."
       }
     ]
   },
@@ -94,17 +97,32 @@ const faqCategories = [
       },
       {
         question: "What should I do if I have technical issues during a session?",
-        answer: "If you experience technical issues, try refreshing your browser first. If the problem persists, you can contact our technical support team through the 'Help' section or email support@lausdtutoring.org."
+        answer: "If you experience technical issues, refresh your browser first. If the problem persists, contact support through the Help section or email support@tutoringapp.org."
       },
       {
         question: "How do I test my audio and video before a session?",
-        answer: "You can test your audio and video settings in your account settings under the 'Technical Setup' section. We recommend doing this before your first session to ensure everything works properly."
+        answer: "Test your device audio/video in your browser settings before joining. We recommend checking your setup a few minutes early."
       }
     ]
   }
 ];
 
 export default function FAQPage() {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(
+    () =>
+      faqCategories
+        .map((category) => ({
+          ...category,
+          questions: category.questions.filter((q) =>
+            `${q.question} ${q.answer}`.toLowerCase().includes(query.toLowerCase()),
+          ),
+        }))
+        .filter((category) => category.questions.length > 0),
+    [query],
+  );
+
   return (
     <main>
       {/* Hero Section */}
@@ -116,8 +134,15 @@ export default function FAQPage() {
                 Frequently Asked Questions
               </Title>
               <Text size="lg" c="dimmed" maw={600} mx="auto">
-                Find answers to common questions about our tutoring services, scheduling, and technical support.
+                Find answers to common questions about queue requests, live sessions, and technical support.
               </Text>
+              <TextInput
+                mt="lg"
+                leftSection={<Search size={16} />}
+                placeholder="Search FAQs"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
             </div>
           </Stack>
         </Container>
@@ -127,7 +152,7 @@ export default function FAQPage() {
       <Box py={60}>
         <Container size="lg">
           <Stack gap="xl">
-            {faqCategories.map((category) => (
+            {filtered.map((category) => (
               <Paper key={category.title} radius="md" p="xl" withBorder>
                 <Stack gap="xl">
                   <Group gap="md">

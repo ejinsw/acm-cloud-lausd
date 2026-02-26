@@ -348,11 +348,11 @@ function AdminDashboardContent() {
 
   if (loading) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Center py="xl" style={{ minHeight: 400 }}>
           <Loader size="lg" />
         </Center>
-      </Container>
+      </Box>
     );
   }
 
@@ -372,12 +372,14 @@ function AdminDashboardContent() {
   );
 
   return (
-    <Container size="xl" py="xl">
-      <Box pb="lg" mb="xl" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+    <Box py="lg" className="app-page-grid">
+      <Box p="xl" className="app-glass" style={{ borderRadius: 14 }}>
         <Group justify="space-between" wrap="wrap">
           <div>
-            <Title order={1}>Admin Dashboard</Title>
-            <Text c="dimmed" mt="xs" size="sm">Manage users, instructors, and system settings</Text>
+            <Title order={2}>Admin Operations</Title>
+            <Text c="dimmed" mt="xs" size="sm">
+              System controls, risk signals, and user verification workflows.
+            </Text>
           </div>
           <Button
             leftSection={<Plus size={16} />}
@@ -413,7 +415,7 @@ function AdminDashboardContent() {
 
         <Tabs.Panel value="overview" pt="xl">
           {stats && (
-            <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+            <Box py="lg">
               <SimpleGrid cols={{ base: 2, sm: 4, lg: 6 }} spacing="lg">
                 <StatItem title="Total Users" value={stats.users.total} icon={Users} color="#1971c2" />
                 <StatItem title="Students" value={stats.users.students} icon={Users} color="#2f9e44" />
@@ -422,12 +424,18 @@ function AdminDashboardContent() {
                 <StatItem title="Total Sessions" value={stats.sessions.total} icon={Users} color="#20c997" />
                 <StatItem title="Pending Verifications" value={stats.users.unverifiedInstructors} icon={AlertCircle} color="#fa5252" />
               </SimpleGrid>
+              {stats.users.unverifiedInstructors > 0 && (
+                <Alert mt="xl" color="yellow" title="Risk Alert">
+                  {stats.users.unverifiedInstructors} instructors are awaiting verification. Prioritize this queue to keep
+                  onboarding clear and compliant.
+                </Alert>
+              )}
             </Box>
           )}
         </Tabs.Panel>
 
         <Tabs.Panel value="users" pt="xl">
-          <Box py="lg" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+          <Box py="lg">
             <Group justify="space-between" mb="md">
               <Text fw={500}>User Management</Text>
               <Button
@@ -439,38 +447,53 @@ function AdminDashboardContent() {
               </Button>
             </Group>
             
-            <Group mb="md">
-              <TextInput
-                placeholder="Search users..."
-                leftSection={<Search size={16} />}
-                value={usersSearch}
-                onChange={(e) => setUsersSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <Select
-                placeholder="Filter by role"
-                data={[
-                  { value: '', label: 'All Roles' },
-                  { value: 'STUDENT', label: 'Students' },
-                  { value: 'INSTRUCTOR', label: 'Instructors' },
-                  { value: 'ADMIN', label: 'Admins' }
-                ]}
-                value={usersRoleFilter}
-                onChange={(value) => setUsersRoleFilter(value || '')}
-                clearable
-              />
-              <Select
-                placeholder="Filter by verification"
-                data={[
-                  { value: '', label: 'All Users' },
-                  { value: 'true', label: 'Verified' },
-                  { value: 'false', label: 'Unverified' }
-                ]}
-                value={usersVerifiedFilter}
-                onChange={(value) => setUsersVerifiedFilter(value || '')}
-                clearable
-              />
-            </Group>
+            <Box
+              mb="md"
+              style={{
+                position: "sticky",
+                top: 12,
+                zIndex: 20,
+                padding: "10px",
+                borderRadius: 12,
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88))",
+                backdropFilter: "blur(8px)",
+                border: "1px solid rgba(39,116,174,0.12)",
+              }}
+            >
+              <Group>
+                <TextInput
+                  placeholder="Search users..."
+                  leftSection={<Search size={16} />}
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <Select
+                  placeholder="Filter by role"
+                  data={[
+                    { value: '', label: 'All Roles' },
+                    { value: 'STUDENT', label: 'Students' },
+                    { value: 'INSTRUCTOR', label: 'Instructors' },
+                    { value: 'ADMIN', label: 'Admins' }
+                  ]}
+                  value={usersRoleFilter}
+                  onChange={(value) => setUsersRoleFilter(value || '')}
+                  clearable
+                />
+                <Select
+                  placeholder="Filter by verification"
+                  data={[
+                    { value: '', label: 'All Users' },
+                    { value: 'true', label: 'Verified' },
+                    { value: 'false', label: 'Unverified' }
+                  ]}
+                  value={usersVerifiedFilter}
+                  onChange={(value) => setUsersVerifiedFilter(value || '')}
+                  clearable
+                />
+              </Group>
+            </Box>
 
             <Table striped highlightOnHover>
               <Table.Thead>
@@ -752,7 +775,7 @@ function AdminDashboardContent() {
           </Stack>
         )}
       </Modal>
-    </Container>
+    </Box>
   );
 }
 

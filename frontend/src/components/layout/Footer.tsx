@@ -26,7 +26,7 @@ export default function Footer() {
       <Container size="xl" py="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl" mb="md">
           <Stack gap="xs">
-            <Title order={5}>LAUSD Tutoring</Title>
+            <Title order={5}>Tutoring App</Title>
             <Text size="xs" c="dimmed">
               Empowering students through personalized learning experiences.
             </Text>
@@ -67,7 +67,7 @@ export default function Footer() {
         
         <Group justify="space-between" py="xs">
           <Text size="xs" c="dimmed">
-            © {currentYear} Los Angeles Unified School District
+            © {currentYear} Tutoring App
           </Text>
           <Group gap="xs" wrap="nowrap">
             <Anchor component={Link} href={routes.terms} underline="hover" size="xs">

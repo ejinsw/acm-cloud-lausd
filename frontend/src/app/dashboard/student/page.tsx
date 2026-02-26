@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Container,
   Title,
   Tabs,
   Text,
@@ -19,10 +18,13 @@ import {
   Avatar,
   Divider,
   Center,
+  Card,
+  SimpleGrid,
+  ThemeIcon,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Sparkles, History, Star, AlertCircle } from "lucide-react";
+import { Sparkles, History, Star, AlertCircle, Clock3, ArrowRight, BookOpenText } from "lucide-react";
 import { ProgressOverview } from "@/components/dashboard/student/ProgressOverview";
 import { StatsGrid } from "@/components/dashboard/student/StatsGrid";
 import { SessionsByWeekChart } from "@/components/dashboard/student/SessionsByWeekChart";
@@ -32,6 +34,7 @@ import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
 import { Session, SessionHistoryItem, Review } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
+import Link from "next/link";
 
 function StudentDashboardContent() {
   const { user } = useAuth();
@@ -159,9 +162,7 @@ function StudentDashboardContent() {
   }, [activeTab, router, searchParams]);
 
   // Calculate statistics
-  const upcomingSessions = sessions.filter(session => 
-    session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS'
-  );
+  const activeSessions = sessions.filter((session) => session.status === "IN_PROGRESS");
   const completedSessions = sessions.filter(session => 
     session.status === 'COMPLETED'
   );
@@ -177,7 +178,7 @@ function StudentDashboardContent() {
   const reviewCount = reviews.length;
 
   // Calculate completion percentage for all courses
-  const totalLessons = upcomingSessions.length + completedSessions.length;
+  const totalLessons = activeSessions.length + completedSessions.length;
   const overallProgress = totalLessons > 0 ? Math.round((completedSessions.length / totalLessons) * 100) : 0;
 
   // Handle opening the review modal
@@ -248,32 +249,96 @@ function StudentDashboardContent() {
 
   if (isLoading) {
     return (
-      <Container size="xl" py="xl">
-        <Center py="xl">
+      <Box py="xl">
+        <Center py="xl" h={360}>
           <Stack align="center" gap="md">
             <Loader size="lg" />
             <Text>Loading your dashboard...</Text>
           </Stack>
         </Center>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container size="xl" py="xl">
+      <Box py="xl">
         <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
           {error}
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container size="xl" py="xl">
-      <Box pb="lg" mb="lg" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-        <Title order={2}>Student Dashboard</Title>
-        <Text c="dimmed" mt="xs" size="sm">Track your learning progress and feedback</Text>
+    <Box py="lg" className="app-page-grid">
+      <Card className="app-glass" p="xl">
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+          <Stack gap={8}>
+            <Group gap="xs">
+              <ThemeIcon size={28} radius="xl" color="blue" variant="light">
+                <Sparkles size={16} />
+              </ThemeIcon>
+              <Text fw={600} c="blue.7">
+                Today
+              </Text>
+            </Group>
+            <Title order={2}>Welcome back{user?.firstName ? `, ${user.firstName}` : ""}</Title>
+            <Text c="dimmed">
+              You have {activeSessions.length} active sessions and {sessionHistory.length} completed sessions.
+            </Text>
+            <Group>
+              <Button component={Link} href="/queue/join" rightSection={<ArrowRight size={16} />}>
+                Join Queue
+              </Button>
+              <Button component={Link} href="/history" variant="subtle">
+                View History
+              </Button>
+            </Group>
+          </Stack>
+          <Stack gap="sm">
+            <Text fw={600}>Active Sessions</Text>
+            {activeSessions.slice(0, 3).length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No active sessions right now.
+              </Text>
+            ) : (
+              activeSessions.slice(0, 3).map((session) => (
+                <Card key={session.id} withBorder p="sm">
+                  <Group justify="space-between" wrap="nowrap">
+                    <Stack gap={2} style={{ flex: 1 }}>
+                      <Text fw={600} size="sm">
+                        {session.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {session.startTime
+                          ? new Date(session.startTime).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Time TBD"}
+                      </Text>
+                    </Stack>
+                    <ThemeIcon variant="light" color="yellow" radius="xl" size="md">
+                      <Clock3 size={14} />
+                    </ThemeIcon>
+                  </Group>
+                </Card>
+              ))
+            )}
+          </Stack>
+        </SimpleGrid>
+      </Card>
+
+      <Box>
+        <Group justify="space-between" align="center" mb="sm">
+          <Group gap="xs">
+            <BookOpenText size={18} />
+            <Text fw={600}>Learning Workspace</Text>
+          </Group>
+        </Group>
       </Box>
 
       <Tabs value={activeTab} onChange={setActiveTab}>
@@ -385,7 +450,7 @@ function StudentDashboardContent() {
           </Group>
         </Stack>
       </Modal>
-    </Container>
+    </Box>
   );
 }
 

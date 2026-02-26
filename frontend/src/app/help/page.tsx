@@ -11,14 +11,18 @@ import {
   ThemeIcon,
   Group,
   Button,
+  TextInput,
+  Badge,
 } from "@mantine/core";
 import {  
   MessageSquare, 
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  Search
 } from "lucide-react";
 import Link from "next/link";
 import { routes } from "../routes";
+import { useMemo, useState } from "react";
 
 const helpSections = [
   {
@@ -38,10 +42,26 @@ const helpSections = [
 ];
 
 export default function HelpPage() {
+  const [query, setQuery] = useState("");
+
+  const filteredSections = useMemo(
+    () =>
+      helpSections.filter((section) =>
+        `${section.title} ${section.description}`.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [query],
+  );
+
   return (
     <main>
       {/* Hero Section */}
-      <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
+      <Box
+        py={80}
+        style={{
+          background:
+            "radial-gradient(circle at 8% 20%, rgba(39,116,174,0.18), transparent 26%), radial-gradient(circle at 88% 0%, rgba(255,209,0,0.2), transparent 22%), #f4f8fc",
+        }}
+      >
         <Container size="lg">
           <Stack gap="xl" align="center">
             <div style={{ textAlign: "center" }}>
@@ -52,6 +72,16 @@ export default function HelpPage() {
                 Find the help you need to make the most of your tutoring experience.
               </Text>
             </div>
+            <TextInput
+              w={{ base: "100%", sm: 480 }}
+              leftSection={<Search size={16} />}
+              placeholder="Search support topics"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            <Badge color="blue" variant="light">
+              Typical response time: under 24 hours
+            </Badge>
           </Stack>
         </Container>
       </Box>
@@ -60,7 +90,7 @@ export default function HelpPage() {
       <Box py={60}>
         <Container size="lg">
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={50}>
-            {helpSections.map((section) => (
+            {filteredSections.map((section) => (
               <Paper key={section.title} radius="md" p="xl" withBorder>
                 <Stack gap="md">
                   <ThemeIcon size={50} radius="md" color={section.color}>

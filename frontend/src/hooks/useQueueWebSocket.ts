@@ -2,13 +2,19 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { getToken } from "../actions/authentication";
 import { User } from "@/lib/types";
 
-interface QueueItem {
+export type QueuePriorityBand = "high" | "medium" | "low";
+export type QueueDeckAction = "PASS" | "PIN";
+
+export interface QueueItem {
   id?: number;
   description: string;
   status?: string;
   createdAt?: string;
   studentId?: string;
   subjectId?: string;
+  queuePosition?: number;
+  estimatedWaitMinutes?: number;
+  priorityBand?: QueuePriorityBand;
   student?: {
     id: string;
     firstName: string;
@@ -24,6 +30,7 @@ interface QueueItem {
     category?: string;
   };
   canTeach?: boolean;
+  deckAction?: QueueDeckAction;
 }
 
 interface QueueStudentPayload {
@@ -67,6 +74,7 @@ interface UseQueueWebSocketReturn {
   isConnected: boolean;
   connectionError: string | null;
   queueItems: Map<string, QueueItem>;
+  queueDeckActions: Map<string, QueueDeckAction>;
   reconnect: () => void;
   subscribeQueue: (
     role: "student" | "instructor" | "admin",
@@ -77,6 +85,8 @@ interface UseQueueWebSocketReturn {
     data?: QueueItem,
   ) => void;
   acceptQueue: (studentId: string, sessionId: string) => void;
+  markDeckAction: (studentId: string, action: QueueDeckAction) => void;
+  clearDeckAction: (studentId: string) => void;
 }
 
 export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
@@ -85,6 +95,9 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
   const [queueItems, setQueueItems] = useState<Map<string, QueueItem>>(
     new Map(),
   );
+  const [queueDeckActions, setQueueDeckActions] = useState<
+    Map<string, QueueDeckAction>
+  >(new Map());
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -270,6 +283,11 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
                 newMap.delete(studentIdToRemove);
                 return newMap;
               });
+              setQueueDeckActions((prev) => {
+                const next = new Map(prev);
+                next.delete(studentIdToRemove);
+                return next;
+              });
               break;
 
             case "QUEUE_ACCEPTED":
@@ -282,6 +300,13 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
               if (message.payload?.data && typeof window !== "undefined") {
                 const acceptData = message.payload.data as any;
                 if (acceptData.sessionId) {
+                  if (acceptData.studentId) {
+                    setQueueDeckActions((prev) => {
+                      const next = new Map(prev);
+                      next.delete(acceptData.studentId);
+                      return next;
+                    });
+                  }
                   window.location.href = `/sessions/${acceptData.sessionId}`;
                 }
               }
@@ -471,6 +496,22 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
     );
   }, []);
 
+  const markDeckAction = useCallback((studentId: string, action: QueueDeckAction) => {
+    setQueueDeckActions((prev) => {
+      const next = new Map(prev);
+      next.set(studentId, action);
+      return next;
+    });
+  }, []);
+
+  const clearDeckAction = useCallback((studentId: string) => {
+    setQueueDeckActions((prev) => {
+      const next = new Map(prev);
+      next.delete(studentId);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     connect();
 
@@ -509,9 +550,12 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
     isConnected,
     connectionError,
     queueItems,
+    queueDeckActions,
     reconnect,
     subscribeQueue,
     unsubscribeQueue,
     acceptQueue,
+    markDeckAction,
+    clearDeckAction,
   };
 }

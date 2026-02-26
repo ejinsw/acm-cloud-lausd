@@ -3,8 +3,8 @@
 import { useAuth } from "../../components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Box, Text, Button, Group } from "@mantine/core";
-import { IconUsers, IconUserCheck } from "@tabler/icons-react";
+import { Box, Text, Button, Group, Card, Stack, Badge } from "@mantine/core";
+import { IconUsers, IconUserCheck, IconArrowsRightLeft } from "@tabler/icons-react";
 
 export default function QueuePage() {
   const { user } = useAuth();
@@ -12,15 +12,10 @@ export default function QueuePage() {
 
   useEffect(() => {
     if (!user) return;
-
-    // Redirect based on user role
     if (user.role === "STUDENT") {
       router.push("/queue/join");
     } else if (user.role === "INSTRUCTOR") {
       router.push("/queue/instructor");
-    } else {
-      // Admin or other roles - show options
-      return;
     }
   }, [user, router]);
 
@@ -32,30 +27,55 @@ export default function QueuePage() {
     );
   }
 
-  // Show options for admin or if no specific role
   return (
-    <Box p="xl">
-      <Text size="xl" fw={700} mb="xl">
-        Queue Management
-      </Text>
+    <Box p={{ base: "md", sm: "xl" }} maw={900} mx="auto" className="app-page-grid">
+      <Card className="app-glass" p="xl">
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Text size="xl" fw={700}>
+              Queue Control Center
+            </Text>
+            <Badge color="yellow" variant="light">
+              Admin
+            </Badge>
+          </Group>
+          <Text c="dimmed">
+            Choose a queue perspective. Students submit requests, instructors process them in TutorDeck.
+          </Text>
+          <Group gap="xs" c="dimmed">
+            <IconArrowsRightLeft size={16} />
+            <Text size="sm">Real-time handoff with live updates</Text>
+          </Group>
+        </Stack>
+      </Card>
 
-      <Group>
-        <Button
-          leftSection={<IconUsers size={16} />}
-          onClick={() => router.push("/queue/join")}
-          size="lg"
-        >
-          Join Queue (Student)
-        </Button>
-
-        <Button
-          leftSection={<IconUserCheck size={16} />}
-          onClick={() => router.push("/queue/instructor")}
-          size="lg"
-          variant="outline"
-        >
-          Manage Queue (Instructor)
-        </Button>
+      <Group grow align="stretch">
+        <Card className="app-glass" p="lg">
+          <Stack gap="md">
+            <Group>
+              <IconUsers size={20} />
+              <Text fw={600}>Student View</Text>
+            </Group>
+            <Text size="sm" c="dimmed">
+              Submit tutoring requests and monitor queue position while waiting for acceptance.
+            </Text>
+            <Button onClick={() => router.push("/queue/join")}>Open Student Queue</Button>
+          </Stack>
+        </Card>
+        <Card className="app-glass" p="lg">
+          <Stack gap="md">
+            <Group>
+              <IconUserCheck size={20} />
+              <Text fw={600}>Instructor View</Text>
+            </Group>
+            <Text size="sm" c="dimmed">
+              Process requests with TutorDeck swipes and keyboard shortcuts, then launch sessions.
+            </Text>
+            <Button variant="light" onClick={() => router.push("/queue/instructor")}>
+              Open TutorDeck
+            </Button>
+          </Stack>
+        </Card>
       </Group>
     </Box>
   );

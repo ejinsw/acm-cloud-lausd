@@ -37,6 +37,33 @@ locals {
   )
 }
 
+# ECS Exec: allow exec into Fargate tasks from laptop (Session Manager)
+resource "aws_iam_role_policy" "ecs_task_ssm_exec" {
+  name = "ecsTaskSSMExec"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ssm:UpdateInstanceInformation"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
   name = "ecsTaskDynamoDaxAccess"
   role = aws_iam_role.ecs_task_role.id

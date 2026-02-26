@@ -6,9 +6,11 @@ resource "aws_ecs_service" "api" {
   launch_type     = "FARGATE"
   force_new_deployment = true
 
+  enable_execute_command = true
+
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 100
-  
+
   network_configuration {
     subnets          = var.public_subnet_ids
     assign_public_ip = true
@@ -31,9 +33,11 @@ resource "aws_ecs_service" "websocket" {
   launch_type     = "FARGATE"
   force_new_deployment = true
 
+  enable_execute_command = true
+
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 100
-  
+
   network_configuration {
     subnets          = var.public_subnet_ids
     assign_public_ip = true

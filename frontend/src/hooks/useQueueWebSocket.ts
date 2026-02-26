@@ -21,6 +21,7 @@ export interface QueueItem {
     lastName: string;
     email: string;
     cognitoId?: string;
+    averageRating?: number | null;
   };
   subject?: {
     id: string;

@@ -65,13 +65,19 @@ export interface Review {
 
   ownerId: string;
   owner?: {
+    id?: string;
     firstName: string;
     lastName: string;
+    role?: "STUDENT" | "INSTRUCTOR" | "ADMIN";
+    averageRating?: number | null;
   };
-  recipientId: string;
+  recipientId?: string | null;
   recipient?: {
+    id?: string;
     firstName: string;
     lastName: string;
+    role?: "STUDENT" | "INSTRUCTOR" | "ADMIN";
+    averageRating?: number | null;
   };
   sessionHistoryItemId?: string;
   sessionHistoryItem?: {
@@ -133,4 +139,10 @@ export interface SessionHistoryItem {
 
   userId: string;
   relatedReview?: Review;
+}
+
+export interface UserReviewsResponse {
+  reviews: Review[];
+  ownerReviews: Review[];
+  recipientReviews: Review[];
 }

@@ -28,11 +28,11 @@ import { Sparkles, History, Star, AlertCircle, Clock3, ArrowRight, BookOpenText 
 import { ProgressOverview } from "@/components/dashboard/student/ProgressOverview";
 import { StatsGrid } from "@/components/dashboard/student/StatsGrid";
 import { SessionsByWeekChart } from "@/components/dashboard/student/SessionsByWeekChart";
-import { UnreviewedSessions } from "@/components/dashboard/student/UnreviewedSessions";
+import { InstructorsAwaitingReview } from "@/components/dashboard/student/InstructorsAwaitingReview";
 import { SessionHistoryTab, PastSession } from "@/components/dashboard/student/SessionHistoryTab";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session, SessionHistoryItem, Review } from "@/lib/types";
+import { Session, SessionHistoryItem, Review, UserReviewsResponse } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 import Link from "next/link";
 
@@ -48,7 +48,8 @@ function StudentDashboardContent() {
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [ownerReviews, setOwnerReviews] = useState<Review[]>([]);
+  const [recipientReviews, setRecipientReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,8 +123,9 @@ function StudentDashboardContent() {
         throw new Error("Failed to fetch reviews");
       }
 
-      const data = await response.json();
-      setReviews(data.reviews || []);
+      const data = (await response.json()) as UserReviewsResponse;
+      setOwnerReviews(data.ownerReviews || data.reviews || []);
+      setRecipientReviews(data.recipientReviews || []);
     } catch (err) {
       console.error("Error fetching reviews:", err);
     }
@@ -175,7 +177,7 @@ function StudentDashboardContent() {
     }
     return total;
   }, 0));
-  const reviewCount = reviews.length;
+  const reviewCount = ownerReviews.length + recipientReviews.length;
 
   // Calculate completion percentage for all courses
   const totalLessons = activeSessions.length + completedSessions.length;
@@ -183,11 +185,18 @@ function StudentDashboardContent() {
 
   // Handle opening the review modal
   function handleOpenReviewModal(session: PastSession) {
+    const existingReview = ownerReviews.find(
+      (item) => item.recipientId && item.recipientId === session.instructorId
+    );
     setSessionToReview(session);
-    setRating(session.relatedReview?.rating || 0);
-    setReview(session.relatedReview?.comment || "");
+    setRating(existingReview?.rating || session.relatedReview?.rating || 0);
+    setReview(existingReview?.comment || session.relatedReview?.comment || "");
     open();
   }
+
+  const handleReviewInstructor = (sessionId: string) => {
+    router.push(`/review/create/${encodeURIComponent(sessionId)}?sessionId=${encodeURIComponent(sessionId)}`);
+  };
   
   // Handle submitting the review
   async function handleSubmitReview() {
@@ -195,30 +204,37 @@ function StudentDashboardContent() {
 
     try {
       const token = await getToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/reviews`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            rating,
-            comment: review,
-            instructorId: sessionToReview.instructorId,
-            sessionHistoryItemId: sessionToReview.id,
-          }),
-        }
+      const existingReview = ownerReviews.find(
+        (item) =>
+          item.recipientId &&
+          item.recipientId === sessionToReview.instructorId
       );
+      const endpoint = existingReview
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/reviews/${encodeURIComponent(existingReview.id)}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/api/reviews`;
+      const response = await fetch(endpoint, {
+        method: existingReview ? "PUT" : "POST",
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rating,
+          comment: review,
+          recipientId: sessionToReview.instructorId,
+          sessionHistoryItemId: sessionToReview.id,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error('Failed to submit review');
       }
 
       notifications.show({
-        title: "Review Submitted",
-        message: `Your review for ${sessionToReview.name} has been saved successfully!`,
+        title: existingReview ? "Review Updated" : "Review Submitted",
+        message: existingReview
+          ? `Your review for ${sessionToReview.name} has been updated successfully!`
+          : `Your review for ${sessionToReview.name} has been saved successfully!`,
         color: "green",
       });
       
@@ -226,6 +242,7 @@ function StudentDashboardContent() {
       await Promise.all([
         fetchUserSessions(),
         fetchSessionHistory(),
+        fetchReviews(),
       ]);
       close();
     } catch (err) {
@@ -350,7 +367,7 @@ function StudentDashboardContent() {
             Session History ({sessionHistory.length})
           </Tabs.Tab>
           <Tabs.Tab value="reviews" leftSection={<Star size={16} />}>
-            Reviews ({reviews.length})
+            Reviews ({reviewCount})
           </Tabs.Tab>
         </Tabs.List>
 
@@ -366,9 +383,10 @@ function StudentDashboardContent() {
             reviewCount={reviewCount}
           />
           <SessionsByWeekChart sessionHistory={sessionHistory} />
-          <UnreviewedSessions
-            sessionHistory={sessionHistory as PastSession[]}
-            onReviewClick={handleOpenReviewModal}
+          <InstructorsAwaitingReview
+            completedSessions={completedSessions}
+            ownerReviews={ownerReviews}
+            onReviewClick={handleReviewInstructor}
           />
         </Tabs.Panel>
 
@@ -380,7 +398,7 @@ function StudentDashboardContent() {
         </Tabs.Panel>
 
         <Tabs.Panel value="reviews" pt="lg">
-          {reviews.length === 0 ? (
+          {reviewCount === 0 ? (
             <Box py="xl" ta="center">
               <Text fw={500} size="lg" mb="xs">No reviews yet</Text>
               <Text size="sm" c="dimmed">
@@ -388,46 +406,104 @@ function StudentDashboardContent() {
               </Text>
             </Box>
           ) : (
-            <Stack gap={0}>
-              {reviews.map((review, index) => (
-                <Box key={review.id}>
-                  {index > 0 && <Divider />}
-                  <Box py="lg">
-                    <Group justify="space-between" align="flex-start">
-                      <Group align="center">
-                        <Avatar color="blue" size="sm">
-                          {review.recipient?.firstName?.charAt(0)}
-                          {review.recipient?.lastName?.charAt(0)}
-                        </Avatar>
-                        <div>
-                          <Text fw={600}>
-                            Reviewing{" "}
-                            {review.recipient
-                              ? `${review.recipient.firstName} ${review.recipient.lastName}`
-                              : "Instructor"}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {formatReviewDate(review.createdAt)}
-                          </Text>
-                        </div>
-                      </Group>
-                      <Rating value={review.rating} readOnly fractions={2} size="sm" />
-                    </Group>
+            <Stack gap="xl">
+              <Box>
+                <Text fw={600} mb="sm">
+                  Reviews You Wrote ({ownerReviews.length})
+                </Text>
+                {ownerReviews.length === 0 ? (
+                  <Text size="sm" c="dimmed">You have not submitted any reviews yet.</Text>
+                ) : (
+                  <Stack gap={0}>
+                    {ownerReviews.map((review, index) => (
+                      <Box key={`owner-${review.id}`}>
+                        {index > 0 && <Divider />}
+                        <Box py="lg">
+                          <Group justify="space-between" align="flex-start">
+                            <Group align="center">
+                              <Avatar color="blue" size="sm">
+                                {review.recipient?.firstName?.charAt(0)}
+                                {review.recipient?.lastName?.charAt(0)}
+                              </Avatar>
+                              <div>
+                                <Text fw={600}>
+                                  Reviewing{" "}
+                                  {review.recipient
+                                    ? `${review.recipient.firstName} ${review.recipient.lastName}`
+                                    : "User"}
+                                </Text>
+                                <Text size="xs" c="dimmed">
+                                  {formatReviewDate(review.createdAt)}
+                                </Text>
+                              </div>
+                            </Group>
+                            <Rating value={review.rating} readOnly fractions={2} size="sm" />
+                          </Group>
+                          {review.sessionHistoryItem?.name && (
+                            <Text size="sm" c="dimmed" mt="xs">
+                              Session: {review.sessionHistoryItem.name}
+                            </Text>
+                          )}
+                          {review.comment && (
+                            <Text mt="md" size="sm">
+                              {review.comment}
+                            </Text>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
 
-                    {review.sessionHistoryItem?.name && (
-                      <Text size="sm" c="dimmed" mt="xs">
-                        Session: {review.sessionHistoryItem.name}
-                      </Text>
-                    )}
-
-                    {review.comment && (
-                      <Text mt="md" size="sm">
-                        {review.comment}
-                      </Text>
-                    )}
-                  </Box>
-                </Box>
-              ))}
+              <Box>
+                <Text fw={600} mb="sm">
+                  Reviews About You ({recipientReviews.length})
+                </Text>
+                {recipientReviews.length === 0 ? (
+                  <Text size="sm" c="dimmed">No one has reviewed you yet.</Text>
+                ) : (
+                  <Stack gap={0}>
+                    {recipientReviews.map((review, index) => (
+                      <Box key={`recipient-${review.id}`}>
+                        {index > 0 && <Divider />}
+                        <Box py="lg">
+                          <Group justify="space-between" align="flex-start">
+                            <Group align="center">
+                              <Avatar color="green" size="sm">
+                                {review.owner?.firstName?.charAt(0)}
+                                {review.owner?.lastName?.charAt(0)}
+                              </Avatar>
+                              <div>
+                                <Text fw={600}>
+                                  Reviewed by{" "}
+                                  {review.owner
+                                    ? `${review.owner.firstName} ${review.owner.lastName}`
+                                    : "User"}
+                                </Text>
+                                <Text size="xs" c="dimmed">
+                                  {formatReviewDate(review.createdAt)}
+                                </Text>
+                              </div>
+                            </Group>
+                            <Rating value={review.rating} readOnly fractions={2} size="sm" />
+                          </Group>
+                          {review.sessionHistoryItem?.name && (
+                            <Text size="sm" c="dimmed" mt="xs">
+                              Session: {review.sessionHistoryItem.name}
+                            </Text>
+                          )}
+                          {review.comment && (
+                            <Text mt="md" size="sm">
+                              {review.comment}
+                            </Text>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
             </Stack>
           )}
         </Tabs.Panel>

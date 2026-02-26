@@ -22,7 +22,7 @@ import { IconInfoCircle, IconArrowLeft, IconClockHour4 } from "@tabler/icons-rea
 import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 import { notifications } from "@mantine/notifications";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Star, XCircle } from "lucide-react";
 
 interface Subject {
   id: string;
@@ -174,6 +174,7 @@ export default function JoinQueuePage() {
           lastName: user.lastName,
           email: user.email,
           cognitoId: user.cognitoId || user.id,
+          averageRating: user.averageRating,
         },
         subject: {
           id: subject.id,
@@ -253,6 +254,11 @@ export default function JoinQueuePage() {
               <Text c="dimmed" size="sm">
                 Share what you need help with. We will match you with an available instructor.
               </Text>
+              <Group mt="xs">
+                <Badge size="sm" color="yellow" variant="light" leftSection={<Star size={12} />}>
+                  Your rating: {user?.averageRating ? `${user.averageRating.toFixed(1)}/5` : "No rating yet"}
+                </Badge>
+              </Group>
             </Box>
 
             <Select
@@ -317,6 +323,9 @@ export default function JoinQueuePage() {
               </Badge>
               <Badge size="lg" color="blue" variant="light">
                 Est. {estimatedWaitMinutes} min
+              </Badge>
+              <Badge size="lg" color="orange" variant="light" leftSection={<Star size={12} />}>
+                Your rating: {user?.averageRating ? `${user.averageRating.toFixed(1)}/5` : "No rating"}
               </Badge>
             </Group>
             <Card withBorder w="100%" p="md">

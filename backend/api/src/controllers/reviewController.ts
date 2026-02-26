@@ -2,6 +2,18 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 
+const recalculateRecipientAverageRating = async (recipientId: string) => {
+  const aggregate = await prisma.review.aggregate({
+    where: { recipientId },
+    _avg: { rating: true },
+  });
+
+  await prisma.user.update({
+    where: { id: recipientId },
+    data: { averageRating: aggregate._avg.rating ?? null },
+  });
+};
+
 /**
  * Get all reviews.
  * Supports filtering by owner or recipient ID using query parameters:
@@ -29,18 +41,27 @@ export const getAllReviews = expressAsyncHandler(
     }
     const reviews = await prisma.review.findMany({ 
       where,
+      orderBy: {
+        updatedAt: 'desc',
+      },
       include: {
         sessionHistoryItem: true,
         owner: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         },
         recipient: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         },
       },
@@ -122,7 +143,7 @@ export const createReview = expressAsyncHandler(
     }
 
     // Validate rating is between 1-5
-    const ratingNum = parseInt(rating);
+    const ratingNum = Number(rating);
     if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
       res.status(400).json({ message: 'Rating must be a number between 1 and 5' });
       return;
@@ -152,10 +173,60 @@ export const createReview = expressAsyncHandler(
         where: {
           sessionHistoryItemId: sessionHistoryItemId,
         },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          recipient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
       });
 
       if (existingReview) {
-        res.status(400).json({ message: 'A review already exists for this session' });
+        res.status(409).json({ message: 'A review already exists for this session', review: existingReview });
+        return;
+      }
+    }
+
+    if (recipientId) {
+      const existingRecipientReview = await prisma.review.findFirst({
+        where: {
+          ownerId: userId,
+          recipientId,
+        },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          recipient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          sessionHistoryItem: true,
+        },
+      });
+
+      if (existingRecipientReview) {
+        res.status(409).json({
+          message: 'You have already reviewed this user. Please update the existing review.',
+          review: existingRecipientReview,
+        });
         return;
       }
     }
@@ -181,18 +252,28 @@ export const createReview = expressAsyncHandler(
         sessionHistoryItem: true,
         owner: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         },
         recipient: recipientId ? {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         } : undefined,
       },
     });
+
+    if (recipientId) {
+      await recalculateRecipientAverageRating(recipientId);
+    }
 
     res.status(201).json(newReview);
   }
@@ -214,13 +295,6 @@ export const updateReview = expressAsyncHandler(
 
     if (!userId) {
       res.status(401).json({ message: 'Not authorized' });
-      return;
-    }
-
-    // Check if the authenticated user is a student
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.role !== 'STUDENT') {
-      res.status(403).json({ message: 'Only students can update reviews' });
       return;
     }
 
@@ -251,7 +325,7 @@ export const updateReview = expressAsyncHandler(
 
     if (hasRating) {
       // Validate rating is between 1-5
-      const ratingNum = parseInt(rating);
+      const ratingNum = Number(rating);
       if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
         res.status(400).json({ message: 'Rating must be a number between 1 and 5' });
         return;
@@ -270,18 +344,28 @@ export const updateReview = expressAsyncHandler(
         sessionHistoryItem: true,
         owner: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         },
         recipient: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            role: true,
+            averageRating: true,
           },
         },
       },
     });
+
+    if (updatedReview.recipientId) {
+      await recalculateRecipientAverageRating(updatedReview.recipientId);
+    }
 
     res.json(updatedReview);
   }
@@ -303,13 +387,6 @@ export const deleteReview = expressAsyncHandler(
       return;
     }
 
-    // Check if the authenticated user is a student
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.role !== 'STUDENT') {
-      res.status(403).json({ message: 'Only students can delete reviews' });
-      return;
-    }
-
     const existingReview = await prisma.review.findUnique({ where: { id } });
 
     if (!existingReview) {
@@ -324,6 +401,10 @@ export const deleteReview = expressAsyncHandler(
     }
 
     await prisma.review.delete({ where: { id } });
+
+    if (existingReview.recipientId) {
+      await recalculateRecipientAverageRating(existingReview.recipientId);
+    }
 
     res.status(200).json({ message: 'Review deleted successfully' });
   }

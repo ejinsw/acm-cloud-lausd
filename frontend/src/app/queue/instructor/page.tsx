@@ -35,7 +35,7 @@ import {
 import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket, QueueItem } from "../../../hooks/useQueueWebSocket";
 import { notifications } from "@mantine/notifications";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Star, XCircle } from "lucide-react";
 
 interface EnrichedQueueItem extends QueueItem {
   id: number;
@@ -54,6 +54,11 @@ const timeAgo = (value?: string) => {
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   return `${Math.floor(mins / 60)}h ago`;
+};
+
+const formatRating = (value?: number | null) => {
+  if (value === undefined || value === null) return "No rating";
+  return `${value.toFixed(1)}/5`;
 };
 
 export default function InstructorQueuePage() {
@@ -274,6 +279,9 @@ export default function InstructorQueuePage() {
             </Text>
           </Stack>
           <Group gap="sm">
+            <Badge size="lg" color="yellow" variant="light" leftSection={<Star size={12} />}>
+              Your rating: {formatRating(user.averageRating)}
+            </Badge>
             <Badge size="lg" color="blue" variant="light">
               {enrichedItems.length} waiting
             </Badge>
@@ -381,6 +389,9 @@ export default function InstructorQueuePage() {
                     <Text size="sm" c="dimmed">
                       {currentCard.subject?.name || "Unknown Subject"}
                     </Text>
+                    <Text size="xs" c="dimmed">
+                      Student rating: {formatRating(currentCard.student?.averageRating)}
+                    </Text>
                   </Stack>
                 </Group>
                 <Text size="sm">{currentCard.description || "No description provided."}</Text>
@@ -458,6 +469,9 @@ export default function InstructorQueuePage() {
                       </Group>
                       <Text size="sm" c="dimmed">
                         {item.subject?.name || "Unknown Subject"} • {timeAgo(item.createdAt)}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        Student rating: {formatRating(item.student?.averageRating)}
                       </Text>
                       <Text size="sm">{item.description}</Text>
                     </Stack>

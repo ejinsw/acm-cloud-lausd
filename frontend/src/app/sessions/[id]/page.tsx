@@ -63,6 +63,9 @@ const getInitials = (value: string) =>
     .slice(0, 2)
     .toUpperCase() || "?";
 
+const formatRating = (value?: number | null) =>
+  value === undefined || value === null ? "No rating" : `${value.toFixed(1)}/5`;
+
 const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const router = useRouter();
   const [messageInput, setMessageInput] = useState("");
@@ -215,6 +218,19 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
   const messages = room?.messages || [];
   const participants = room?.users || [];
   const isInstructor = currentUser.role === "INSTRUCTOR" || currentUser.role === "ADMIN";
+  const studentRatings = (localSession.students || [])
+    .map((student) => student.averageRating)
+    .filter((rating): rating is number => typeof rating === "number");
+  const averageStudentRating = studentRatings.length
+    ? studentRatings.reduce((sum, rating) => sum + rating, 0) / studentRatings.length
+    : null;
+
+  const getParticipantRating = (participantId: string) => {
+    if (participantId === localSession.instructorId) {
+      return localSession.instructor?.averageRating;
+    }
+    return localSession.students?.find((student) => student.id === participantId)?.averageRating;
+  };
 
   // Join room when connected
   useEffect(() => {
@@ -492,6 +508,12 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                   >
                     {localSession.status || "LIVE"}
                   </Badge>
+                  <Badge size="xs" color="yellow" variant="light">
+                    Instructor: {formatRating(localSession.instructor?.averageRating)}
+                  </Badge>
+                  <Badge size="xs" color="orange" variant="light">
+                    Students: {formatRating(averageStudentRating)}
+                  </Badge>
                 </Group>
               </Stack>
             </Collapse>
@@ -653,6 +675,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                     </Text>
                     <Text size="xs" c="dimmed">
                       {participant.type.toUpperCase()}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Rating: {formatRating(getParticipantRating(participant.id))}
                     </Text>
                   </Box>
                           {participant.id === localSession.instructorId && (
@@ -827,16 +852,22 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
               <Text size="sm" c="dimmed">
                 {localSession.description}
               </Text>
-              <Group gap="md">
-                <Badge
-                  color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
-                  variant="light"
-                >
-                  {localSession.status || "LIVE"}
-                </Badge>
-                <Badge
-                  color={isConnected ? "green" : "red"}
-                  variant="dot"
+                <Group gap="md">
+                  <Badge
+                    color={localSession.status === "IN_PROGRESS" ? "green" : "blue"}
+                    variant="light"
+                  >
+                    {localSession.status || "LIVE"}
+                  </Badge>
+                  <Badge color="yellow" variant="light">
+                    Instructor: {formatRating(localSession.instructor?.averageRating)}
+                  </Badge>
+                  <Badge color="orange" variant="light">
+                    Students: {formatRating(averageStudentRating)}
+                  </Badge>
+                  <Badge
+                    color={isConnected ? "green" : "red"}
+                    variant="dot"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
@@ -1039,6 +1070,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ session, currentUser }) => {
                             </Text>
                             <Text size="xs" c="dimmed">
                               {participant.type.toUpperCase()}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              Rating: {formatRating(getParticipantRating(participant.id))}
                             </Text>
                           </Box>
                           {participant.id === localSession.instructorId && (

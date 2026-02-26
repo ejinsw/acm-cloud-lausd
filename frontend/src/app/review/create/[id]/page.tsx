@@ -43,7 +43,7 @@ export default function CreateReviewPage() {
 
   const [sessionData, setSessionData] = useState<Session | null>(null);
   const [sessionHistoryItemId, setSessionHistoryItemId] = useState<string | null>(null);
-  const [submittedRecipientIds, setSubmittedRecipientIds] = useState<Set<string>>(new Set());
+  const [existingReviewByRecipient, setExistingReviewByRecipient] = useState<Record<string, { id: string; rating: number; comment?: string }>>({});
 
   const [studentDraft, setStudentDraft] = useState<ReviewDraft>({ rating: 0, comment: "" });
   const [instructorDrafts, setInstructorDrafts] = useState<Record<string, ReviewDraft>>({});
@@ -168,18 +168,44 @@ export default function CreateReviewPage() {
         if (reviewResponse.ok) {
           const reviewPayload = await reviewResponse.json();
           const ownedReviews = reviewPayload.reviews || [];
-          const submittedIds = new Set<string>();
+          const byRecipient: Record<string, { id: string; rating: number; comment?: string }> = {};
 
-          ownedReviews.forEach((review: { recipientId?: string; sessionHistoryItemId?: string }) => {
-            if (review.recipientId) {
-              submittedIds.add(review.recipientId);
+          ownedReviews.forEach((review: { id: string; recipientId?: string; rating?: number; comment?: string }) => {
+            if (!review.recipientId || byRecipient[review.recipientId]) {
+              return;
             }
-            if (review.sessionHistoryItemId && matchedHistoryItemId && review.sessionHistoryItemId === matchedHistoryItemId && fetchedSession.instructorId) {
-              submittedIds.add(fetchedSession.instructorId);
-            }
+            byRecipient[review.recipientId] = {
+              id: review.id,
+              rating: review.rating || 0,
+              comment: review.comment || "",
+            };
           });
 
-          setSubmittedRecipientIds(submittedIds);
+          setExistingReviewByRecipient(byRecipient);
+
+          if (fetchedSession.instructorId && byRecipient[fetchedSession.instructorId]) {
+            setStudentDraft({
+              rating: byRecipient[fetchedSession.instructorId].rating,
+              comment: byRecipient[fetchedSession.instructorId].comment || "",
+            });
+          }
+
+          const nextInstructorDrafts: Record<string, ReviewDraft> = {};
+          (fetchedSession.students || []).forEach((student) => {
+            const existing = byRecipient[student.id];
+            if (existing) {
+              nextInstructorDrafts[student.id] = {
+                rating: existing.rating,
+                comment: existing.comment || "",
+              };
+            }
+          });
+          if (Object.keys(nextInstructorDrafts).length > 0) {
+            setInstructorDrafts((prev) => ({
+              ...prev,
+              ...nextInstructorDrafts,
+            }));
+          }
         }
       } catch (err) {
         console.error("Error loading review context:", err);
@@ -218,36 +244,47 @@ export default function CreateReviewPage() {
         throw new Error("Authentication required");
       }
 
-      const response = await fetch(`${API_BASE}/api/reviews`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          rating: studentDraft.rating,
-          comment: studentDraft.comment,
-          recipientId: sessionData.instructorId,
-          sessionHistoryItemId,
-        }),
-      });
+      const existingReview = existingReviewByRecipient[sessionData.instructorId];
+      const response = await fetch(
+        existingReview ? `${API_BASE}/api/reviews/${encodeURIComponent(existingReview.id)}` : `${API_BASE}/api/reviews`,
+        {
+          method: existingReview ? "PUT" : "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            rating: studentDraft.rating,
+            comment: studentDraft.comment,
+            recipientId: sessionData.instructorId,
+            sessionHistoryItemId,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
         throw new Error(errorPayload?.message || "Failed to submit review");
       }
 
+      const savedReview = await response.json();
+
       notifications.show({
-        title: "Review Submitted",
-        message: "Thanks for reviewing your instructor",
+        title: existingReview ? "Review Updated" : "Review Submitted",
+        message: existingReview
+          ? "Your review for this instructor has been updated"
+          : "Thanks for reviewing your instructor",
         color: "green",
       });
 
-      setSubmittedRecipientIds((prev) => {
-        const next = new Set(prev);
-        next.add(sessionData.instructorId!);
-        return next;
-      });
+      setExistingReviewByRecipient((prev) => ({
+        ...prev,
+        [sessionData.instructorId!]: {
+          id: savedReview.id,
+          rating: savedReview.rating,
+          comment: savedReview.comment || "",
+        },
+      }));
 
       router.push(`/dashboard/${user?.role?.toLowerCase() || "student"}`);
     } catch (err) {
@@ -284,41 +321,45 @@ export default function CreateReviewPage() {
         throw new Error("Authentication required");
       }
 
-      const response = await fetch(`${API_BASE}/api/reviews`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          rating: draft.rating,
-          comment: draft.comment,
-          recipientId,
-        }),
-      });
+      const existingReview = existingReviewByRecipient[recipientId];
+      const response = await fetch(
+        existingReview ? `${API_BASE}/api/reviews/${encodeURIComponent(existingReview.id)}` : `${API_BASE}/api/reviews`,
+        {
+          method: existingReview ? "PUT" : "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            rating: draft.rating,
+            comment: draft.comment,
+            recipientId,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        if (response.status === 403) {
-          throw new Error(
-            errorPayload?.message ||
-              "The API currently allows review creation for students only."
-          );
-        }
         throw new Error(errorPayload?.message || "Failed to submit review");
       }
 
+      const savedReview = await response.json();
       notifications.show({
-        title: "Review Submitted",
-        message: "Student review submitted successfully",
+        title: existingReview ? "Review Updated" : "Review Submitted",
+        message: existingReview
+          ? "Student review updated successfully"
+          : "Student review submitted successfully",
         color: "green",
       });
 
-      setSubmittedRecipientIds((prev) => {
-        const next = new Set(prev);
-        next.add(recipientId);
-        return next;
-      });
+      setExistingReviewByRecipient((prev) => ({
+        ...prev,
+        [recipientId]: {
+          id: savedReview.id,
+          rating: savedReview.rating,
+          comment: savedReview.comment || "",
+        },
+      }));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to submit review";
       setError(message);
@@ -368,6 +409,9 @@ export default function CreateReviewPage() {
   const instructorName = sessionData?.instructor
     ? `${sessionData.instructor.firstName} ${sessionData.instructor.lastName}`
     : "Instructor";
+  const existingStudentReview = sessionData?.instructorId
+    ? existingReviewByRecipient[sessionData.instructorId]
+    : null;
 
   return (
     <Stack py="lg" maw={820} mx="auto" className="app-page-grid">
@@ -424,6 +468,11 @@ export default function CreateReviewPage() {
             <form onSubmit={handleStudentSubmit}>
               <Stack gap="md">
                 <Text fw={500}>Rate your instructor</Text>
+                {existingStudentReview && (
+                  <Alert color="blue" variant="light">
+                    You already reviewed this instructor. Submit to update your existing review.
+                  </Alert>
+                )}
                 <Group>
                   <Rating
                     value={studentDraft.rating}
@@ -452,9 +501,8 @@ export default function CreateReviewPage() {
                     type="submit"
                     loading={submitting}
                     leftSection={<Star size={16} />}
-                    disabled={submittedRecipientIds.has(sessionData.instructorId)}
                   >
-                    {submittedRecipientIds.has(sessionData.instructorId) ? "Review Submitted" : "Submit Review"}
+                    {existingStudentReview ? "Update Review" : "Submit Review"}
                   </Button>
                 </Group>
               </Stack>
@@ -471,12 +519,17 @@ export default function CreateReviewPage() {
               ) : (
                 sessionData.students.map((student) => {
                   const draft = instructorDrafts[student.id] || { rating: 0, comment: "" };
-                  const submitted = submittedRecipientIds.has(student.id);
+                  const existingReview = existingReviewByRecipient[student.id];
 
                   return (
                     <Card key={student.id} withBorder p="md">
                       <Stack gap="sm">
                         <Text fw={600}>{`${student.firstName} ${student.lastName}`}</Text>
+                        {existingReview && (
+                          <Alert color="blue" variant="light">
+                            You already reviewed this student. Submit to update your existing review.
+                          </Alert>
+                        )}
                         <Group>
                           <Rating
                             value={draft.rating}
@@ -500,9 +553,9 @@ export default function CreateReviewPage() {
                           <Button
                             onClick={() => handleInstructorSubmit(student.id)}
                             loading={submittingRecipientId === student.id}
-                            disabled={submitted || submittingRecipientId === student.id}
+                            disabled={submittingRecipientId === student.id}
                           >
-                            {submitted ? "Review Submitted" : "Submit Student Review"}
+                            {existingReview ? "Update Student Review" : "Submit Student Review"}
                           </Button>
                         </Group>
                       </Stack>

@@ -86,7 +86,7 @@ export const getAllSessions = expressAsyncHandler(
     const sessions = await prisma.session.findMany({
       where,
       include: {
-        instructor: { select: { firstName: true, lastName: true } },
+        instructor: { select: { id: true, firstName: true, lastName: true, averageRating: true } },
         subjects: true,
       },
     });
@@ -131,6 +131,7 @@ export const getSessionById = expressAsyncHandler(
             firstName: true,
             lastName: true,
             email: true,
+            averageRating: true,
           },
         },
       },

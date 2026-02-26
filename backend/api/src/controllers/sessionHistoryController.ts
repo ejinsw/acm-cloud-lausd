@@ -4,14 +4,29 @@ import { prisma } from '../config/prisma';
 
 export const getAllSessionHistory = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { userId } = req.query;
-
-    const where: any = {};
-    if (userId) {
-      where.userId = userId as string;
+    const requesterId = (req.user as { sub?: string })?.sub;
+    if (!requesterId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
     }
 
+    const requestedUserId = req.query.userId as string | undefined;
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { role: true },
+    });
+
+    const isAdmin = requester?.role === 'ADMIN';
+    const targetUserId = requestedUserId && isAdmin ? requestedUserId : requesterId;
+
     const sessions = await prisma.sessionHistoryItem.findMany({
+      where: {
+        userId: targetUserId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
       include: {
         relatedReview: true,
       },
@@ -73,6 +88,7 @@ export const createSessionHistory = expressAsyncHandler(
         objectives: session.objectives,
         subjects: session.subjects.map(subject => subject.name),
         instructorName: session.instructor.firstName + ' ' + session.instructor.lastName,
+        instructorId: session.instructorId,
         studentNames: session.students.map(student => student.firstName + ' ' + student.lastName),
       },
     });

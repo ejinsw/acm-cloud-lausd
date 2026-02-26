@@ -31,7 +31,7 @@ import { SessionHistoryTab } from "@/components/dashboard/student/SessionHistory
 import { PastSession } from "@/components/dashboard/student/SessionHistoryTab";
 import PageWrapper from "@/components/PageWrapper";
 import { useAuth } from "@/components/AuthProvider";
-import { Session, SessionHistoryItem, Review } from "@/lib/types";
+import { Session, SessionHistoryItem, Review, UserReviewsResponse } from "@/lib/types";
 import { getToken } from "@/actions/authentication";
 
 function InstructorDashboardContent() {
@@ -42,7 +42,8 @@ function InstructorDashboardContent() {
   // Data states
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [ownerReviews, setOwnerReviews] = useState<Review[]>([]);
+  const [recipientReviews, setRecipientReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,7 +125,7 @@ function InstructorDashboardContent() {
     }, 0)
   );
 
-  const reviewCount = reviews.length;
+  const reviewCount = ownerReviews.length + recipientReviews.length;
 
   // Fetch session history
   const fetchSessionHistory = async () => {
@@ -167,8 +168,9 @@ function InstructorDashboardContent() {
         throw new Error("Failed to fetch reviews");
       }
 
-      const data = await response.json();
-      setReviews(data.reviews || []);
+      const data = (await response.json()) as UserReviewsResponse;
+      setOwnerReviews(data.ownerReviews || data.reviews || []);
+      setRecipientReviews(data.recipientReviews || []);
     } catch (err) {
       console.error("Error fetching reviews:", err);
     }
@@ -221,7 +223,7 @@ function InstructorDashboardContent() {
             </Group>
             <Title order={2}>Welcome back{user?.firstName ? `, ${user.firstName}` : ""}</Title>
             <Text c="dimmed">
-              {totalSessions} sessions total, {hoursTutored} hours taught, {reviews.length} feedback entries.
+              {totalSessions} sessions total, {hoursTutored} hours taught, {recipientReviews.length} feedback entries.
             </Text>
             <Group>
               <Button component={Link} href={routes.instructorQueue} rightSection={<ArrowRight size={16} />}>
@@ -263,7 +265,7 @@ function InstructorDashboardContent() {
               Session History ({sessionHistory.length})
             </Tabs.Tab>
             <Tabs.Tab value="reviews" leftSection={<Star size={16} />}>
-              Reviews ({reviews.length})
+              Reviews ({reviewCount})
             </Tabs.Tab>
           </Tabs.List>
 
@@ -287,8 +289,8 @@ function InstructorDashboardContent() {
             />
           </Tabs.Panel>
 
-          <Tabs.Panel value="reviews" pt="lg">
-            {reviews.length === 0 ? (
+        <Tabs.Panel value="reviews" pt="lg">
+            {reviewCount === 0 ? (
               <Box py="xl" ta="center">
                 <Text fw={500} size="lg" mb="xs">No reviews yet</Text>
                 <Text size="sm" c="dimmed">
@@ -296,45 +298,103 @@ function InstructorDashboardContent() {
                 </Text>
               </Box>
             ) : (
-              <Stack gap={0}>
-                {reviews.map((review, index) => (
-                  <Box key={review.id}>
-                    {index > 0 && <Divider />}
-                    <Box py="lg">
-                      <Group justify="space-between" align="flex-start">
-                        <Group align="center">
-                          <Avatar color="blue" size="sm">
-                            {review.owner?.firstName?.charAt(0)}
-                            {review.owner?.lastName?.charAt(0)}
-                          </Avatar>
-                          <div>
-                            <Text fw={600}>
-                              {review.owner
-                                ? `${review.owner.firstName} ${review.owner.lastName}`
-                                : "Student"}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {formatReviewDate(review.createdAt)}
-                            </Text>
-                          </div>
-                        </Group>
-                        <Rating value={review.rating} readOnly fractions={2} size="sm" />
-                      </Group>
+              <Stack gap="xl">
+                <Box>
+                  <Text fw={600} mb="sm">
+                    Reviews About You ({recipientReviews.length})
+                  </Text>
+                  {recipientReviews.length === 0 ? (
+                    <Text size="sm" c="dimmed">No one has reviewed you yet.</Text>
+                  ) : (
+                    <Stack gap={0}>
+                      {recipientReviews.map((review, index) => (
+                        <Box key={`recipient-${review.id}`}>
+                          {index > 0 && <Divider />}
+                          <Box py="lg">
+                            <Group justify="space-between" align="flex-start">
+                              <Group align="center">
+                                <Avatar color="blue" size="sm">
+                                  {review.owner?.firstName?.charAt(0)}
+                                  {review.owner?.lastName?.charAt(0)}
+                                </Avatar>
+                                <div>
+                                  <Text fw={600}>
+                                    {review.owner
+                                      ? `${review.owner.firstName} ${review.owner.lastName}`
+                                      : "Student"}
+                                  </Text>
+                                  <Text size="xs" c="dimmed">
+                                    {formatReviewDate(review.createdAt)}
+                                  </Text>
+                                </div>
+                              </Group>
+                              <Rating value={review.rating} readOnly fractions={2} size="sm" />
+                            </Group>
+                            {review.sessionHistoryItem?.name && (
+                              <Text size="sm" c="dimmed" mt="xs">
+                                Session: {review.sessionHistoryItem.name}
+                              </Text>
+                            )}
+                            {review.comment && (
+                              <Text mt="md" size="sm">
+                                {review.comment}
+                              </Text>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
 
-                      {review.sessionHistoryItem?.name && (
-                        <Text size="sm" c="dimmed" mt="xs">
-                          Session: {review.sessionHistoryItem.name}
-                        </Text>
-                      )}
-
-                      {review.comment && (
-                        <Text mt="md" size="sm">
-                          {review.comment}
-                        </Text>
-                      )}
-                    </Box>
-                  </Box>
-                ))}
+                <Box>
+                  <Text fw={600} mb="sm">
+                    Reviews You Wrote ({ownerReviews.length})
+                  </Text>
+                  {ownerReviews.length === 0 ? (
+                    <Text size="sm" c="dimmed">You have not submitted any reviews yet.</Text>
+                  ) : (
+                    <Stack gap={0}>
+                      {ownerReviews.map((review, index) => (
+                        <Box key={`owner-${review.id}`}>
+                          {index > 0 && <Divider />}
+                          <Box py="lg">
+                            <Group justify="space-between" align="flex-start">
+                              <Group align="center">
+                                <Avatar color="green" size="sm">
+                                  {review.recipient?.firstName?.charAt(0)}
+                                  {review.recipient?.lastName?.charAt(0)}
+                                </Avatar>
+                                <div>
+                                  <Text fw={600}>
+                                    Reviewing{" "}
+                                    {review.recipient
+                                      ? `${review.recipient.firstName} ${review.recipient.lastName}`
+                                      : "Student"}
+                                  </Text>
+                                  <Text size="xs" c="dimmed">
+                                    {formatReviewDate(review.createdAt)}
+                                  </Text>
+                                </div>
+                              </Group>
+                              <Rating value={review.rating} readOnly fractions={2} size="sm" />
+                            </Group>
+                            {review.sessionHistoryItem?.name && (
+                              <Text size="sm" c="dimmed" mt="xs">
+                                Session: {review.sessionHistoryItem.name}
+                              </Text>
+                            )}
+                            {review.comment && (
+                              <Text mt="md" size="sm">
+                                {review.comment}
+                              </Text>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
               </Stack>
             )}
           </Tabs.Panel>

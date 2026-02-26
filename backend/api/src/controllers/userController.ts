@@ -772,6 +772,7 @@ export const getUserSessions = expressAsyncHandler(async (req: Request, res: Res
               firstName: true,
               lastName: true,
               email: true,
+              averageRating: true,
             },
           },
           subjects: true,
@@ -785,6 +786,7 @@ export const getUserSessions = expressAsyncHandler(async (req: Request, res: Res
               firstName: true,
               lastName: true,
               email: true,
+              averageRating: true,
             },
           },
           subjects: true,
@@ -823,30 +825,43 @@ export const getUserReviews = expressAsyncHandler(async (req: Request, res: Resp
     throw new Error('User not found');
   }
 
-  const reviews =
-    user.role === 'INSTRUCTOR'
-      ? await prisma.review.findMany({
-          where: { recipientId: userId },
-          include: {
-            owner: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
+  const [ownerReviews, recipientReviews] = await Promise.all([
+    prisma.review.findMany({
+      where: { ownerId: userId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        sessionHistoryItem: true,
+        recipient: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            averageRating: true,
           },
-        })
-      : await prisma.review.findMany({
-          where: { ownerId: userId },
-          include: {
-            recipient: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
+        },
+      },
+    }),
+    prisma.review.findMany({
+      where: { recipientId: userId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        sessionHistoryItem: true,
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            averageRating: true,
           },
-        });
+        },
+      },
+    }),
+  ]);
 
-  res.json({ reviews });
+  // Backward-compat for existing clients still reading `reviews`
+  const reviews = user.role === 'INSTRUCTOR' ? recipientReviews : ownerReviews;
+
+  res.json({ ownerReviews, recipientReviews, reviews });
 });

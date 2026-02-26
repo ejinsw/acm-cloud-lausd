@@ -99,14 +99,14 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         breakpoint: "sm",
         collapsed: { desktop: false, mobile: !opened },
       }}
-      header={{ height: 72 }}
+      header={{ height: { base: 0, sm: 72 } }}
       padding="lg"
     >
       <AppShell.Navbar p="md">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       </AppShell.Navbar>
 
-      <AppShell.Header className="app-topbar">
+      <AppShell.Header className="app-topbar" visibleFrom="sm">
         <Container size="xl" h="100%">
           <Group h="100%" justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">

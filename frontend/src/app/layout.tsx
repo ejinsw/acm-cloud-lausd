@@ -65,8 +65,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 href={routes.home}
                 c="dark"
                 fw={700}
-                style={{ textDecoration: "none" }}
+                style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "var(--mantine-spacing-xs)" }}
               >
+                <img src="/favicon.png" alt="" width={28} height={28} style={{ display: "block" }} />
                 Tutoring App
               </Anchor>
               <Group gap="sm">
@@ -116,6 +117,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 size="sm"
                 aria-label="Toggle navigation"
               />
+              <Anchor
+                component={Link}
+                href={routes.home}
+                style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center" }}
+              >
+                <img src="/favicon.png" alt="" width={28} height={28} style={{ display: "block" }} />
+              </Anchor>
               <Text fw={700}>{meta.title}</Text>
               {crumbs.length > 0 && (
                 <Group gap={4} visibleFrom="md" c="dimmed">
@@ -181,7 +189,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <meta
           name="description"
           content="Tutoring platform for queue-based live learning and session feedback"

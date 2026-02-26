@@ -36,21 +36,21 @@ import { routes } from "./routes";
 
 const stats = [
   {
-    label: "Verified instructors",
-    value: "540+",
-    description: "Active on the platform",
+    label: "Queue-based matching",
+    value: "Live",
+    description: "Students and instructors connected in real time",
     icon: <ShieldCheck size={24} />,
   },
   {
-    label: "Students served",
-    value: "11,200",
-    description: "This academic year",
+    label: "1-1 sessions",
+    value: "Focused",
+    description: "One student, one instructor per session",
     icon: <Users size={24} />,
   },
   {
-    label: "Live tutoring hours",
-    value: "68k",
-    description: "Delivered since launch",
+    label: "Session support",
+    value: "Built-in",
+    description: "Chat, video, and sync across devices",
     icon: <Clock size={24} />,
   },
 ];
@@ -59,43 +59,43 @@ const pillars = [
   {
     title: "Curriculum aligned",
     description:
-      "Every session is organized around specific academic goals and assignment context.",
+      "Sessions can be organized around specific academic goals and assignment context.",
     icon: <BookMarked size={22} />,
   },
   {
-    title: "Live instruction",
+    title: "Live 1-1 instruction",
     description:
-      "Students meet in real time with instructors who specialize in each subject area.",
+      "Students and instructors meet in real time through the queue and session link.",
     icon: <Radio size={22} />,
   },
   {
     title: "Accountability",
     description:
-      "Transparent queue updates, attendance logging, and outcome reporting for families.",
+      "Queue status, attendance, and reporting to support districts and families.",
     icon: <Award size={22} />,
   },
 ];
 
 const highlights = [
-  "Live tutoring from verified instructors",
+  "Live 1-1 sessions via the queue",
   "Secure, privacy-first platform",
-  "Language support for multilingual families",
+  "Support for multilingual use",
 ];
 
 const processSteps = [
   {
-    title: "Submit a tutoring request",
-    description: "Share the topic, class context, and what you are stuck on.",
+    title: "Enter the queue",
+    description: "Pick a subject or topic and add a short description of what you need.",
     icon: <FileText size={24} />,
   },
   {
-    title: "Match with an instructor",
-    description: "The live queue routes requests to available subject-matter experts.",
+    title: "Get matched",
+    description: "The queue connects you with an available instructor when they accept.",
     icon: <Calendar size={24} />,
   },
   {
     title: "Join the live session",
-    description: "Students connect through a secure session link and continue in real time chat.",
+    description: "Connect through the session link and work together in real time.",
     icon: <Video size={24} />,
   },
 ];
@@ -143,11 +143,11 @@ export default function Home() {
                   Live, queue-based tutoring
                 </Badge>
                 <Title order={1} size="h1" fw={800} style={{ lineHeight: 1.2 }}>
-                  Fast 1:1 tutoring when you need it
+                  Queue-based 1:1 tutoring for your district
                 </Title>
                 <Text size="lg" c="dimmed" maw={540}>
-                  Connect with available instructors in real time, launch a live session, and
-                  keep progress moving with a clean, focused learning workspace.
+                  A platform schools use to run live tutoring: students join the queue,
+                  instructors accept requests, and everyone meets in a focused 1:1 session.
                 </Text>
                 <Group gap="md">
                   <Button
@@ -243,10 +243,10 @@ export default function Home() {
           <Grid gutter={40} align="center">
             <Grid.Col span={{ base: 12, md: 5 }}>
               <Stack gap="md">
-                <Title order={2}>Academic assurances</Title>
+                <Title order={2}>What the platform supports</Title>
                 <Text size="md" c="dimmed">
-                  The tutoring program emphasizes transparency, student safety,
-                  and measurable academic gains.
+                  Queue-based matching, live 1-1 sessions, and reporting so districts
+                  can run transparent, safe tutoring programs.
                 </Text>
                 <Divider my="md" variant="dashed" />
                 <Stack gap="lg">
@@ -295,10 +295,10 @@ export default function Home() {
 
       <Box py={80}>
         <Container size="lg">
-          <Stack gap="md" align="center" textAlign="center">
-            <Title order={2}>How to receive tutoring</Title>
+            <Stack gap="md" align="center" style={{ textAlign: "center" }}>
+            <Title order={2}>How the queue works</Title>
             <Text size="md" c="dimmed" maw={640} ta="center">
-              The process is designed to be straightforward for families, counselors, and site leaders.
+              Students enter the queue; when an instructor is available and accepts, they join a live 1-1 session.
             </Text>
           </Stack>
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mt={40}>
@@ -343,14 +343,14 @@ export default function Home() {
               <Grid.Col span={{ base: 12, md: 8 }}>
                 <Stack gap="sm">
                   <Badge variant="light" color="blue" radius="sm" maw={200}>
-                    Platform access
+                    Get started
                   </Badge>
                   <Title order={2} c="white">
-                    Connect with a live tutor this week
+                    Run queue-based 1:1 tutoring for your district
                   </Title>
                   <Text c="gray.4">
-                    Families can request tutoring any time. Instructors respond through
-                    the live queue and move directly into a session when accepted.
+                    Students join the queue; instructors accept requests and start live sessions.
+                    Sign up or sign in to use the platform.
                   </Text>
                 </Stack>
               </Grid.Col>
@@ -362,7 +362,7 @@ export default function Home() {
                     size="lg"
                     rightSection={<ArrowRight size={16} />}
                   >
-                    Start Request
+                    Create Account
                   </Button>
                   <Button
                     component={Link}

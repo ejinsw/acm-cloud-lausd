@@ -35,7 +35,7 @@ output "user_pool_client_issuer" {
   value = module.cognito.user_pool_client_issuer
 }
 output "user_pool_client_secret" {
-  value = module.cognito.user_pool_client_secret
+  value     = module.cognito.user_pool_client_secret
   sensitive = true
 }
 output "api_ecr_repository_url" {

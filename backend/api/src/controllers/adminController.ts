@@ -2,7 +2,13 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
-import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
+import {
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
+  AdminUpdateUserAttributesCommand,
+  AdminConfirmSignUpCommand,
+  AdminDeleteUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
 import { spawn } from 'child_process';
 import { notificationService } from '../services/notificationService';
 import { storageService } from '../services/storageService';
@@ -121,6 +127,24 @@ export const adminDeleteUser = expressAsyncHandler(
       });
       await tx.user.delete({ where: { id } });
     });
+
+    try {
+      await cognito.send(
+        new AdminDeleteUserCommand({
+          UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+          Username: existingUser.email,
+        })
+      );
+    } catch (error: any) {
+      if (error?.name !== 'UserNotFoundException') {
+        console.error('Failed to delete user in Cognito after DB deletion:', error);
+        res.status(200).json({
+          message: 'User deleted from database, but Cognito deletion failed',
+          warning: 'COGNITO_DELETE_FAILED',
+        });
+        return;
+      }
+    }
 
     res.status(200).json({ message: 'User Deleted Successfully' });
   }

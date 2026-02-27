@@ -94,9 +94,10 @@ module "cognito" {
 module "cognito_admin" {
   source = "./modules/cognito_admin"
 
-  environment   = var.environment
-  user_pool_arn = module.cognito.user_pool_arn
-  user_pool_id  = module.cognito.user_pool_id
+  environment                     = var.environment
+  user_pool_arn                   = module.cognito.user_pool_arn
+  user_pool_id                    = module.cognito.user_pool_id
+  instructor_documents_bucket_arn = aws_s3_bucket.instructor_documents.arn
 
   depends_on = [module.cognito]
 }

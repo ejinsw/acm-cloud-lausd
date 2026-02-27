@@ -12,3 +12,8 @@ variable "user_pool_id" {
   description = "ID of the Cognito User Pool"
   type        = string
 }
+
+variable "instructor_documents_bucket_arn" {
+  description = "ARN of the instructor documents S3 bucket"
+  type        = string
+}

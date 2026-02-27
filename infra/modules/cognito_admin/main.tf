@@ -2,11 +2,12 @@
 resource "aws_iam_policy" "cognito_admin_policy" {
   name        = "${var.environment}-cognito-admin-policy"
   description = "Policy for Cognito admin operations"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "CognitoAdminOps"
         Effect = "Allow"
         Action = [
           "cognito-idp:AdminCreateUser",
@@ -27,6 +28,38 @@ resource "aws_iam_policy" "cognito_admin_policy" {
         Resource = [
           var.user_pool_arn
         ]
+      },
+      {
+        Sid    = "InstructorDocumentsBucketList"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          var.instructor_documents_bucket_arn
+        ]
+      },
+      {
+        Sid    = "InstructorDocumentsObjectAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${var.instructor_documents_bucket_arn}/*"
+        ]
+      },
+      {
+        Sid    = "SesSendEmail"
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -40,7 +73,7 @@ resource "aws_iam_policy" "cognito_admin_policy" {
 # IAM user for the backend service
 resource "aws_iam_user" "cognito_admin_user" {
   name = "${var.environment}-cognito-admin-user"
-  
+
   tags = {
     Environment = var.environment
     Project     = "acm-cloud-lausd"
@@ -62,7 +95,7 @@ resource "aws_iam_access_key" "cognito_admin_access_key" {
 # Alternative: IAM role for ECS/Lambda (more secure for production)
 resource "aws_iam_role" "cognito_admin_role" {
   name = "${var.environment}-cognito-admin-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

@@ -26,6 +26,7 @@ import {
   Textarea,
   Alert,
   Paper,
+  Collapse,
 } from "@mantine/core";
 import { 
   Users, 
@@ -104,6 +105,7 @@ function AdminDashboardContent() {
   const [fieldKey, setFieldKey] = useState("");
   const [fieldValueInput, setFieldValueInput] = useState("");
   const [settingsActionLoading, setSettingsActionLoading] = useState<string | null>(null);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   
   // Modals
   const [createAdminOpened, { open: openCreateAdmin, close: closeCreateAdmin }] = useDisclosure(false);
@@ -868,13 +870,15 @@ function AdminDashboardContent() {
                 >
                   Refresh
                 </Button>
-                <Button
-                  leftSection={<Plus size={16} />}
-                  onClick={handleInitializeSettings}
-                  loading={settingsActionLoading === "initialize-settings"}
-                >
-                  Initialize Defaults
-                </Button>
+                {!settings && !settingsLoading && (
+                  <Button
+                    leftSection={<Plus size={16} />}
+                    onClick={handleInitializeSettings}
+                    loading={settingsActionLoading === "initialize-settings"}
+                  >
+                    Initialize Defaults
+                  </Button>
+                )}
               </Group>
             </Group>
 
@@ -969,72 +973,69 @@ function AdminDashboardContent() {
                 </Paper>
 
                 <Paper withBorder p="md">
-                  <Text fw={500} mb="sm">Custom Fields</Text>
-                  <Stack gap="xs" mb="md">
-                    {customFields.length === 0 ? (
-                      <Text c="dimmed" size="sm">No custom fields configured.</Text>
-                    ) : (
-                      customFields.map(([key, value]) => (
-                        <Group key={key} justify="space-between" align="flex-start">
-                          <div>
-                            <Text fw={500}>{key}</Text>
-                            <Text size="xs" c="dimmed">
-                              {JSON.stringify(value)}
-                            </Text>
-                          </div>
-                          <ActionIcon
-                            color="red"
-                            variant="subtle"
-                            onClick={() => void handleDeleteField(key)}
-                            disabled={settingsActionLoading === `delete-field-${key}`}
-                          >
-                            <Trash2 size={14} />
-                          </ActionIcon>
-                        </Group>
-                      ))
-                    )}
-                  </Stack>
+                  <Group justify="space-between" align="center">
+                    <Text fw={500} c="dimmed">Advanced</Text>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      onClick={() => setCustomFieldsOpen((open) => !open)}
+                    >
+                      {customFieldsOpen ? "Hide custom fields" : "Manage custom fields"}
+                    </Button>
+                  </Group>
+                  <Collapse in={customFieldsOpen}>
+                    <Divider my="sm" />
+                    <Stack gap="xs" mb="md">
+                      {customFields.length === 0 ? (
+                        <Text c="dimmed" size="sm">No custom fields configured.</Text>
+                      ) : (
+                        customFields.map(([key, value]) => (
+                          <Group key={key} justify="space-between" align="flex-start">
+                            <div>
+                              <Text fw={500}>{key}</Text>
+                              <Text size="xs" c="dimmed">
+                                {JSON.stringify(value)}
+                              </Text>
+                            </div>
+                            <ActionIcon
+                              color="red"
+                              variant="subtle"
+                              onClick={() => void handleDeleteField(key)}
+                              disabled={settingsActionLoading === `delete-field-${key}`}
+                            >
+                              <Trash2 size={14} />
+                            </ActionIcon>
+                          </Group>
+                        ))
+                      )}
+                    </Stack>
 
-                  <Divider my="sm" />
+                    <Divider my="sm" />
 
-                  <Stack gap="sm">
-                    <TextInput
-                      label="Field Key"
-                      placeholder="exampleFlag"
-                      value={fieldKey}
-                      onChange={(e) => setFieldKey(e.currentTarget.value)}
-                    />
-                    <Textarea
-                      label="Field Value"
-                      placeholder='Use JSON (e.g. {"enabled":true}) or plain text'
-                      minRows={3}
-                      value={fieldValueInput}
-                      onChange={(e) => setFieldValueInput(e.currentTarget.value)}
-                    />
-                    <Group justify="flex-end">
-                      <Button
-                        onClick={handleSetField}
-                        loading={settingsActionLoading === "set-field"}
-                      >
-                        Save Field
-                      </Button>
-                    </Group>
-                  </Stack>
-                </Paper>
-
-                <Paper withBorder p="md">
-                  <Text fw={500} mb="sm">Raw Settings JSON</Text>
-                  <Box
-                    component="pre"
-                    p="sm"
-                    style={{
-                      overflowX: "auto",
-                      backgroundColor: "var(--mantine-color-gray-0)",
-                      borderRadius: 8,
-                    }}
-                  >
-                    {JSON.stringify(settings, null, 2)}
-                  </Box>
+                    <Stack gap="sm">
+                      <TextInput
+                        label="Field Key"
+                        placeholder="exampleFlag"
+                        value={fieldKey}
+                        onChange={(e) => setFieldKey(e.currentTarget.value)}
+                      />
+                      <Textarea
+                        label="Field Value"
+                        placeholder='Use JSON (e.g. {"enabled":true}) or plain text'
+                        minRows={3}
+                        value={fieldValueInput}
+                        onChange={(e) => setFieldValueInput(e.currentTarget.value)}
+                      />
+                      <Group justify="flex-end">
+                        <Button
+                          onClick={handleSetField}
+                          loading={settingsActionLoading === "set-field"}
+                        >
+                          Save Field
+                        </Button>
+                      </Group>
+                    </Stack>
+                  </Collapse>
                 </Paper>
               </Stack>
             )}

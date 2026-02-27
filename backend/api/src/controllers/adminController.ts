@@ -71,7 +71,19 @@ export const adminDeleteUser = expressAsyncHandler(
       return;
     }
 
-    await prisma.user.delete({ where: { id } });
+    // Delete or disconnect all relations that reference this user so the delete can succeed.
+    // Instructors are referenced by Session.instructorId (no cascade), Review owner/recipient, and Subject (many-to-many).
+    await prisma.$transaction(async (tx) => {
+      await tx.session.deleteMany({ where: { instructorId: id } });
+      await tx.review.deleteMany({
+        where: { OR: [{ ownerId: id }, { recipientId: id }] },
+      });
+      await tx.user.update({
+        where: { id },
+        data: { subjects: { set: [] } },
+      });
+      await tx.user.delete({ where: { id } });
+    });
 
     res.status(200).json({ message: 'User Deleted Successfully' });
   }

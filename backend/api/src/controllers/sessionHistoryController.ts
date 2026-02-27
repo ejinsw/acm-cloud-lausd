@@ -65,7 +65,6 @@ export const createSessionHistory = expressAsyncHandler(
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: {
-        subjects: { select: { name: true } },
         instructor: { select: { firstName: true, lastName: true } },
         students: { select: { firstName: true, lastName: true } },
       },
@@ -86,7 +85,7 @@ export const createSessionHistory = expressAsyncHandler(
         status: session.status,
         materials: session.materials,
         objectives: session.objectives,
-        subjects: session.subjects.map(subject => subject.name),
+        subjects: session.subjects,
         instructorName: session.instructor.firstName + ' ' + session.instructor.lastName,
         instructorId: session.instructorId,
         studentNames: session.students.map(student => student.firstName + ' ' + student.lastName),

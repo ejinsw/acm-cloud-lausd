@@ -59,49 +59,48 @@ model User {
   averageRating     Float? // For instructors
 
   // Relations
-  reviewsOwn     Review[]         @relation("owner")
-  reviewsRecipient  Review[]         @relation("recipient")
+  reviewsOwn         Review[]         @relation("owner")
+  reviewsRecipient   Review[]         @relation("recipient")
   instructorSessions Session[]        @relation("InstructorSessions")
   studentSessions    Session[]        @relation("StudentSessions")
-  subjects           Subject[] // For instructors
+  subjects           String[]         @default([]) // For instructors
   sessionRequests    SessionRequest[] @relation("StudentSessionRequests")
 
-  SessionHistoryItems SessionHistoryItem[]
-  studentQueues      StudentQueue[]   @relation("StudentQueues")
-  acceptedInstructorQueues StudentQueue[] @relation("AcceptedInstructorQueues")
-
+  SessionHistoryItems      SessionHistoryItem[]
+  studentQueues            StudentQueue[]       @relation("StudentQueues")
+  acceptedInstructorQueues StudentQueue[]       @relation("AcceptedInstructorQueues")
 }
 
 model Session {
-  id           String    @id @default(uuid())
-  name         String
-  description  String?
-  startTime    DateTime?
-  endTime      DateTime?
-  zoomLink     String?
-  maxAttendees Int?
+  id                        String    @id @default(uuid())
+  name                      String
+  description               String?
+  startTime                 DateTime?
+  endTime                   DateTime?
+  zoomLink                  String?
+  maxAttendees              Int?
   lastInstructorHeartbeatAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   // Session Details
   status     SessionStatus @default(SCHEDULED)
   materials  String[]
   objectives String[]
 
-  instructorId   String
-  instructor     User             @relation("InstructorSessions", fields: [instructorId], references: [id])
-  students       User[]           @relation("StudentSessions")
-  subjects       Subject[]
+  instructorId    String
+  instructor      User             @relation("InstructorSessions", fields: [instructorId], references: [id])
+  students        User[]           @relation("StudentSessions")
+  subjects        String[]         @default([])
   sessionRequests SessionRequest[] @relation("SessionRequests")
 
   @@index([instructorId])
 }
 
 model SessionRequest {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String               @id @default(uuid())
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
   status    SessionRequestStatus @default(PENDING)
 
   studentId String
@@ -117,7 +116,7 @@ model SessionHistoryItem {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   name         String
   description  String?
   startTime    DateTime?
@@ -126,35 +125,41 @@ model SessionHistoryItem {
   maxAttendees Int?
 
   // Session Details
-  status     SessionStatus @default(SCHEDULED)
-  materials  String[]
-  objectives String[]
-  subjects   String[]
+  status         SessionStatus @default(SCHEDULED)
+  materials      String[]
+  objectives     String[]
+  subjects       String[]
   instructorName String?
-  instructorId String?
-  studentNames String[]
+  instructorId   String?
+  studentNames   String[]
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
   relatedReview Review? @relation("relatedReview")
 
   @@index([userId])
 }
 
 model StudentQueue {
-  id          Int           @id @default(autoincrement())
-  createdAt   DateTime      @default(now())
+  id          Int         @id @default(autoincrement())
+  createdAt   DateTime    @default(now())
   description String
-  status      QueueStatus   @default(PENDING)
+  status      QueueStatus @default(PENDING)
 
-  studentId   String
-  student     User          @relation("StudentQueues", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation("StudentQueues", fields: [studentId], references: [id], onDelete: Cascade)
 
-  subjectId   String
-  subject     Subject       @relation(fields: [subjectId], references: [id]) //Defaulted Restrict on Subject
+  subject String
 
   acceptedInstructorId String?
-  acceptedInstructor   User?  @relation("AcceptedInstructorQueues", fields: [acceptedInstructorId], references: [id], onDelete: SetNull)
+  acceptedInstructor   User?   @relation("AcceptedInstructorQueues", fields: [acceptedInstructorId], references: [id], onDelete: SetNull)
+}
+
+model Setting {
+  id        String   @id @default("singleton")
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Review {
@@ -164,29 +169,17 @@ model Review {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessionHistoryItemId String? @unique
+  sessionHistoryItemId String?             @unique
   sessionHistoryItem   SessionHistoryItem? @relation("relatedReview", fields: [sessionHistoryItemId], references: [id])
 
-  ownerId    String
-  owner      User   @relation("owner", fields: [ownerId], references: [id])
+  ownerId     String
+  owner       User    @relation("owner", fields: [ownerId], references: [id])
   recipientId String?
   recipient   User?   @relation("recipient", fields: [recipientId], references: [id])
 
   @@index([ownerId])
   @@index([recipientId])
   @@index([sessionHistoryItemId])
-}
-
-model Subject {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
-  category    String?
-  level       String?
-
-  instructors User[]
-  sessions    Session[]
-  studentQueues StudentQueue[]
 }
 
 enum UserRole {

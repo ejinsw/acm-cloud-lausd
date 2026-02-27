@@ -7,14 +7,8 @@ app.use(express.json());
 app.use('/api', subjectRouter);
 
 describe('Subject Router', () => {
-  // TODO: Add integration tests for subject routes
+  // TODO: Add integration tests for legacy subject route
   // - GET /api/subjects
-  // - GET /api/subjects/:id
-  // - POST /api/subjects
-  // - PUT /api/subjects/:id
-  // - DELETE /api/subjects/:id
-  // - GET /subjects
-  // - GET /subjects/:name
 
   it('should have subject router defined', () => {
     expect(subjectRouter).toBeDefined();

@@ -1,9 +1,16 @@
 import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
 import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { spawn } from 'child_process';
+import {
+  SETTINGS_SINGLETON_ID,
+  buildDefaultSettingsData,
+  getSettingsData,
+  normalizeSettingsData,
+  normalizeStringList,
+} from '../services/settingsService';
 
 const prisma = new PrismaClient();
 
@@ -72,7 +79,7 @@ export const adminDeleteUser = expressAsyncHandler(
     }
 
     // Delete or disconnect all relations that reference this user so the delete can succeed.
-    // Instructors are referenced by Session.instructorId (no cascade), Review owner/recipient, and Subject (many-to-many).
+    // Instructors are referenced by Session.instructorId (no cascade) and Review owner/recipient.
     await prisma.$transaction(async (tx) => {
       await tx.session.deleteMany({ where: { instructorId: id } });
       await tx.review.deleteMany({
@@ -80,7 +87,7 @@ export const adminDeleteUser = expressAsyncHandler(
       });
       await tx.user.update({
         where: { id },
-        data: { subjects: { set: [] } },
+        data: { subjects: [] },
       });
       await tx.user.delete({ where: { id } });
     });
@@ -235,24 +242,25 @@ export const adminUpdateSession = expressAsyncHandler(
 
     // Handle subjects update if provided
     if (subjects !== undefined) {
-      if (!Array.isArray(subjects) || subjects.length === 0) {
+      const normalizedSubjects = normalizeStringList(subjects);
+      if (normalizedSubjects.length === 0) {
         res.status(400).json({ message: 'At least one subject is required' });
         return;
       }
-      const subjectRecords = await prisma.subject.findMany({
-        where: { name: { in: subjects } },
-        select: { id: true, name: true },
-      });
-      if (subjectRecords.length !== subjects.length) {
-        const foundNames = subjectRecords.map(s => s.name);
-        const missing = subjects.filter((s: string) => !foundNames.includes(s));
+
+      const settings = await getSettingsData();
+      if (!settings) {
+        res.status(400).json({ message: 'Settings are not initialized' });
+        return;
+      }
+
+      const allowedSubjects = new Set(settings.subjects);
+      const missing = normalizedSubjects.filter(subject => !allowedSubjects.has(subject));
+      if (missing.length > 0) {
         res.status(400).json({ message: `Invalid subject(s): ${missing.join(', ')}` });
         return;
       }
-      data.subjects = {
-        set: [],
-        connect: subjectRecords.map(s => ({ id: s.id })),
-      };
+      data.subjects = normalizedSubjects;
     }
 
     if (Object.keys(data).length === 0) {
@@ -265,7 +273,6 @@ export const adminUpdateSession = expressAsyncHandler(
       data,
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true } },
-        subjects: true,
       },
     });
 
@@ -770,59 +777,39 @@ export const runMigrations = expressAsyncHandler(
 
 export const initializeDB = expressAsyncHandler(async (req, res) => {
   try {
-    // Subjects to seed if they don't exist
-    const defaultSubjects = [
-      {
-        name: "Mathematics",
-        description: "The study of quantities, structures, space, and change.",
-        category: "Science",
-        level: "Beginner"
-      },
-      {
-        name: "Physics",
-        description: "The fundamental science of matter, energy, and their interactions.",
-        category: "Science",
-        level: "Intermediate"
-      },
-      {
-        name: "Chemistry",
-        description: "Composition, structure, properties, and change of matter.",
-        category: "Science",
-        level: "Intermediate"
-      },
-      {
-        name: "Biology",
-        description: "The science of life and living organisms.",
-        category: "Science",
-        level: "Beginner"
-      },
-      {
-        name: "English",
-        description: "Study of the English language and literature.",
-        category: "Language",
-        level: "Beginner"
-      }
-    ];
+    const existing = await prisma.setting.findUnique({
+      where: { id: SETTINGS_SINGLETON_ID },
+      select: { data: true },
+    });
 
-    // For each subject, check if it exists — if not, create it
-    for (const subj of defaultSubjects) {
-      const exists = await prisma.subject.findFirst({
-        where: { name: subj.name }
+    if (existing) {
+      res.status(200).json({
+        created: false,
+        message: 'Settings already initialized',
+        settings: normalizeSettingsData(existing.data),
       });
-
-      if (!exists) {
-        await prisma.subject.create({ data: subj });
-      }
+      return;
     }
 
+    const defaults = buildDefaultSettingsData();
+    const created = await prisma.setting.create({
+      data: {
+        id: SETTINGS_SINGLETON_ID,
+        data: defaults as Prisma.InputJsonValue,
+      },
+      select: { data: true },
+    });
+
     res.status(200).json({
-      message: "Subjects initialized (created if they did not already exist)"
+      created: true,
+      message: 'Settings initialized',
+      settings: normalizeSettingsData(created.data),
     });
   } catch (error: any) {
-    console.error("Error initializing DB subjects:", error);
+    console.error('Error initializing DB settings:', error);
     res.status(500).json({
-      message: "Failed to initialize database subjects",
-      error: error.message || String(error)
+      message: 'Failed to initialize database settings',
+      error: error.message || String(error),
     });
   }
 });

@@ -13,6 +13,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { prisma } from '../config/prisma';
 import crypto from 'crypto';
+import { getSettingsData, normalizeStringList } from '../services/settingsService';
 // Request body interfaces
 interface SignupBody {
   email: string;
@@ -159,26 +160,21 @@ export const signup = expressAsyncHandler(
         } else if (role === 'instructor') {
           console.log('Creating instructor in database...');
           
-          // Validate subjects exist
-          if (!subjects || subjects.length === 0) {
+          const normalizedSubjects = normalizeStringList(subjects);
+          if (normalizedSubjects.length === 0) {
             throw new Error('Instructors must have at least one credentialed subject');
           }
 
-          const subjectsToAdd = await tx.subject.findMany({
-            where: {
-              name: {
-                in: Array.isArray(subjects) ? subjects : [subjects],
-              },
-            },
-            select: { id: true, name: true },
-          });
+          const settings = await getSettingsData(tx);
+          if (!settings) {
+            throw new Error('Settings not initialized');
+          }
 
-          // if (subjectsToAdd.length !== (Array.isArray(subjects) ? subjects.length : 1)) {
-          //   const foundSubjectNames = subjectsToAdd.map(s => s.id);
-          //   const requestedSubjectNames = Array.isArray(subjects) ? subjects : [subjects];
-          //   const missingSubjects = requestedSubjectNames.filter(name => !foundSubjectNames.includes(name));
-          //   throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
-          // }
+          const allowedSubjects = new Set(settings.subjects);
+          const missingSubjects = normalizedSubjects.filter(name => !allowedSubjects.has(name));
+          if (missingSubjects.length > 0) {
+            throw new Error(`Subjects not found: ${missingSubjects.join(', ')}`);
+          }
 
           await tx.user.create({
             data: {
@@ -194,9 +190,7 @@ export const signup = expressAsyncHandler(
               zip: zip,
               country: country,
               schoolName: schoolName,
-              subjects: {
-                connect: subjectsToAdd.map(s => ({ id: s.id })),
-              },
+              subjects: normalizedSubjects,
               role: 'INSTRUCTOR',
             },
           });
@@ -247,6 +241,14 @@ export const signup = expressAsyncHandler(
         res.status(400).json({ 
           error: error.message,
           code: 'INVALID_SUBJECTS'
+        });
+        return;
+      }
+
+      if (error.message?.includes('Settings not initialized')) {
+        res.status(400).json({
+          error: 'Settings are not initialized. Ask an admin to initialize settings first.',
+          code: 'SETTINGS_NOT_INITIALIZED',
         });
         return;
       }

@@ -30,6 +30,8 @@ interface UserProfile {
 export const getAllInstructors = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { name, subject } = req.query;
+    const subjectFilter =
+      typeof subject === 'string' && subject.trim() ? subject.trim().toLowerCase() : null;
     const where: any = { role: 'INSTRUCTOR' };
     if (name) {
       where.OR = [
@@ -37,21 +39,23 @@ export const getAllInstructors = expressAsyncHandler(
         { lastName: { contains: name, mode: 'insensitive' } },
       ];
     }
-    if (subject) {
-      where.subjects = {
-        some: { name: { contains: subject, mode: 'insensitive' } },
-      };
-    }
     const instructors = await prisma.user.findMany({
       where,
       include: {
-        subjects: true,
         reviewsRecipient: true,
         instructorSessions: true,
       },
     });
 
-    res.json({ instructors });
+    const filteredInstructors = subjectFilter
+      ? instructors.filter(instructor =>
+          instructor.subjects.some(instructorSubject =>
+            instructorSubject.toLowerCase().includes(subjectFilter)
+          )
+        )
+      : instructors;
+
+    res.json({ instructors: filteredInstructors });
   }
 );
 
@@ -67,7 +71,6 @@ export const getInstructorById = expressAsyncHandler(
     const instructor = await prisma.user.findUnique({
       where: { id },
       include: {
-        subjects: true,
         reviewsRecipient: true,
         instructorSessions: true,
       },
@@ -151,7 +154,6 @@ export const updateInstructor = expressAsyncHandler(
       where: { id },
       data: filteredData,
       include: {
-        subjects: true,
         reviewsRecipient: true,
         instructorSessions: true,
       },
@@ -528,7 +530,6 @@ export const updateUserProfile = expressAsyncHandler(async (req: Request, res: R
     where: { id: userId },
     data: filteredData,
     include: {
-      subjects: true,
       reviewsRecipient: true,
       instructorSessions: true,
       studentSessions: true,
@@ -710,13 +711,7 @@ export const getInstructors = expressAsyncHandler(async (req: Request, res: Resp
           education: true,
           experience: true,
           averageRating: true,
-          subjects: {
-            select: {
-              id: true,
-              name: true,
-              level: true,
-            },
-          },
+          subjects: true,
           reviewsRecipient: {
             select: {
               id: true,
@@ -775,7 +770,6 @@ export const getUserSessions = expressAsyncHandler(async (req: Request, res: Res
               averageRating: true,
             },
           },
-          subjects: true,
         },
       },
       studentSessions: {
@@ -789,7 +783,6 @@ export const getUserSessions = expressAsyncHandler(async (req: Request, res: Res
               averageRating: true,
             },
           },
-          subjects: true,
         },
       },
     },

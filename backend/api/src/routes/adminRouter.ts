@@ -43,7 +43,7 @@ router.put('/admin/sessions/:id', ...adminAuth, adminUpdateSession);
 router.delete('/admin/sessions/:id', ...adminAuth, adminDeleteSession);
 
 // Database migrations
-router.post('/admin/migrations/run', runMigrations);
-router.post('/admin/initialize', initializeDB);
+router.post('/admin/migrations/run', ...adminAuth, runMigrations);
+router.post('/admin/initialize', ...adminAuth, initializeDB);
 
 export default router;

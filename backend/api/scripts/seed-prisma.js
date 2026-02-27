@@ -285,21 +285,24 @@ const testSessions = [
   },
 ];
 
-// Helper function to create subjects
-async function createSubjects() {
-  console.log('Creating subjects...');
-  for (const subject of testSubjects) {
-    try {
-      await prisma.subject.upsert({
-        where: { name: subject.name },
-        update: {},
-        create: subject,
-      });
-      console.log(`✓ Created/Updated subject: ${subject.name}`);
-    } catch (error) {
-      console.error(`✗ Error creating subject ${subject.name}:`, error.message);
-    }
-  }
+// Helper function to initialize settings singleton
+async function createSettings() {
+  const subjectNames = testSubjects.map(subject => subject.name);
+  const defaultSettings = {
+    subjects: subjectNames,
+    schools: ['N/A'],
+  };
+
+  await prisma.setting.upsert({
+    where: { id: 'singleton' },
+    update: { data: defaultSettings },
+    create: {
+      id: 'singleton',
+      data: defaultSettings,
+    },
+  });
+
+  console.log(`✓ Initialized settings with ${subjectNames.length} subjects`);
 }
 
 // Helper function to create instructors
@@ -327,6 +330,7 @@ async function createInstructors() {
         experience: instructor.experience,
         certificationUrls: instructor.certificationUrls,
         averageRating: instructor.averageRating,
+        subjects: instructor.subjects,
       };
 
       await prisma.user.upsert({
@@ -334,25 +338,6 @@ async function createInstructors() {
         update: userData,
         create: userData,
       });
-
-      // Connect subjects
-      if (instructor.subjects.length > 0) {
-        for (const subjectName of instructor.subjects) {
-          const subject = await prisma.subject.findUnique({
-            where: { name: subjectName },
-          });
-          if (subject) {
-            await prisma.user.update({
-              where: { id: instructor.id },
-              data: {
-                subjects: {
-                  connect: { id: subject.id },
-                },
-              },
-            });
-          }
-        }
-      }
 
       console.log(`✓ Created/Updated instructor: ${instructor.firstName} ${instructor.lastName}`);
     } catch (error) {
@@ -378,31 +363,11 @@ async function createSessions() {
         maxAttendees: session.maxAttendees,
         materials: session.materials,
         objectives: session.objectives,
+        subjects: session.subjects,
         instructorId: session.instructorId,
       };
 
-      const createdSession = await prisma.session.create({
-        data: sessionData,
-      });
-
-      // Connect subjects
-      if (session.subjects.length > 0) {
-        for (const subjectName of session.subjects) {
-          const subject = await prisma.subject.findUnique({
-            where: { name: subjectName },
-          });
-          if (subject) {
-            await prisma.session.update({
-              where: { id: createdSession.id },
-              data: {
-                subjects: {
-                  connect: { id: subject.id },
-                },
-              },
-            });
-          }
-        }
-      }
+      await prisma.session.create({ data: sessionData });
 
       console.log(`✓ Created session: ${session.name}`);
     } catch (error) {
@@ -416,12 +381,12 @@ async function seedDatabase() {
   console.log('🚀 Starting database seeding...\n');
 
   try {
-    await createSubjects();
+    await createSettings();
     await createInstructors();
     await createSessions();
 
     console.log('\n✅ Database seeding completed successfully!');
-    console.log(`📊 Created ${testSubjects.length} subjects`);
+    console.log(`⚙️  Seeded settings with ${testSubjects.length} subjects`);
     console.log(`👨‍🏫 Created ${testInstructors.length} instructors`);
     console.log(`📚 Created ${testSessions.length} sessions`);
   } catch (error) {

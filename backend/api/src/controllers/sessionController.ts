@@ -2,6 +2,7 @@ import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { zoomService } from '../services/zoomService';
+import { getSettingsData, normalizeStringList } from '../services/settingsService';
 
 // Helper function to check and expire old sessions (older than 6 hours)
 async function expireOldSessions() {
@@ -28,6 +29,41 @@ async function expireOldSessions() {
   } catch (error) {
     console.error('Failed to expire old sessions:', error);
   }
+}
+
+async function validateSessionSubjects(subjects: unknown) {
+  const normalizedSubjects = normalizeStringList(subjects);
+  if (normalizedSubjects.length === 0) {
+    return {
+      valid: false,
+      error: 'At least one subject is required',
+      subjects: normalizedSubjects,
+    };
+  }
+
+  const settings = await getSettingsData();
+  if (!settings) {
+    return {
+      valid: false,
+      error: 'Settings are not initialized',
+      subjects: normalizedSubjects,
+    };
+  }
+
+  const allowedSubjects = new Set(settings.subjects);
+  const missing = normalizedSubjects.filter(subject => !allowedSubjects.has(subject));
+  if (missing.length > 0) {
+    return {
+      valid: false,
+      error: `Invalid subject(s): ${missing.join(', ')}`,
+      subjects: normalizedSubjects,
+    };
+  }
+
+  return {
+    valid: true,
+    subjects: normalizedSubjects,
+  };
 }
 
 // Types
@@ -58,17 +94,12 @@ export const getAllSessions = expressAsyncHandler(
     await expireOldSessions();
 
     const { tutorName, name, subject, instructorId } = req.query;
+    const subjectFilter =
+      typeof subject === 'string' && subject.trim() ? subject.trim().toLowerCase() : null;
 
     const where: any = {};
     if (name) {
       where.name = { contains: name as string, mode: 'insensitive' };
-    }
-    if (subject) {
-      where.subjects = {
-        some: {
-          name: { contains: subject as string, mode: 'insensitive' },
-        },
-      };
     }
     if (instructorId) {
       where.instructorId = instructorId as string;
@@ -87,11 +118,18 @@ export const getAllSessions = expressAsyncHandler(
       where,
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true, averageRating: true } },
-        subjects: true,
       },
     });
 
-    res.json({ sessions });
+    const filteredSessions = subjectFilter
+      ? sessions.filter(session =>
+          session.subjects.some(sessionSubject =>
+            sessionSubject.toLowerCase().includes(subjectFilter)
+          )
+        )
+      : sessions;
+
+    res.json({ sessions: filteredSessions });
   }
 );
 
@@ -124,7 +162,6 @@ export const getSessionById = expressAsyncHandler(
             certificationUrls: true,
           },
         },
-        subjects: true,
         students: {
           select: {
             id: true,
@@ -185,6 +222,12 @@ export const createSession = expressAsyncHandler(
       return;
     }
 
+    const subjectValidation = await validateSessionSubjects(subjects);
+    if (!subjectValidation.valid) {
+      res.status(400).json({ message: subjectValidation.error });
+      return;
+    }
+
     const session = await prisma.session.create({
       data: {
         name,
@@ -195,17 +238,14 @@ export const createSession = expressAsyncHandler(
         maxAttendees: maxAttendees ?? 2,
         materials: materials || [],
         objectives: objectives || [],
+        subjects: subjectValidation.subjects,
         instructorId: userId,
-        subjects: {
-          connect: subjects.map((s: string) => ({ id: s })),
-        },
         students: {
           connect: students.map((s: string) => ({ id: s })),
         },
       },
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true } },
-        subjects: true,
       },
     });
 
@@ -338,24 +378,12 @@ export const updateSession = expressAsyncHandler(
 
     // Handle subjects update if provided
     if (subjects !== undefined) {
-      if (!Array.isArray(subjects) || subjects.length === 0) {
-        res.status(400).json({ message: 'At least one subject is required' });
+      const subjectValidation = await validateSessionSubjects(subjects);
+      if (!subjectValidation.valid) {
+        res.status(400).json({ message: subjectValidation.error });
         return;
       }
-      const subjectRecords = await prisma.subject.findMany({
-        where: { name: { in: subjects } },
-        select: { id: true, name: true },
-      });
-      if (subjectRecords.length !== subjects.length) {
-        const foundNames = subjectRecords.map(s => s.name);
-        const missing = subjects.filter((s: string) => !foundNames.includes(s));
-        res.status(400).json({ message: `Invalid subject(s): ${missing.join(', ')}` });
-        return;
-      }
-      data.subjects = {
-        set: [],
-        connect: subjectRecords.map(s => ({ id: s.id })),
-      };
+      data.subjects = subjectValidation.subjects;
     }
 
     if (Object.keys(data).length === 0) {
@@ -402,7 +430,6 @@ export const updateSession = expressAsyncHandler(
       data,
       include: {
         instructor: { select: { id: true, firstName: true, lastName: true } },
-        subjects: true,
       },
     });
 
@@ -513,7 +540,6 @@ export const joinSession = expressAsyncHandler(async (req: Request, res: Respons
     include: {
       students: { select: { id: true } },
       instructor: { select: { id: true, firstName: true, lastName: true } },
-      subjects: true,
     },
   });
   if (!session) {
@@ -541,7 +567,6 @@ export const joinSession = expressAsyncHandler(async (req: Request, res: Respons
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
-      subjects: true,
       students: { select: { id: true, firstName: true, lastName: true } },
     },
   });
@@ -579,7 +604,6 @@ export const leaveSession = expressAsyncHandler(async (req: Request, res: Respon
     include: {
       students: { select: { id: true } },
       instructor: { select: { id: true, firstName: true, lastName: true } },
-      subjects: true,
     },
   });
   if (!session) {
@@ -601,7 +625,6 @@ export const leaveSession = expressAsyncHandler(async (req: Request, res: Respon
     },
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
-      subjects: true,
       students: { select: { id: true, firstName: true, lastName: true } },
     },
   });
@@ -756,13 +779,7 @@ export const getSessionRequests = expressAsyncHandler(async (req: Request, res: 
               averageRating: true,
             },
           },
-          subjects: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-            },
-          },
+          subjects: true,
         },
       },
     },
@@ -908,7 +925,6 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
-          subjects: true,
           students: { select: { id: true, firstName: true, lastName: true } },
         },
       });
@@ -923,7 +939,6 @@ export const acceptSessionRequest = expressAsyncHandler(async (req: Request, res
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
-          subjects: true,
           students: { select: { id: true, firstName: true, lastName: true } },
         },
       });
@@ -1021,7 +1036,6 @@ export const rejectSessionRequest = expressAsyncHandler(async (req: Request, res
         },
         include: {
           instructor: { select: { id: true, firstName: true, lastName: true } },
-          subjects: true,
           students: { select: { id: true, firstName: true, lastName: true } },
         },
       });
@@ -1076,7 +1090,6 @@ export const startSession = expressAsyncHandler(async (req: Request, res: Respon
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true,
     },
   });
 
@@ -1111,7 +1124,6 @@ export const startSession = expressAsyncHandler(async (req: Request, res: Respon
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true,
     },
   });
 
@@ -1156,7 +1168,6 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true,
     },
   });
 
@@ -1177,7 +1188,6 @@ export const stopSession = expressAsyncHandler(async (req: Request, res: Respons
     include: {
       instructor: { select: { id: true, firstName: true, lastName: true } },
       students: { select: { id: true, firstName: true, lastName: true, email: true } },
-      subjects: true,
     },
   });
 

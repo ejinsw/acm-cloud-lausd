@@ -252,7 +252,7 @@ function ProfileContent() {
           updateData.certificationUrls = user.certificationUrls;
         }
         if (hasChanged('subjects', user.subjects, originalUser.subjects)) {
-          updateData.subjects = user.subjects?.map((s) => s.name) || [];
+          updateData.subjects = user.subjects || [];
         }
       }
 

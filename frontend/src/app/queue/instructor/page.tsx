@@ -85,7 +85,7 @@ export default function InstructorQueuePage() {
     const items: EnrichedQueueItem[] = [];
     for (const [cognitoId, item] of queueItems.entries()) {
       const studentId = item.studentId || cognitoId;
-      const canTeach = user?.subjects?.some((s: any) => s.id === item.subjectId) ?? false;
+      const canTeach = user?.subjects?.includes(item.subject || "") ?? false;
       items.push({
         ...item,
         id: item.id || 0,
@@ -127,6 +127,9 @@ export default function InstructorQueuePage() {
       if (!token) {
         throw new Error("No authentication token available");
       }
+      if (!queueItem.subject) {
+        throw new Error("Queue item subject is missing");
+      }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/sessions`,
@@ -137,13 +140,13 @@ export default function InstructorQueuePage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: `${queueItem.subject?.name} with ${queueItem.student?.firstName} ${queueItem.student?.lastName}`,
+            name: `${queueItem.subject || "Tutoring"} with ${queueItem.student?.firstName} ${queueItem.student?.lastName}`,
             description: queueItem.description,
             startTime: Date.now(),
             endTime: new Date(Date.now() + 30 * 60 * 1000),
             maxAttendees: 2,
             students: [queueItem.studentId],
-            subjects: [queueItem.subjectId],
+            subjects: [queueItem.subject],
           }),
         },
       );
@@ -387,7 +390,7 @@ export default function InstructorQueuePage() {
                       {currentCard.student?.firstName || "Student"} {currentCard.student?.lastName || ""}
                     </Text>
                     <Text size="sm" c="dimmed">
-                      {currentCard.subject?.name || "Unknown Subject"}
+                      {currentCard.subject || "Unknown Subject"}
                     </Text>
                     <Text size="xs" c="dimmed">
                       Student rating: {formatRating(currentCard.student?.averageRating)}
@@ -468,7 +471,7 @@ export default function InstructorQueuePage() {
                         )}
                       </Group>
                       <Text size="sm" c="dimmed">
-                        {item.subject?.name || "Unknown Subject"} • {timeAgo(item.createdAt)}
+                        {item.subject || "Unknown Subject"} • {timeAgo(item.createdAt)}
                       </Text>
                       <Text size="xs" c="dimmed">
                         Student rating: {formatRating(item.student?.averageRating)}

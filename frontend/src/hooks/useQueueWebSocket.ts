@@ -11,7 +11,7 @@ export interface QueueItem {
   status?: string;
   createdAt?: string;
   studentId?: string;
-  subjectId?: string;
+  subject?: string;
   queuePosition?: number;
   estimatedWaitMinutes?: number;
   priorityBand?: QueuePriorityBand;
@@ -22,13 +22,6 @@ export interface QueueItem {
     email: string;
     cognitoId?: string;
     averageRating?: number | null;
-  };
-  subject?: {
-    id: string;
-    name: string;
-    level: string | null;
-    description?: string;
-    category?: string;
   };
   canTeach?: boolean;
   deckAction?: QueueDeckAction;
@@ -64,6 +57,7 @@ interface QueueWebSocketMessage {
 /**
  * PAYLOAD STRUCTURE CONVENTION:
  * - Queue item data is nested in `data` field: { role, data: QueueItem }
+ * - Queue item subject is plain string: `subject`
  * - QUEUE_JOIN/LEAVE: { id, role, data }
  * - QUEUE_SUBSCRIBED: { students: [...] }
  * - QUEUE_ACCEPTED: { data: { studentId, sessionId } }

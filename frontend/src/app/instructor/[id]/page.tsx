@@ -203,8 +203,8 @@ function InstructorProfileContent() {
                     </Group>
                     <Group gap="xs">
                       {instructor.subjects.map((subject) => (
-                        <Badge key={subject.id} variant="light" color="blue">
-                          {subject.name}
+                        <Badge key={subject} variant="light" color="blue">
+                          {subject}
                         </Badge>
                       ))}
                     </Group>

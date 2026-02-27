@@ -20,10 +20,9 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
         role,
         data: {
           description: data.description,
-          subjectId: data.subjectId,
+          subject: data.subject,
           // Client-provided enriched data
           student: data.student, // { id, firstName, lastName, email, cognitoId }
-          subject: data.subject, // { id, name, level, description?, category? }
         },
       };
 
@@ -66,9 +65,8 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
         role: student.role,
         data: {
           description: student.data.description,
-          subjectId: student.data.subjectId,
-          student: student.data.student,
           subject: student.data.subject,
+          student: student.data.student,
         },
       }));
 
@@ -90,9 +88,8 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
         role: student.role,
         data: {
           description: student.data.description,
-          subjectId: student.data.subjectId,
-          student: student.data.student,
           subject: student.data.subject,
+          student: student.data.student,
         },
       }));
 

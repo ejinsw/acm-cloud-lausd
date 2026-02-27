@@ -50,7 +50,7 @@ interface SessionRequestWithDetails {
     endTime?: string;
     maxAttendees?: number;
     students: { id: string }[];
-    subjects: { id: string; name: string }[];
+    subjects: string[];
   };
 }
 

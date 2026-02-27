@@ -29,7 +29,7 @@ export interface User {
   education?: string[];
   experience?: string[];
   certificationUrls?: string[];
-  subjects?: Array<{ id: string; name: string }>;
+  subjects?: string[];
   averageRating?: number;
   sessionRequests?: SessionRequest[];
 }
@@ -53,7 +53,7 @@ export interface Session {
   instructorId: string;
   instructor?: User;
   students?: User[];
-  subjects?: Subject[];
+  subjects?: string[];
 }
 
 export interface Review {
@@ -89,16 +89,7 @@ export interface Review {
   };
 }
 
-export interface Subject {
-  id: string;
-  name: string;
-  description?: string;
-  category?: string;
-  level?: string;
-
-  instructors?: User[];
-  sessions?: Session[];
-}
+export type Subject = string;
 
 export interface SessionRequest {
   id: string;

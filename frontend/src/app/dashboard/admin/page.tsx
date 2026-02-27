@@ -23,6 +23,9 @@ import {
   SimpleGrid,
   Divider,
   Center,
+  Textarea,
+  Alert,
+  Paper,
 } from "@mantine/core";
 import { 
   Users, 
@@ -41,6 +44,7 @@ import PageWrapper from "@/components/PageWrapper";
 import { notifications } from '@mantine/notifications';
 import { useDisclosure } from '@mantine/hooks';
 import { getToken } from "@/actions/authentication";
+import { useSettings } from "@/hooks/useSettings";
 
 interface AdminStats {
   users: {
@@ -95,11 +99,30 @@ function AdminDashboardContent() {
   const [usersSearch, setUsersSearch] = useState("");
   const [usersRoleFilter, setUsersRoleFilter] = useState<string>("");
   const [usersVerifiedFilter, setUsersVerifiedFilter] = useState<string>("");
+  const [newSubject, setNewSubject] = useState("");
+  const [newSchool, setNewSchool] = useState("");
+  const [fieldKey, setFieldKey] = useState("");
+  const [fieldValueInput, setFieldValueInput] = useState("");
+  const [settingsActionLoading, setSettingsActionLoading] = useState<string | null>(null);
   
   // Modals
   const [createAdminOpened, { open: openCreateAdmin, close: closeCreateAdmin }] = useDisclosure(false);
   const [viewInstructorOpened, { open: openViewInstructor, close: closeViewInstructor }] = useDisclosure(false);
   const [selectedInstructor, setSelectedInstructor] = useState<UnverifiedInstructor | null>(null);
+
+  const {
+    settings,
+    isLoading: settingsLoading,
+    error: settingsError,
+    refetch: refetchSettings,
+    initialize: initializeSettings,
+    addSubjectField,
+    removeSubjectField,
+    addSchoolField,
+    removeSchoolField,
+    setField,
+    deleteField,
+  } = useSettings();
   
   // Create admin form
   const [createAdminForm, setCreateAdminForm] = useState({
@@ -328,6 +351,184 @@ function AdminDashboardContent() {
     }
   };
 
+  const runSettingsAction = async (
+    actionKey: string,
+    action: (token: string) => Promise<void>,
+  ) => {
+    setSettingsActionLoading(actionKey);
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Authentication token not available");
+      }
+      await action(token);
+    } finally {
+      setSettingsActionLoading(null);
+    }
+  };
+
+  const handleInitializeSettings = async () => {
+    try {
+      await runSettingsAction("initialize-settings", async (token) => {
+        const result = await initializeSettings(token);
+        notifications.show({
+          title: "Settings initialized",
+          message: result.created
+            ? "Default settings were created successfully."
+            : "Settings already existed. No changes were made.",
+          color: "green",
+        });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to initialize settings";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleAddSubject = async () => {
+    const subject = newSubject.trim();
+    if (!subject) return;
+
+    try {
+      await runSettingsAction("add-subject", async (token) => {
+        await addSubjectField(token, subject);
+      });
+      notifications.show({
+        title: "Subject added",
+        message: `"${subject}" is now available in settings.`,
+        color: "green",
+      });
+      setNewSubject("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to add subject";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleRemoveSubject = async (subject: string) => {
+    try {
+      await runSettingsAction(`remove-subject-${subject}`, async (token) => {
+        await removeSubjectField(token, subject);
+      });
+      notifications.show({
+        title: "Subject removed",
+        message: `"${subject}" was removed from settings.`,
+        color: "green",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to remove subject";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleAddSchool = async () => {
+    const school = newSchool.trim();
+    if (!school) return;
+
+    try {
+      await runSettingsAction("add-school", async (token) => {
+        await addSchoolField(token, school);
+      });
+      notifications.show({
+        title: "School added",
+        message: `"${school}" is now available in settings.`,
+        color: "green",
+      });
+      setNewSchool("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to add school";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleRemoveSchool = async (school: string) => {
+    try {
+      await runSettingsAction(`remove-school-${school}`, async (token) => {
+        await removeSchoolField(token, school);
+      });
+      notifications.show({
+        title: "School removed",
+        message: `"${school}" was removed from settings.`,
+        color: "green",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to remove school";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleSetField = async () => {
+    const key = fieldKey.trim();
+    if (!key) return;
+
+    let parsedValue: unknown = fieldValueInput;
+    if (fieldValueInput.trim()) {
+      try {
+        parsedValue = JSON.parse(fieldValueInput);
+      } catch {
+        parsedValue = fieldValueInput;
+      }
+    }
+
+    try {
+      await runSettingsAction("set-field", async (token) => {
+        await setField(token, key, parsedValue);
+      });
+      notifications.show({
+        title: "Field updated",
+        message: `Top-level field "${key}" was saved.`,
+        color: "green",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to set field";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
+  const handleDeleteField = async (key: string) => {
+    try {
+      await runSettingsAction(`delete-field-${key}`, async (token) => {
+        await deleteField(token, key);
+      });
+      notifications.show({
+        title: "Field deleted",
+        message: `Top-level field "${key}" was removed.`,
+        color: "green",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete field";
+      notifications.show({
+        title: "Error",
+        message,
+        color: "red",
+      });
+    }
+  };
+
   useEffect(() => {
     const initializeData = async () => {
       setLoading(true);
@@ -371,6 +572,10 @@ function AdminDashboardContent() {
     </Group>
   );
 
+  const customFields = settings
+    ? Object.entries(settings).filter(([key]) => key !== "subjects" && key !== "schools")
+    : [];
+
   return (
     <Box py="lg" className="app-page-grid">
       <Box p="xl" className="app-glass" style={{ borderRadius: 14 }}>
@@ -410,6 +615,9 @@ function AdminDashboardContent() {
             }
           >
             Instructor Verification
+          </Tabs.Tab>
+          <Tabs.Tab value="settings" leftSection={<Settings size={16} />}>
+            Settings
           </Tabs.Tab>
         </Tabs.List>
 
@@ -642,6 +850,192 @@ function AdminDashboardContent() {
                     </Box>
                   </Box>
                 ))}
+              </Stack>
+            )}
+          </Box>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="settings" pt="xl">
+          <Box py="lg">
+            <Group justify="space-between" mb="md">
+              <Text fw={500}>Platform Settings</Text>
+              <Group>
+                <Button
+                  leftSection={<RefreshCw size={16} />}
+                  variant="light"
+                  onClick={() => void refetchSettings()}
+                  loading={settingsLoading}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  leftSection={<Plus size={16} />}
+                  onClick={handleInitializeSettings}
+                  loading={settingsActionLoading === "initialize-settings"}
+                >
+                  Initialize Defaults
+                </Button>
+              </Group>
+            </Group>
+
+            {settingsError && (
+              <Alert color="red" mb="md" title="Failed to load settings">
+                {settingsError}
+              </Alert>
+            )}
+
+            {settingsLoading ? (
+              <Center py="xl">
+                <Loader />
+              </Center>
+            ) : !settings ? (
+              <Alert color="yellow" title="Settings are not initialized">
+                Run “Initialize Defaults” to create the singleton settings document.
+              </Alert>
+            ) : (
+              <Stack gap="lg">
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="sm">Subjects</Text>
+                  <Group mb="md">
+                    <TextInput
+                      placeholder="Add subject"
+                      value={newSubject}
+                      onChange={(e) => setNewSubject(e.currentTarget.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      onClick={handleAddSubject}
+                      loading={settingsActionLoading === "add-subject"}
+                    >
+                      Add
+                    </Button>
+                  </Group>
+                  <Group gap="xs">
+                    {settings.subjects.length === 0 ? (
+                      <Text c="dimmed" size="sm">No subjects configured.</Text>
+                    ) : (
+                      settings.subjects.map((subject) => (
+                        <Group key={subject} gap={4}>
+                          <Badge color="blue" variant="light">{subject}</Badge>
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            onClick={() => void handleRemoveSubject(subject)}
+                            disabled={settingsActionLoading === `remove-subject-${subject}`}
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Group>
+                      ))
+                    )}
+                  </Group>
+                </Paper>
+
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="sm">Schools</Text>
+                  <Group mb="md">
+                    <TextInput
+                      placeholder="Add school"
+                      value={newSchool}
+                      onChange={(e) => setNewSchool(e.currentTarget.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      onClick={handleAddSchool}
+                      loading={settingsActionLoading === "add-school"}
+                    >
+                      Add
+                    </Button>
+                  </Group>
+                  <Group gap="xs">
+                    {settings.schools.length === 0 ? (
+                      <Text c="dimmed" size="sm">No schools configured.</Text>
+                    ) : (
+                      settings.schools.map((school) => (
+                        <Group key={school} gap={4}>
+                          <Badge color="grape" variant="light">{school}</Badge>
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            onClick={() => void handleRemoveSchool(school)}
+                            disabled={settingsActionLoading === `remove-school-${school}`}
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Group>
+                      ))
+                    )}
+                  </Group>
+                </Paper>
+
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="sm">Custom Fields</Text>
+                  <Stack gap="xs" mb="md">
+                    {customFields.length === 0 ? (
+                      <Text c="dimmed" size="sm">No custom fields configured.</Text>
+                    ) : (
+                      customFields.map(([key, value]) => (
+                        <Group key={key} justify="space-between" align="flex-start">
+                          <div>
+                            <Text fw={500}>{key}</Text>
+                            <Text size="xs" c="dimmed">
+                              {JSON.stringify(value)}
+                            </Text>
+                          </div>
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            onClick={() => void handleDeleteField(key)}
+                            disabled={settingsActionLoading === `delete-field-${key}`}
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Group>
+                      ))
+                    )}
+                  </Stack>
+
+                  <Divider my="sm" />
+
+                  <Stack gap="sm">
+                    <TextInput
+                      label="Field Key"
+                      placeholder="exampleFlag"
+                      value={fieldKey}
+                      onChange={(e) => setFieldKey(e.currentTarget.value)}
+                    />
+                    <Textarea
+                      label="Field Value"
+                      placeholder='Use JSON (e.g. {"enabled":true}) or plain text'
+                      minRows={3}
+                      value={fieldValueInput}
+                      onChange={(e) => setFieldValueInput(e.currentTarget.value)}
+                    />
+                    <Group justify="flex-end">
+                      <Button
+                        onClick={handleSetField}
+                        loading={settingsActionLoading === "set-field"}
+                      >
+                        Save Field
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Paper>
+
+                <Paper withBorder p="md">
+                  <Text fw={500} mb="sm">Raw Settings JSON</Text>
+                  <Box
+                    component="pre"
+                    p="sm"
+                    style={{
+                      overflowX: "auto",
+                      backgroundColor: "var(--mantine-color-gray-0)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    {JSON.stringify(settings, null, 2)}
+                  </Box>
+                </Paper>
               </Stack>
             )}
           </Box>

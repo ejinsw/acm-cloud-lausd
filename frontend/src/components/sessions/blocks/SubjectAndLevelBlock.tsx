@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Paper, Select, Text, Group, ActionIcon, Box, Chip, Loader } from "@mantine/core";
 import { Edit3, Check, X, GraduationCap, Trash2 } from "lucide-react";
+import { useSettings } from "@/hooks/useSettings";
 
 interface SubjectAndLevelBlockProps {
   subject: string;
@@ -8,14 +9,6 @@ interface SubjectAndLevelBlockProps {
   onUpdate: (subject: string, level: string) => void;
   onRemove?: () => void;
   isRemovable?: boolean;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  description?: string;
-  category?: string;
-  level?: string;
 }
 
 const levels = [
@@ -35,34 +28,20 @@ export function SubjectAndLevelBlock({
   const [isEditing, setIsEditing] = useState(false);
   const [tempSubject, setTempSubject] = useState(subject);
   const [tempLevel, setTempLevel] = useState(level);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
-  const [subjectsError, setSubjectsError] = useState<string | null>(null);
-
-  // Fetch subjects from API
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      try {
-        setIsLoadingSubjects(true);
-        setSubjectsError(null);
-        
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subjects`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch subjects: ${response.status}`);
-        }
-        
-        const subjectsData = await response.json();
-        setSubjects(subjectsData);
-      } catch (error) {
-        console.error('Error fetching subjects:', error);
-        setSubjectsError(error instanceof Error ? error.message : 'Failed to fetch subjects');
-      } finally {
-        setIsLoadingSubjects(false);
-      }
-    };
-
-    fetchSubjects();
-  }, []);
+  const {
+    settings,
+    isLoading: isLoadingSubjects,
+    error: settingsError,
+  } = useSettings();
+  const subjectOptions = (settings?.subjects || []).map((value) => ({
+    value,
+    label: value,
+  }));
+  const subjectsError =
+    settingsError ||
+    (!isLoadingSubjects && !settings
+      ? "Settings are not initialized"
+      : null);
 
   const handleSave = () => {
     if (tempSubject && tempLevel) {
@@ -106,7 +85,7 @@ export function SubjectAndLevelBlock({
           <Select
             label="Subject"
             placeholder="Choose subject"
-            data={subjects.map(s => ({ value: s.name, label: s.name }))}
+            data={subjectOptions}
             value={tempSubject}
             onChange={(value) => setTempSubject(value || "")}
             searchable

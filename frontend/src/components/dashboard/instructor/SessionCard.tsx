@@ -65,7 +65,7 @@ export function SessionCard({ session, onDelete }: SessionCardProps) {
       <Group mb="xs">
         {session.subjects && session.subjects.length > 0 ? (
           session.subjects.map((subject) => (
-            <Badge key={subject.id} color="blue">{subject.name}</Badge>
+            <Badge key={subject} color="blue">{subject}</Badge>
           ))
         ) : (
           <Badge color="gray" variant="light">No subjects</Badge>

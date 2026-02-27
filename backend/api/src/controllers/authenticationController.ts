@@ -446,6 +446,7 @@ export const getUserData = expressAsyncHandler(
           profilePicture: true,
           bio: true,
           averageRating: true,
+          subjects: true,
           education: true,
           experience: true,
           certificationUrls: true,

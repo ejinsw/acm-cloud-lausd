@@ -55,11 +55,7 @@ interface SessionWithDetails extends Session {
     email: string;
     profilePicture?: string;
   }[];
-  subjects: {
-    id: string;
-    name: string;
-    description?: string;
-  }[];
+  subjects: string[];
 }
 
 export function ActiveSessionManager({ sessions, onSessionUpdate }: ActiveSessionManagerProps) {
@@ -253,7 +249,7 @@ export function ActiveSessionManager({ sessions, onSessionUpdate }: ActiveSessio
             <Group gap="xs">
               <BookOpen size={16} />
               <Text size="sm">
-                {session.subjects.map(subject => subject.name).join(', ')}
+                {session.subjects.join(", ")}
               </Text>
             </Group>
           )}

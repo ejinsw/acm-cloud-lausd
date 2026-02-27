@@ -22,14 +22,14 @@ import {
   Group
 } from '@mantine/core';
 import { useState } from 'react';
-import { Student, Instructor, Subject } from '@/lib/types';
+import { User } from '@/lib/types';
 import { Upload } from 'lucide-react';
 
 interface AccountSettingsProps {
   userRole: 'student' | 'instructor';
-  student?: Student;
-  instructor?: Instructor;
-  subjects?: Subject[];
+  student?: User;
+  instructor?: User;
+  subjects?: string[];
   onSave: (data: StudentFormData | InstructorFormData) => void;
 }
 
@@ -59,7 +59,7 @@ export interface InstructorFormData extends BaseFormData {
   bio: string;
   certifications: File[];
   credentials: string;
-  subjectIds: string[];
+  subjects: string[];
   availability: {
     monday: boolean;
     tuesday: boolean;
@@ -125,7 +125,7 @@ export function AccountSettings({ userRole, student, instructor, subjects = [], 
       bio: '',
       certifications: [],
       credentials: '',
-      subjectIds: instructor?.subjects?.map(subj => subj.id) || [],
+      subjects: instructor?.subjects || [],
       availability: {
         monday: true,
         tuesday: true,
@@ -167,8 +167,8 @@ export function AccountSettings({ userRole, student, instructor, subjects = [], 
   };
 
   const subjectOptions = subjects.map(subject => ({
-    value: subject.id,
-    label: subject.name
+    value: subject,
+    label: subject
   }));
 
   return (
@@ -456,7 +456,7 @@ export function AccountSettings({ userRole, student, instructor, subjects = [], 
                   placeholder="Select subjects you can teach"
                   data={subjectOptions}
                   mb="md"
-                  {...instructorForm.getInputProps('subjectIds')}
+                  {...instructorForm.getInputProps('subjects')}
                 />
                 
                 <FileInput

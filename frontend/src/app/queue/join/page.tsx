@@ -23,16 +23,11 @@ import { getToken } from "../../../actions/authentication";
 import { useQueueWebSocket } from "../../../hooks/useQueueWebSocket";
 import { notifications } from "@mantine/notifications";
 import { CheckCircle2, Star, XCircle } from "lucide-react";
-
-interface Subject {
-  id: string;
-  name: string;
-  level?: string;
-}
+import { useSettings } from "@/hooks/useSettings";
 
 interface ExistingQueue {
   id: number;
-  subjectId: string;
+  subject: string;
   description: string;
   status: string;
   createdAt: string;
@@ -44,9 +39,16 @@ export default function JoinQueuePage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [existingQueue, setExistingQueue] = useState<ExistingQueue | null>(null);
-  const [formData, setFormData] = useState({ subjectId: "", description: "" });
+  const [formData, setFormData] = useState({ subject: "", description: "" });
+  const { settings, error: settingsError } = useSettings();
+  const subjects = settings?.subjects || [];
+  const settingsNotInitialized = !settings && !settingsError;
+  const settingsUnavailableMessage =
+    settingsError ||
+    (settingsNotInitialized
+      ? "Platform settings are not initialized yet. Ask an admin to initialize settings."
+      : null);
 
   const { queueItems, subscribeQueue, unsubscribeQueue } = useQueueWebSocket(user);
   const queueItemsArray = Array.from(queueItems.values());
@@ -86,7 +88,7 @@ export default function JoinQueuePage() {
       const pending = (data.queues || []).find((queue: ExistingQueue) => queue.status === "PENDING");
       if (pending) {
         setExistingQueue(pending);
-        setFormData({ subjectId: pending.subjectId, description: pending.description });
+        setFormData({ subject: pending.subject, description: pending.description });
       }
     } catch (error) {
       console.error("Failed to check existing queue:", error);
@@ -94,23 +96,6 @@ export default function JoinQueuePage() {
   };
 
   useEffect(() => {
-    const loadSubjects = async () => {
-      try {
-        const token = await getToken();
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/subjects`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!response.ok) throw new Error("Failed to load subjects");
-        const data = await response.json();
-        setSubjects(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error("Failed to load subjects:", error);
-        setSubjects([]);
-      }
-    };
-
-    void loadSubjects();
     void checkExistingQueue();
   }, []);
 
@@ -159,15 +144,12 @@ export default function JoinQueuePage() {
   }, [router]);
 
   const handleJoinQueue = async () => {
-    if (!formData.subjectId || !formData.description.trim() || !user) return;
+    if (!formData.subject || !formData.description.trim() || !user) return;
     setIsLoading(true);
     try {
-      const subject = subjects.find((item) => item.id === formData.subjectId);
-      if (!subject) throw new Error("Subject not found");
-
       subscribeQueue("student", {
         description: formData.description,
-        subjectId: formData.subjectId,
+        subject: formData.subject,
         student: {
           id: user.id,
           firstName: user.firstName,
@@ -175,13 +157,6 @@ export default function JoinQueuePage() {
           email: user.email,
           cognitoId: user.cognitoId || user.id,
           averageRating: user.averageRating,
-        },
-        subject: {
-          id: subject.id,
-          name: subject.name,
-          level: subject.level || null,
-          description: "",
-          category: "",
         },
       });
 
@@ -210,7 +185,7 @@ export default function JoinQueuePage() {
     try {
       unsubscribeQueue("student");
       setExistingQueue(null);
-      setFormData({ subjectId: "", description: "" });
+      setFormData({ subject: "", description: "" });
       notifications.show({
         title: "Left queue",
         message: "Your request has been removed.",
@@ -230,8 +205,7 @@ export default function JoinQueuePage() {
     }
   };
 
-  const waitingSubject =
-    myQueueItem?.subject?.name || subjects.find((subject) => subject.id === existingQueue?.subjectId)?.name;
+  const waitingSubject = myQueueItem?.subject || existingQueue?.subject || formData.subject;
 
   return (
     <Box p={{ base: "md", sm: "xl" }} maw={720} mx="auto" className="app-page-grid">
@@ -264,12 +238,19 @@ export default function JoinQueuePage() {
             <Select
               label="Subject"
               placeholder="Choose a subject"
-              data={subjects.map((subject) => ({ value: subject.id, label: subject.name }))}
-              value={formData.subjectId}
-              onChange={(value) => setFormData((prev) => ({ ...prev, subjectId: value || "" }))}
+              data={subjects.map((subject) => ({ value: subject, label: subject }))}
+              value={formData.subject}
+              onChange={(value) => setFormData((prev) => ({ ...prev, subject: value || "" }))}
               required
               searchable
+              disabled={!!settingsUnavailableMessage}
             />
+
+            {settingsUnavailableMessage && (
+              <Alert icon={<IconInfoCircle size={16} />} color="red" variant="light">
+                {settingsUnavailableMessage}
+              </Alert>
+            )}
 
             <Textarea
               label="Describe your question"
@@ -289,7 +270,7 @@ export default function JoinQueuePage() {
             <Button
               onClick={handleJoinQueue}
               loading={isLoading}
-              disabled={!formData.subjectId || !formData.description.trim()}
+              disabled={!formData.subject || !formData.description.trim()}
               size="lg"
             >
               Join Queue

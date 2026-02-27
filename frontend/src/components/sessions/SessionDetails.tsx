@@ -355,8 +355,8 @@ export function SessionDetails({ session: initialSession }: SessionDetailsProps)
             
             <Group mb="md">
               {session.subjects?.map((subject) => (
-                <Badge key={subject.id} size="lg" color="blue">
-                  {subject.name}
+                <Badge key={subject} size="lg" color="blue">
+                  {subject}
                 </Badge>
               ))}
             </Group>
@@ -452,7 +452,7 @@ export function SessionDetails({ session: initialSession }: SessionDetailsProps)
                   <Text fw={500} mt="md" mb="xs">Subjects</Text>
                   <Group>
                     {session.instructor.subjects.map((subject) => (
-                      <Badge key={subject.id}>{subject.name}</Badge>
+                      <Badge key={subject}>{subject}</Badge>
                     ))}
                   </Group>
                 </>

@@ -102,7 +102,7 @@ export default function CreateSessionForm({ mode, existingSession, onSuccess }: 
       
       setSessionData({
         name: existingSession.name || "",
-        subject: existingSession.subjects?.[0]?.name || "",
+        subject: existingSession.subjects?.[0] || "",
         level: "intermediate", // Default level since it's not in the session model
         description: existingSession.description || "",
         objectives: existingSession.objectives || [],

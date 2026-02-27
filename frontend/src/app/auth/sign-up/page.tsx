@@ -20,6 +20,7 @@ import {
   MultiSelect,
   Loader,
   Badge,
+  Alert,
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
@@ -29,16 +30,9 @@ import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { routes } from "../../routes";
-
-interface Subject {
-  id: string;
-  name: string;
-  description?: string;
-  category?: string;
-  level?: string;
-}
+import { useSettings } from "@/hooks/useSettings";
 
 interface SignUpFormData {
   email: string;
@@ -73,64 +67,37 @@ const gradeLevels = [
   { value: "12", label: "12th Grade" },
 ];
 
-const fallbackSubjects: Subject[] = [
-  { id: "mathematics", name: "Mathematics" },
-  { id: "physics", name: "Physics" },
-  { id: "chemistry", name: "Chemistry" },
-  { id: "biology", name: "Biology" },
-  { id: "english", name: "English Literature" },
-  { id: "history", name: "History" },
-  { id: "computer-science", name: "Computer Science" },
-  { id: "spanish", name: "Spanish" },
-  { id: "art", name: "Art" },
-  { id: "music", name: "Music" },
-];
-
 export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [subjectsLoading, setSubjectsLoading] = useState(true);
-  const [subjectsError, setSubjectsError] = useState<string | null>(null);
+  const [useCustomSchool, setUseCustomSchool] = useState(false);
+  const {
+    settings,
+    isLoading: settingsLoading,
+    error: settingsError,
+    refetch,
+  } = useSettings();
 
-  // Fetch subjects from backend on component mount
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      try {
-        setSubjectsLoading(true);
-        setSubjectsError(null);
-        
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-        const response = await fetch(`${apiUrl}/api/subjects`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch subjects');
-        }
-        
-        const subjectsData = await response.json();
-        if (Array.isArray(subjectsData) && subjectsData.length > 0) {
-          setSubjects(subjectsData);
-        } else {
-          console.warn('Subjects response was empty, using fallback list');
-          setSubjects(fallbackSubjects);
-          setSubjectsError('Subjects list was empty, using a default list.');
-        }
-      } catch (error) {
-        console.error('Error fetching subjects:', error);
-        setSubjectsError('Failed to load subjects from API. Using default subjects.');
-        setSubjects(fallbackSubjects);
-      } finally {
-        setSubjectsLoading(false);
-      }
-    };
-
-    fetchSubjects();
-  }, []);
-
-  // Transform subjects for MultiSelect component
-  const subjectOptions = subjects.map(subject => ({
-    value: subject.name,
-    label: subject.name,
+  const subjectOptions = (settings?.subjects || []).map((subject) => ({
+    value: subject,
+    label: subject,
   }));
+  const schoolOptions = [
+    ...(settings?.schools || []).map((school) => ({
+      value: school,
+      label: school,
+    })),
+    {
+      value: "__custom__",
+      label: "Other (enter manually)",
+    },
+  ];
+  const settingsNotInitialized = !settingsLoading && !settings;
+  const settingsUnavailableMessage =
+    settingsError ||
+    (settingsNotInitialized
+      ? "Platform settings are not initialized yet. Ask an admin to initialize settings."
+      : null);
 
   const form = useForm<SignUpFormData>({
     initialValues: {
@@ -204,6 +171,10 @@ export default function SignUpPage() {
     },
   });
 
+  const selectedSchoolValue = useCustomSchool
+    ? "__custom__"
+    : form.values.schoolName || null;
+
   const handleSubmit = async (values: SignUpFormData) => {
     setLoading(true);
     try {
@@ -266,8 +237,8 @@ export default function SignUpPage() {
     }
   };
 
-  // Show loading state while fetching subjects
-  if (subjectsLoading) {
+  // Show loading state while fetching settings
+  if (settingsLoading) {
     return (
       <main>
         <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
@@ -275,28 +246,7 @@ export default function SignUpPage() {
             <Paper radius="md" p={40} withBorder>
               <Stack gap="xl" align="center">
                 <Loader size="lg" />
-                <Text>Loading subjects...</Text>
-              </Stack>
-            </Paper>
-          </Container>
-        </Box>
-      </main>
-    );
-  }
-
-  // Show error state if subjects failed to load
-  if (subjectsError && subjects.length === 0) {
-    return (
-      <main>
-        <Box py={80} style={{ backgroundColor: "#f8f9fa" }}>
-          <Container size="sm">
-            <Paper radius="md" p={40} withBorder>
-              <Stack gap="xl" align="center">
-                <XCircle size={48} color="red" />
-                <Text c="red">{subjectsError}</Text>
-                <Button onClick={() => window.location.reload()}>
-                  Refresh Page
-                </Button>
+                <Text>Loading platform settings...</Text>
               </Stack>
             </Paper>
           </Container>
@@ -331,6 +281,22 @@ export default function SignUpPage() {
 
               <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack gap="md">
+                  {settingsUnavailableMessage && (
+                    <Alert color="red" title="Settings unavailable">
+                      <Stack gap="xs">
+                        <Text size="sm">{settingsUnavailableMessage}</Text>
+                        <Button
+                          variant="light"
+                          size="xs"
+                          onClick={() => void refetch()}
+                          w="fit-content"
+                        >
+                          Retry
+                        </Button>
+                      </Stack>
+                    </Alert>
+                  )}
+
                   <Radio.Group
                     label="I am a"
                     description="Select your role on the platform"
@@ -381,14 +347,39 @@ export default function SignUpPage() {
                   />
 
                   <div>
-                    {/* <Text size="sm" fw={500} mb={5}>School</Text> */}
-                    {/* <AllSchoolsDropdown onChange={(value) => form.setFieldValue('schoolName', value)} /> */}
-                    <TextInput
+                    <Select
                       label="School Name"
-                      placeholder="Enter the school you go to"
+                      placeholder="Select your school"
+                      data={schoolOptions}
+                      value={selectedSchoolValue}
+                      searchable
                       required
-                      {...form.getInputProps("schoolName")}
+                      onChange={(value) => {
+                        if (!value) {
+                          setUseCustomSchool(false);
+                          form.setFieldValue("schoolName", "");
+                          return;
+                        }
+
+                        if (value === "__custom__") {
+                          setUseCustomSchool(true);
+                          form.setFieldValue("schoolName", "");
+                          return;
+                        }
+
+                        setUseCustomSchool(false);
+                        form.setFieldValue("schoolName", value);
+                      }}
                     />
+                    {useCustomSchool && (
+                      <TextInput
+                        mt="sm"
+                        label="Custom School Name"
+                        placeholder="Enter your school name"
+                        required
+                        {...form.getInputProps("schoolName")}
+                      />
+                    )}
                   </div>
 
                   {/* Address Section */}
@@ -486,13 +477,9 @@ export default function SignUpPage() {
                         data={subjectOptions}
                         required
                         searchable
+                        disabled={settingsNotInitialized}
                         {...form.getInputProps("subjects")}
                       />
-                      {subjectsError && (
-                        <Text size="xs" c="red">
-                          {subjectsError}
-                        </Text>
-                      )}
 
                       <TextInput
                         label="Parent/Guardian Email"
@@ -513,6 +500,7 @@ export default function SignUpPage() {
                         required
                         description="Select all subjects you are qualified and credentialed to teach"
                         searchable
+                        disabled={settingsNotInitialized}
                         {...form.getInputProps("credentialedSubjects")}
                       />
 

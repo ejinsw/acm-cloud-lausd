@@ -18,10 +18,7 @@ export interface SessionCardProps {
     averageRating?: number;
     email?: string;
   };
-  subjects: Array<{
-    id: string;
-    name: string;
-  }>;
+  subjects: string[];
   variant?: 'compact' | 'detailed';
   onJoinSession?: () => void;
 }
@@ -85,7 +82,7 @@ export function SessionCard({
 
           <Group gap="xs" mb="md">
             {subjects.map((subject) => (
-              <Badge key={subject.id} size="sm" color="blue" variant="light">{subject.name}</Badge>
+              <Badge key={subject} size="sm" color="blue" variant="light">{subject}</Badge>
             ))}
           </Group>
 
@@ -147,7 +144,7 @@ export function SessionCard({
 
           <Group gap="xs" mb="xs">
             {subjects.slice(0, 2).map((subject) => (
-              <Badge key={subject.id} size="xs" color="blue" variant="light">{subject.name}</Badge>
+              <Badge key={subject} size="xs" color="blue" variant="light">{subject}</Badge>
             ))}
             {subjects.length > 2 && <Badge size="xs">+{subjects.length - 2}</Badge>}
           </Group>

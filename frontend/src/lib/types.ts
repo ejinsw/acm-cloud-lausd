@@ -2,6 +2,17 @@
  * Type definitions for the frontend that mirror the Prisma schema
  */
 
+export type InstructorReviewStatus = "UNDER_REVIEW" | "APPROVED";
+
+export interface InstructorVerificationDocument {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+  downloadUrl?: string | null;
+}
+
 export interface User {
   id: string;
   cognitoId?: string;
@@ -31,6 +42,8 @@ export interface User {
   certificationUrls?: string[];
   subjects?: string[];
   averageRating?: number;
+  instructorReviewStatus?: InstructorReviewStatus;
+  verificationDocuments?: InstructorVerificationDocument[];
   sessionRequests?: SessionRequest[];
 }
 

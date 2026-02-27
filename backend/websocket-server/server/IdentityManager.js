@@ -52,6 +52,8 @@ function verifyToken(token) {
         id,
         username,
         type: normalizedRole,
+        role: rawRole.toUpperCase() || (normalizedRole === 'instructor' ? 'INSTRUCTOR' : 'STUDENT'),
+        isUnderReview: false,
         currentRoomId: null,
       };
     } catch (error) {
@@ -101,6 +103,9 @@ async function handleIdentify(ws, payload, connectedUsers) {
       // Update userData with the correct role from database
       userData.type =
         dbUser.role === 'INSTRUCTOR' || dbUser.role === 'ADMIN' ? 'instructor' : 'student';
+      userData.role = dbUser.role || (userData.type === 'instructor' ? 'INSTRUCTOR' : 'STUDENT');
+      userData.isUnderReview =
+        dbUser.role === 'INSTRUCTOR' && dbUser.instructorReviewStatus === 'UNDER_REVIEW';
       userData.username = `${dbUser.firstName} ${dbUser.lastName}`.trim() || userData.username;
     } else {
       console.warn(
@@ -128,6 +133,8 @@ async function handleIdentify(ws, payload, connectedUsers) {
   // Set the new connection
   connectedUsers.set(userData.id, { ...userData, ws, currentRoomId: null });
   ws.userId = userData.id;
+  ws.userRole = userData.role || (userData.type === 'instructor' ? 'INSTRUCTOR' : 'STUDENT');
+  ws.isUnderReview = !!userData.isUnderReview;
 
   // Skip DynamoDB persistence - in-memory map is sufficient
   console.log(

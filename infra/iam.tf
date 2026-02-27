@@ -30,7 +30,7 @@ locals {
     module.dynamodb_dax.room_messages_table_arn,
     module.dynamodb_dax.user_sessions_table_arn,
   ]
-  
+
   dynamodb_table_and_index_arns = concat(
     local.dynamodb_table_arns,
     [for table_arn in local.dynamodb_table_arns : "${table_arn}/index/*"]
@@ -46,8 +46,8 @@ resource "aws_iam_role_policy" "ecs_task_ssm_exec" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = [
+        Effect = "Allow"
+        Action = [
           "ssmmessages:CreateControlChannel",
           "ssmmessages:CreateDataChannel",
           "ssmmessages:OpenControlChannel",
@@ -72,9 +72,9 @@ resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DynamoDBAccess"
-        Effect   = "Allow"
-        Action   = [
+        Sid    = "DynamoDBAccess"
+        Effect = "Allow"
+        Action = [
           "dynamodb:BatchGetItem",
           "dynamodb:BatchWriteItem",
           "dynamodb:DeleteItem",
@@ -86,6 +86,34 @@ resource "aws_iam_role_policy" "ecs_task_dynamodb_dax" {
           "dynamodb:UpdateItem"
         ]
         Resource = local.dynamodb_table_and_index_arns
+      },
+      {
+        Sid    = "InstructorDocumentsBucketList"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [aws_s3_bucket.instructor_documents.arn]
+      },
+      {
+        Sid    = "InstructorDocumentsObjectAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = ["${aws_s3_bucket.instructor_documents.arn}/*"]
+      },
+      {
+        Sid    = "SesSendEmail"
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
       },
       # DAX access - commented out to reduce costs (using direct DynamoDB access)
       # {

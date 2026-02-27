@@ -123,3 +123,41 @@ export const checkRole = (roles: string[]) => {
     next();
   };
 };
+
+export const ensureInstructorApprovedForInteraction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = (req as any).user?.sub || (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, instructorReviewStatus: true },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (user.role === 'INSTRUCTOR' && user.instructorReviewStatus === 'UNDER_REVIEW') {
+      res.status(403).json({
+        message:
+          'Your instructor account is under review. You can update your profile and documents, but cannot interact with students until approved.',
+        code: 'INSTRUCTOR_UNDER_REVIEW',
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    console.error('Instructor review gate error:', error);
+    res.status(500).json({ message: 'Failed to validate instructor review status' });
+  }
+};

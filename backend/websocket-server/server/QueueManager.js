@@ -1,15 +1,79 @@
 const WebSocket = require('ws');
 
+function sendQueueError(ws, message) {
+  ws.send(JSON.stringify({ type: 'ERROR', payload: { message } }));
+}
+
+function normalizeRole(role) {
+  if (typeof role !== 'string') {
+    return '';
+  }
+
+  return role.toLowerCase();
+}
+
+function isRoleAuthorized(ws, requestedRole) {
+  const resolvedRole = normalizeRole(ws.userRole);
+  if (!resolvedRole) {
+    return false;
+  }
+
+  if (requestedRole === 'admin') {
+    return resolvedRole === 'admin';
+  }
+
+  if (requestedRole === 'instructor') {
+    return resolvedRole === 'instructor' || resolvedRole === 'admin';
+  }
+
+  if (requestedRole === 'student') {
+    return resolvedRole === 'student';
+  }
+
+  return false;
+}
+
+function isUnderReviewInstructor(ws, requestedRole) {
+  return (
+    requestedRole === 'instructor' &&
+    String(ws.userRole || '').toUpperCase() === 'INSTRUCTOR' &&
+    ws.isUnderReview === true
+  );
+}
+
 function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmins) {
   if (!ws.userId) {
-    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } }));
+    sendQueueError(ws, 'User not identified.');
     return;
   }
 
-  const { role, data } = payload;
+  const role = normalizeRole(payload?.role);
+  const { data } = payload || {};
+  if (!role) {
+    sendQueueError(ws, 'Queue role is required.');
+    return;
+  }
 
-  switch (role.toLowerCase()) {
+  if (!isRoleAuthorized(ws, role)) {
+    sendQueueError(ws, 'You are not authorized to subscribe with this role.');
+    return;
+  }
+
+  if (isUnderReviewInstructor(ws, role)) {
+    sendQueueError(
+      ws,
+      'Your instructor account is under review. Queue interactions are disabled until approval.'
+    );
+    return;
+  }
+
+  switch (role) {
     case 'student': {
+      if (!data || !data.subject || !data.description) {
+        sendQueueError(ws, 'Subject and description are required to join the student queue.');
+        return;
+      }
+
       queueStudents.set(ws.userId, { id: ws.userId, ws, role, data, joinedAt: Date.now() });
       console.log(`Student ${ws.userId} subscribed to queue updates`);
       ws.send(JSON.stringify({ type: 'QUEUE_SUBSCRIBED', payload: {} }));
@@ -106,13 +170,22 @@ function subscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmin
 
 function unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdmins) {
   if (!ws.userId) {
-    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } }));
+    sendQueueError(ws, 'User not identified.');
     return;
   }
 
-  const { role } = payload;
+  const role = normalizeRole(payload?.role);
+  if (!role) {
+    sendQueueError(ws, 'Queue role is required.');
+    return;
+  }
 
-  switch (role.toLowerCase()) {
+  if (!isRoleAuthorized(ws, role)) {
+    sendQueueError(ws, 'You are not authorized to unsubscribe with this role.');
+    return;
+  }
+
+  switch (role) {
     case 'student': {
       queueStudents.delete(ws.userId);
       console.log(`Student ${ws.userId} unsubscribed from queue updates`);
@@ -168,18 +241,41 @@ function unsubscribeQueue(ws, payload, queueInstructors, queueStudents, queueAdm
 
 function acceptQueue(ws, payload, queueInstructors, queueStudents, queueAdmins) {
   if (!ws.userId) {
-    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'User not identified.' } }));
+    sendQueueError(ws, 'User not identified.');
     return;
   }
 
-  const { role, data } = payload;
+  const role = normalizeRole(payload?.role);
+  const { data } = payload || {};
+  if (!role || !data) {
+    sendQueueError(ws, 'Queue accept payload is invalid.');
+    return;
+  }
+
+  if (!isRoleAuthorized(ws, role)) {
+    sendQueueError(ws, 'You are not authorized to accept queue entries with this role.');
+    return;
+  }
+
+  if (isUnderReviewInstructor(ws, role)) {
+    sendQueueError(
+      ws,
+      'Your instructor account is under review. Queue interactions are disabled until approval.'
+    );
+    return;
+  }
+
+  if (!data.studentId || !data.sessionId) {
+    sendQueueError(ws, 'studentId and sessionId are required to accept queue entries.');
+    return;
+  }
 
   console.log(`Instructor ${ws.userId} accepted ${data.studentId}'s queue request`);
   const studentEntry = queueStudents.get(data.studentId);
 
   if (!studentEntry) {
     console.log(`Student ${data.studentId} not found in queue`);
-    ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Student not found in queue.' } }));
+    sendQueueError(ws, 'Student not found in queue.');
     return;
   }
 

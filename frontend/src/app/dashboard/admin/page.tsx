@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Container,
   Title,
   Tabs,
   Text,
@@ -27,6 +26,7 @@ import {
   Alert,
   Paper,
   Collapse,
+  MultiSelect,
 } from "@mantine/core";
 import { 
   Users, 
@@ -71,10 +71,20 @@ interface User {
   lastName: string;
   role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
   verified: boolean;
+  instructorReviewStatus?: 'UNDER_REVIEW' | 'APPROVED';
   createdAt: string;
   updatedAt: string;
   averageRating?: number;
   certificationUrls?: string[];
+}
+
+interface VerificationDocument {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+  downloadUrl?: string | null;
 }
 
 interface UnverifiedInstructor {
@@ -87,6 +97,8 @@ interface UnverifiedInstructor {
   certificationUrls: string[];
   bio: string;
   createdAt: string;
+  instructorReviewStatus: 'UNDER_REVIEW' | 'APPROVED';
+  verificationDocuments: VerificationDocument[];
 }
 
 function AdminDashboardContent() {
@@ -109,6 +121,7 @@ function AdminDashboardContent() {
   
   // Modals
   const [createAdminOpened, { open: openCreateAdmin, close: closeCreateAdmin }] = useDisclosure(false);
+  const [createInstructorOpened, { open: openCreateInstructor, close: closeCreateInstructor }] = useDisclosure(false);
   const [viewInstructorOpened, { open: openViewInstructor, close: closeViewInstructor }] = useDisclosure(false);
   const [selectedInstructor, setSelectedInstructor] = useState<UnverifiedInstructor | null>(null);
 
@@ -133,6 +146,23 @@ function AdminDashboardContent() {
     lastName: '',
     password: ''
   });
+  const [createInstructorForm, setCreateInstructorForm] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    password: '',
+    subjects: [] as string[],
+  });
+  const subjectOptions = (settings?.subjects || []).map((subject) => ({
+    value: subject,
+    label: subject,
+  }));
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const fetchStats = async () => {
     try {
@@ -246,9 +276,10 @@ function AdminDashboardContent() {
       });
       
       if (response.ok) {
+        const data = await response.json();
         notifications.show({
           title: 'Success',
-          message: 'Admin account created successfully',
+          message: data.message || 'Admin account action completed',
           color: 'green'
         });
         setCreateAdminForm({ email: '', firstName: '', lastName: '', password: '' });
@@ -268,6 +299,53 @@ function AdminDashboardContent() {
       notifications.show({
         title: 'Error',
         message: 'Failed to create admin account',
+        color: 'red'
+      });
+    }
+  };
+
+  const createInstructorAccount = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/accounts/instructor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(createInstructorForm)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        notifications.show({
+          title: 'Success',
+          message: data.message || 'Instructor account action completed',
+          color: 'green'
+        });
+        setCreateInstructorForm({
+          email: '',
+          firstName: '',
+          lastName: '',
+          password: '',
+          subjects: [],
+        });
+        closeCreateInstructor();
+        await fetchUsers(usersPage, usersSearch, usersRoleFilter, usersVerifiedFilter);
+        await fetchStats();
+      } else {
+        const error = await response.json();
+        notifications.show({
+          title: 'Error',
+          message: error.message || 'Failed to create instructor account',
+          color: 'red'
+        });
+      }
+    } catch (error) {
+      console.error('Error creating instructor account:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to create instructor account',
         color: 'red'
       });
     }
@@ -588,12 +666,21 @@ function AdminDashboardContent() {
               System controls, risk signals, and user verification workflows.
             </Text>
           </div>
-          <Button
-            leftSection={<Plus size={16} />}
-            onClick={openCreateAdmin}
-          >
-            Create Admin Account
-          </Button>
+          <Group>
+            <Button
+              variant="light"
+              leftSection={<Plus size={16} />}
+              onClick={openCreateInstructor}
+            >
+              Create Instructor Account
+            </Button>
+            <Button
+              leftSection={<Plus size={16} />}
+              onClick={openCreateAdmin}
+            >
+              Create Admin Account
+            </Button>
+          </Group>
         </Group>
       </Box>
 
@@ -733,7 +820,14 @@ function AdminDashboardContent() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      {user.verified ? (
+                      {user.role === 'INSTRUCTOR' ? (
+                        <Badge
+                          color={user.instructorReviewStatus === 'UNDER_REVIEW' ? 'orange' : 'green'}
+                          variant="light"
+                        >
+                          {user.instructorReviewStatus === 'UNDER_REVIEW' ? 'Under Review' : 'Approved'}
+                        </Badge>
+                      ) : user.verified ? (
                         <Badge color="green" variant="light">
                           Verified
                         </Badge>
@@ -812,7 +906,7 @@ function AdminDashboardContent() {
                       <Group justify="space-between" mb="xs">
                         <Text fw={500}>{instructor.firstName} {instructor.lastName}</Text>
                         <Badge color="orange" variant="light">
-                          Pending
+                          {instructor.instructorReviewStatus === 'UNDER_REVIEW' ? 'Under Review' : 'Approved'}
                         </Badge>
                       </Group>
                       
@@ -821,13 +915,13 @@ function AdminDashboardContent() {
                       </Text>
                       
                       <Text size="sm" mb="xs">
-                        <strong>Education:</strong> {instructor.education.length} entries
+                        <strong>Education:</strong> {instructor.education?.length || 0} entries
                       </Text>
                       <Text size="sm" mb="xs">
-                        <strong>Experience:</strong> {instructor.experience.length} entries
+                        <strong>Experience:</strong> {instructor.experience?.length || 0} entries
                       </Text>
                       <Text size="sm" mb="md">
-                        <strong>Certifications:</strong> {instructor.certificationUrls.length} documents
+                        <strong>Verification Files:</strong> {instructor.verificationDocuments?.length || 0} uploaded
                       </Text>
                       
                       <Group justify="space-between">
@@ -1055,31 +1149,84 @@ function AdminDashboardContent() {
           />
           <TextInput
             label="First Name"
-            placeholder="Enter first name"
+            description="Used when creating a brand-new account."
+            placeholder="Optional if user already exists"
             value={createAdminForm.firstName}
             onChange={(e) => setCreateAdminForm({ ...createAdminForm, firstName: e.target.value })}
-            required
           />
           <TextInput
             label="Last Name"
-            placeholder="Enter last name"
+            description="Used when creating a brand-new account."
+            placeholder="Optional if user already exists"
             value={createAdminForm.lastName}
             onChange={(e) => setCreateAdminForm({ ...createAdminForm, lastName: e.target.value })}
-            required
           />
           <PasswordInput
             label="Password"
-            placeholder="Enter password"
+            description="Required only when creating a brand-new account."
+            placeholder="Optional if user already exists"
             value={createAdminForm.password}
             onChange={(e) => setCreateAdminForm({ ...createAdminForm, password: e.target.value })}
-            required
           />
           <Group justify="flex-end" mt="md">
             <Button variant="light" onClick={closeCreateAdmin}>
               Cancel
             </Button>
             <Button onClick={createAdminAccount}>
-              Create Account
+              Submit
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Create Instructor Modal */}
+      <Modal opened={createInstructorOpened} onClose={closeCreateInstructor} title="Create Instructor Account">
+        <Stack>
+          <TextInput
+            label="Email"
+            placeholder="Enter email"
+            value={createInstructorForm.email}
+            onChange={(e) => setCreateInstructorForm({ ...createInstructorForm, email: e.target.value })}
+            required
+          />
+          <TextInput
+            label="First Name"
+            placeholder="Enter first name"
+            value={createInstructorForm.firstName}
+            onChange={(e) => setCreateInstructorForm({ ...createInstructorForm, firstName: e.target.value })}
+            required
+          />
+          <TextInput
+            label="Last Name"
+            placeholder="Enter last name"
+            value={createInstructorForm.lastName}
+            onChange={(e) => setCreateInstructorForm({ ...createInstructorForm, lastName: e.target.value })}
+            required
+          />
+          <PasswordInput
+            label="Password"
+            placeholder="Enter password"
+            value={createInstructorForm.password}
+            onChange={(e) => setCreateInstructorForm({ ...createInstructorForm, password: e.target.value })}
+            required
+          />
+          <MultiSelect
+            label="Credentialed Subjects"
+            description="Required. Instructor accounts created by admins are auto-approved."
+            data={subjectOptions}
+            placeholder="Select one or more subjects"
+            value={createInstructorForm.subjects}
+            onChange={(value) => setCreateInstructorForm({ ...createInstructorForm, subjects: value })}
+            searchable
+            required
+            disabled={subjectOptions.length === 0}
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="light" onClick={closeCreateInstructor}>
+              Cancel
+            </Button>
+            <Button onClick={createInstructorAccount} disabled={createInstructorForm.subjects.length === 0}>
+              Create Instructor
             </Button>
           </Group>
         </Stack>
@@ -1132,21 +1279,33 @@ function AdminDashboardContent() {
             
             <div>
               <Text fw={500} mb="xs">Certification Documents</Text>
-              {selectedInstructor.certificationUrls.length > 0 ? (
-                selectedInstructor.certificationUrls.map((url, index) => (
-                  <Button
-                    key={index}
-                    variant="light"
-                    size="sm"
-                    component="a"
-                    href={url}
-                    target="_blank"
-                    mb="xs"
-                    mr="xs"
-                  >
-                    Document {index + 1}
-                  </Button>
-                ))
+              {selectedInstructor.verificationDocuments?.length > 0 ? (
+                <Stack gap="xs">
+                  {selectedInstructor.verificationDocuments.map((doc) => (
+                    <Group key={doc.id} justify="space-between" wrap="wrap">
+                      <div>
+                        <Text size="sm" fw={500}>{doc.fileName}</Text>
+                        <Text size="xs" c="dimmed">
+                          {doc.contentType} • {formatFileSize(doc.sizeBytes)} • {new Date(doc.createdAt).toLocaleDateString()}
+                        </Text>
+                      </div>
+                      {doc.downloadUrl ? (
+                        <Button
+                          variant="light"
+                          size="xs"
+                          component="a"
+                          href={doc.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open
+                        </Button>
+                      ) : (
+                        <Badge color="gray" variant="light">Unavailable</Badge>
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
               ) : (
                 <Text size="sm" c="dimmed">No documents uploaded</Text>
               )}

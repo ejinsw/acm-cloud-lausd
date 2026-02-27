@@ -94,24 +94,24 @@ module "cognito" {
 module "cognito_admin" {
   source = "./modules/cognito_admin"
 
-  environment    = var.environment
-  user_pool_arn  = module.cognito.user_pool_arn
-  user_pool_id   = module.cognito.user_pool_id
+  environment   = var.environment
+  user_pool_arn = module.cognito.user_pool_arn
+  user_pool_id  = module.cognito.user_pool_id
 
   depends_on = [module.cognito]
 }
 
 # --- Add ECS Fargate module ---
 module "ecs" {
-  source                = "./modules/ecs"
-  cluster_name          = "acmcloud"
-  api_image             = "${module.ecr_api.repository_url}:latest"
-  websocket_image       = "${module.ecr_websocket.repository_url}:latest"
-  api_environment       = [
+  source          = "./modules/ecs"
+  cluster_name    = "acmcloud"
+  api_image       = "${module.ecr_api.repository_url}:latest"
+  websocket_image = "${module.ecr_websocket.repository_url}:latest"
+  api_environment = [
     { name = "NODE_ENV", value = var.environment },
     { name = "DATABASE_URL", value = "postgresql://${var.db_username}:${var.db_password}@${module.rds.db_endpoint}/acmcloud" },
     { name = "FRONTEND_URL", value = "https://acm-cloud-lausd.vercel.app" },
-    { name = "WEBSOCKET_SERVER_URL", value = "wss://dfh19to7ozrqj.cloudfront.net" },  # CloudFront WebSocket endpoint
+    { name = "WEBSOCKET_SERVER_URL", value = "wss://dfh19to7ozrqj.cloudfront.net" }, # CloudFront WebSocket endpoint
     { name = "NEXT_PUBLIC_COGNITO_REGION", value = "us-west-1" },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_SECRET", value = module.cognito.user_pool_client_secret },
     { name = "NEXT_PUBLIC_COGNITO_CLIENT_ISSUE", value = module.cognito.user_pool_client_issuer },
@@ -120,6 +120,9 @@ module "ecs" {
     { name = "AWS_REGION", value = "us-west-1" },
     { name = "AWS_ACCESS_KEY_ID", value = module.cognito_admin.admin_access_key_id },
     { name = "AWS_SECRET_ACCESS_KEY", value = module.cognito_admin.admin_secret_access_key },
+    { name = "INSTRUCTOR_DOCUMENTS_BUCKET", value = aws_s3_bucket.instructor_documents.bucket },
+    { name = "SES_FROM_EMAIL", value = var.ses_from_email },
+    { name = "NOTIFICATION_BASE_URL", value = var.notification_base_url },
     { name = "ZOOM_CLIENT_ID", value = var.zoom_client_id },
     { name = "ZOOM_CLIENT_SECRET", value = var.zoom_client_secret },
     { name = "ZOOM_REDIRECT_URI", value = var.zoom_redirect_uri },
@@ -150,7 +153,7 @@ module "ecs" {
   websocket_desired_count    = var.websocket_desired_count
   vpc_id                     = module.vpc.vpc_id
   websocket_target_group_arn = module.websocket_gateway.websocket_target_group_arn
-  
+
   depends_on = [module.websocket_gateway]
 }
 
@@ -163,11 +166,11 @@ module "api_gateway" {
   environment  = var.environment
 
   # API Gateway variables
-  vpc_id          = module.vpc.vpc_id
+  vpc_id                   = module.vpc.vpc_id
   cloudmap_api_service_arn = module.ecs.cloudmap_api_service_arn
   # cloudmap_websocket_service_arn removed - using dedicated WebSocket Gateway
   # VPC Link should be in private subnets (AWS best practice)
-  subnet_ids      = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
+  subnet_ids                  = [module.vpc.private_subnet_id_1, module.vpc.private_subnet_id_2]
   vpc_link_security_group_ids = [module.vpc.vpc_link_sg_id]
 
   depends_on = [module.ecs]
@@ -190,7 +193,7 @@ module "websocket_gateway" {
 
 # FOR DAEHOON AND SID
 module "dynamodb_dax" {
-  source = "./modules/dynamodb_dax"
+  source      = "./modules/dynamodb_dax"
   environment = var.environment
   # DAX configuration - commented out to reduce costs (using direct DynamoDB access)
   # dax_vpc_id  = module.vpc.vpc_id

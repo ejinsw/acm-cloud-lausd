@@ -4,6 +4,8 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { cognito } from '../lib/cognitoSDK';
 import { AdminCreateUserCommand, AdminSetUserPasswordCommand, AdminUpdateUserAttributesCommand, AdminConfirmSignUpCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { spawn } from 'child_process';
+import { notificationService } from '../services/notificationService';
+import { storageService } from '../services/storageService';
 import {
   SETTINGS_SINGLETON_ID,
   buildDefaultSettingsData,
@@ -13,6 +15,33 @@ import {
 } from '../services/settingsService';
 
 const prisma = new PrismaClient();
+
+const resolveActingAdminEmail = async (user: { sub: string; email?: string }) => {
+  if (user.email) {
+    return user.email;
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.sub },
+    select: { email: true },
+  });
+
+  return dbUser?.email || '';
+};
+
+const sendProvisioningNotificationsFailSoft = async (params: {
+  role: 'ADMIN' | 'INSTRUCTOR';
+  createdEmail: string;
+  actingAdminEmail: string;
+}) => {
+  try {
+    await notificationService.sendProvisioningNotifications(params);
+    return { sent: true };
+  } catch (error) {
+    console.error('Provisioning notification failed:', error);
+    return { sent: false };
+  }
+};
 
 export const verifyInstructor = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -31,6 +60,7 @@ export const verifyInstructor = expressAsyncHandler(
 
     const instructor = await prisma.user.findUnique({
       where: { id },
+      select: { id: true, role: true, instructorReviewStatus: true },
     });
     if (!instructor) {
       res.status(404).json({ message: 'Instructor not found' });
@@ -41,7 +71,7 @@ export const verifyInstructor = expressAsyncHandler(
       return;
     }
 
-    if (instructor.verified) {
+    if (instructor.instructorReviewStatus === 'APPROVED') {
       res.status(400).json({ message: 'Instructor is already verified' });
       return;
     }
@@ -49,7 +79,7 @@ export const verifyInstructor = expressAsyncHandler(
     await prisma.user.update({
       where: { id },
       data: {
-        verified: true,
+        instructorReviewStatus: 'APPROVED',
       },
     });
     res.status(200).json({ message: 'Instructor verified successfully' });
@@ -351,6 +381,7 @@ export const getAllUsers = expressAsyncHandler(
             lastName: true,
             role: true,
             verified: true,
+            instructorReviewStatus: true,
             createdAt: true,
             updatedAt: true,
             averageRating: true,
@@ -398,7 +429,7 @@ export const getUnverifiedInstructors = expressAsyncHandler(
       const unverifiedInstructors = await prisma.user.findMany({
         where: {
           role: 'INSTRUCTOR',
-          verified: false
+          instructorReviewStatus: 'UNDER_REVIEW',
         },
         select: {
           id: true,
@@ -409,12 +440,42 @@ export const getUnverifiedInstructors = expressAsyncHandler(
           experience: true,
           certificationUrls: true,
           bio: true,
-          createdAt: true
+          createdAt: true,
+          instructorReviewStatus: true,
+          verificationDocuments: {
+            select: {
+              id: true,
+              fileName: true,
+              contentType: true,
+              sizeBytes: true,
+              createdAt: true,
+              s3Key: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
         },
         orderBy: { createdAt: 'asc' }
       });
 
-      res.status(200).json({ instructors: unverifiedInstructors });
+      const instructors = await Promise.all(
+        unverifiedInstructors.map(async instructor => ({
+          ...instructor,
+          verificationDocuments: await Promise.all(
+            instructor.verificationDocuments.map(async document => ({
+              id: document.id,
+              fileName: document.fileName,
+              contentType: document.contentType,
+              sizeBytes: document.sizeBytes,
+              createdAt: document.createdAt,
+              downloadUrl: await storageService.getSignedDownloadUrl(document.s3Key),
+            }))
+          ),
+        }))
+      );
+
+      res.status(200).json({ instructors });
     } catch (error: any) {
       console.error('Error fetching unverified instructors:', error);
       res.status(500).json({ message: 'Failed to fetch unverified instructors', details: error.message });
@@ -425,7 +486,7 @@ export const getUnverifiedInstructors = expressAsyncHandler(
 // Create a new admin account
 export const createAdminAccount = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = (req.user as { sub: string; role: string });
+    const user = (req.user as { sub: string; role: string; email?: string });
     const { email, firstName, lastName, password } = req.body;
 
     if (!user?.sub) {
@@ -438,25 +499,85 @@ export const createAdminAccount = expressAsyncHandler(
       return;
     }
 
-    // Validate required fields
-    if (!email || !firstName || !lastName || !password) {
-      res.status(400).json({ message: 'Email, first name, last name, and password are required' });
+    if (!email) {
+      res.status(400).json({ message: 'Email is required' });
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ message: 'Password must be at least 8 characters long' });
-      return;
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      res.status(400).json({ message: 'User with this email already exists' });
-      return;
-    }
+    const actingAdminEmail = await resolveActingAdminEmail(user);
 
     try {
+      // Promote existing user to admin instead of failing.
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          verified: true,
+        },
+      });
+
+      if (existingUser) {
+        try {
+          await cognito.send(
+            new AdminUpdateUserAttributesCommand({
+              UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+              Username: existingUser.email,
+              UserAttributes: [
+                { Name: 'custom:role', Value: 'ADMIN' },
+                { Name: 'email_verified', Value: 'true' },
+              ],
+            })
+          );
+        } catch (attributeError) {
+          console.error('Failed to update Cognito role attributes for existing admin promotion:', attributeError);
+        }
+
+        const promotedUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            role: 'ADMIN',
+            verified: true,
+            instructorReviewStatus: 'APPROVED',
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            verified: true,
+          },
+        });
+
+        const notification = await sendProvisioningNotificationsFailSoft({
+          role: 'ADMIN',
+          createdEmail: promotedUser.email,
+          actingAdminEmail,
+        });
+
+        res.status(200).json({
+          message: 'Existing user promoted to ADMIN',
+          notification,
+          user: promotedUser,
+        });
+        return;
+      }
+
+      // Validate create-only fields for new users
+      if (!firstName || !lastName || !password) {
+        res.status(400).json({ message: 'First name, last name, and password are required for new admin accounts' });
+        return;
+      }
+
+      if (password.length < 8) {
+        res.status(400).json({ message: 'Password must be at least 8 characters long' });
+        return;
+      }
+
       // Create user in Cognito
       const createUserCommand = new AdminCreateUserCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
@@ -464,6 +585,7 @@ export const createAdminAccount = expressAsyncHandler(
         UserAttributes: [
           { Name: 'email', Value: email },
           { Name: 'email_verified', Value: 'true' },
+          { Name: 'custom:role', Value: 'ADMIN' },
         ],
         TemporaryPassword: password,
         MessageAction: 'SUPPRESS' // Don't send welcome email
@@ -487,6 +609,17 @@ export const createAdminAccount = expressAsyncHandler(
 
       await cognito.send(setPasswordCommand);
 
+      try {
+        await cognito.send(
+          new AdminConfirmSignUpCommand({
+            UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+            Username: email,
+          })
+        );
+      } catch (confirmError) {
+        console.error('Admin confirmation step failed (continuing):', confirmError);
+      }
+
       // Create user in database
       const newUser = await prisma.user.create({
         data: {
@@ -495,12 +628,20 @@ export const createAdminAccount = expressAsyncHandler(
           firstName,
           lastName,
           role: 'ADMIN',
-          verified: true
+          verified: true,
+          instructorReviewStatus: 'APPROVED',
         }
+      });
+
+      const notification = await sendProvisioningNotificationsFailSoft({
+        role: 'ADMIN',
+        createdEmail: newUser.email,
+        actingAdminEmail,
       });
 
       res.status(201).json({ 
         message: 'Admin account created successfully',
+        notification,
         user: {
           id: newUser.id,
           email: newUser.email,
@@ -512,6 +653,162 @@ export const createAdminAccount = expressAsyncHandler(
     } catch (error: any) {
       console.error('Error creating admin account:', error);
       res.status(500).json({ message: 'Failed to create admin account', details: error.message });
+    }
+  }
+);
+
+// Create a new instructor account (auto confirmed/approved). Existing users are left unchanged.
+export const createInstructorAccount = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req.user as { sub: string; role: string; email?: string });
+    const { email, firstName, lastName, password, subjects } = req.body;
+
+    if (!user?.sub) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'You must be an admin to create instructor accounts' });
+      return;
+    }
+
+    if (!email) {
+      res.status(400).json({ message: 'Email is required' });
+      return;
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        verified: true,
+        instructorReviewStatus: true,
+      },
+    });
+
+    if (existingUser) {
+      res.status(200).json({
+        message: 'User already exists. No changes were made.',
+        created: false,
+        user: existingUser,
+      });
+      return;
+    }
+
+    if (!firstName || !lastName || !password) {
+      res.status(400).json({ message: 'First name, last name, and password are required' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      return;
+    }
+
+    const normalizedSubjects = normalizeStringList(subjects);
+    if (normalizedSubjects.length === 0) {
+      res.status(400).json({ message: 'At least one credentialed subject is required' });
+      return;
+    }
+
+    const settings = await getSettingsData();
+    if (!settings) {
+      res.status(400).json({ message: 'Settings are not initialized' });
+      return;
+    }
+
+    const allowedSubjects = new Set(settings.subjects);
+    const missingSubjects = normalizedSubjects.filter((subject: string) => !allowedSubjects.has(subject));
+    if (missingSubjects.length > 0) {
+      res.status(400).json({ message: `Invalid subject(s): ${missingSubjects.join(', ')}` });
+      return;
+    }
+
+    const actingAdminEmail = await resolveActingAdminEmail(user);
+
+    try {
+      const createUserCommand = new AdminCreateUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: email,
+        UserAttributes: [
+          { Name: 'email', Value: email },
+          { Name: 'email_verified', Value: 'true' },
+          { Name: 'custom:role', Value: 'INSTRUCTOR' },
+        ],
+        TemporaryPassword: password,
+        MessageAction: 'SUPPRESS',
+      });
+
+      const cognitoResponse = await cognito.send(createUserCommand);
+      const userId = cognitoResponse.User?.Username;
+      if (!userId) {
+        res.status(500).json({ message: 'Failed to create user in Cognito' });
+        return;
+      }
+
+      await cognito.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+          Username: email,
+          Password: password,
+          Permanent: true,
+        })
+      );
+
+      try {
+        await cognito.send(
+          new AdminConfirmSignUpCommand({
+            UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+            Username: email,
+          })
+        );
+      } catch (confirmError) {
+        console.error('Instructor confirmation step failed (continuing):', confirmError);
+      }
+
+      const newUser = await prisma.user.create({
+        data: {
+          id: userId,
+          email,
+          firstName,
+          lastName,
+          role: 'INSTRUCTOR',
+          verified: true,
+          instructorReviewStatus: 'APPROVED',
+          subjects: normalizedSubjects,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          verified: true,
+          instructorReviewStatus: true,
+          subjects: true,
+        },
+      });
+
+      const notification = await sendProvisioningNotificationsFailSoft({
+        role: 'INSTRUCTOR',
+        createdEmail: newUser.email,
+        actingAdminEmail,
+      });
+
+      res.status(201).json({
+        message: 'Instructor account created successfully',
+        notification,
+        created: true,
+        user: newUser,
+      });
+    } catch (error: any) {
+      console.error('Error creating instructor account:', error);
+      res.status(500).json({ message: 'Failed to create instructor account', details: error.message });
     }
   }
 );
@@ -615,7 +912,9 @@ export const getAdminStats = expressAsyncHandler(
         prisma.user.count({ where: { role: 'STUDENT' } }),
         prisma.user.count({ where: { role: 'INSTRUCTOR' } }),
         prisma.user.count({ where: { role: 'ADMIN' } }),
-        prisma.user.count({ where: { role: 'INSTRUCTOR', verified: false } }),
+        prisma.user.count({
+          where: { role: 'INSTRUCTOR', instructorReviewStatus: 'UNDER_REVIEW' },
+        }),
         prisma.session.count(),
         prisma.session.count({ where: { status: 'IN_PROGRESS' } }),
         prisma.review.count()

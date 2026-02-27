@@ -21,6 +21,7 @@ model User {
   email     String    @unique
   role      UserRole
   verified  Boolean   @default(false)
+  instructorReviewStatus InstructorReviewStatus @default(APPROVED)
   firstName String
   lastName  String
   birthdate DateTime?
@@ -69,6 +70,20 @@ model User {
   SessionHistoryItems      SessionHistoryItem[]
   studentQueues            StudentQueue[]       @relation("StudentQueues")
   acceptedInstructorQueues StudentQueue[]       @relation("AcceptedInstructorQueues")
+  verificationDocuments    InstructorVerificationDocument[]
+}
+
+model InstructorVerificationDocument {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  s3Key       String
+  fileName    String
+  contentType String
+  sizeBytes   Int
+
+  @@index([userId])
 }
 
 model Session {
@@ -204,4 +219,9 @@ enum SessionRequestStatus {
 enum QueueStatus {
   PENDING
   ACCEPTED
+}
+
+enum InstructorReviewStatus {
+  UNDER_REVIEW
+  APPROVED
 }

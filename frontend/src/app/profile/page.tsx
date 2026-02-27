@@ -21,10 +21,12 @@ import {
   LoadingOverlay,
   Affix,
   Card,
+  Alert,
+  Badge,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
-import { User, Shield, CheckCircle2, XCircle, Link2 } from "lucide-react";
+import { User, Shield, CheckCircle2, XCircle, Link2, Trash2 } from "lucide-react";
 import PageWrapper from "@/components/PageWrapper";
 import { routes } from "../routes";
 import { getToken } from "@/actions/authentication";
@@ -49,6 +51,7 @@ function ProfileContent() {
   const initialTab = searchParams.get("tab") || "profile";
   const [activeTab, setActiveTab] = useState<string | null>(initialTab);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [documentUploadLoading, setDocumentUploadLoading] = useState(false);
 
   // Update URL when tab changes
   useEffect(() => {
@@ -193,7 +196,6 @@ function ProfileContent() {
         parentEmail: string;
         education: string[];
         experience: string[];
-        certificationUrls: string[];
         subjects: string[];
       }> = {};
 
@@ -247,9 +249,6 @@ function ProfileContent() {
         if (hasChanged('experience', user.experience, originalUser.experience)) {
           // Filter out empty strings when sending to backend, but preserve user's ability to add items
           updateData.experience = user.experience?.filter(line => line.trim() !== '') || [];
-        }
-        if (hasChanged('certificationUrls', user.certificationUrls, originalUser.certificationUrls)) {
-          updateData.certificationUrls = user.certificationUrls;
         }
         if (hasChanged('subjects', user.subjects, originalUser.subjects)) {
           updateData.subjects = user.subjects || [];
@@ -316,6 +315,134 @@ function ProfileContent() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes || bytes <= 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const refreshProfile = async () => {
+    const accessToken = await getToken();
+    if (!accessToken) {
+      return;
+    }
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/users/profile`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+    setUser(data.user);
+    setOriginalUser(data.user);
+  };
+
+  const handleUploadVerificationDocuments = async (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    try {
+      setDocumentUploadLoading(true);
+      const accessToken = await getToken();
+      if (!accessToken) {
+        throw new Error("Authentication required");
+      }
+
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append("documents", file);
+      });
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/instructors/documents`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Failed to upload documents");
+      }
+
+      notifications.show({
+        title: "Documents uploaded",
+        message: "Verification files were uploaded successfully.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+      });
+
+      await refreshProfile();
+    } catch (error: unknown) {
+      notifications.show({
+        title: "Upload failed",
+        message: error instanceof Error ? error.message : "Failed to upload documents",
+        color: "red",
+        icon: <XCircle size={16} />,
+      });
+    } finally {
+      setDocumentUploadLoading(false);
+    }
+  };
+
+  const handleDeleteVerificationDocument = async (documentId: string) => {
+    try {
+      setDocumentUploadLoading(true);
+      const accessToken = await getToken();
+      if (!accessToken) {
+        throw new Error("Authentication required");
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/instructors/documents/${documentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Failed to delete document");
+      }
+
+      notifications.show({
+        title: "Document removed",
+        message: "Verification file was removed.",
+        color: "green",
+        icon: <CheckCircle2 size={16} />,
+      });
+
+      await refreshProfile();
+    } catch (error: unknown) {
+      notifications.show({
+        title: "Delete failed",
+        message: error instanceof Error ? error.message : "Failed to delete document",
+        color: "red",
+        icon: <XCircle size={16} />,
+      });
+    } finally {
+      setDocumentUploadLoading(false);
     }
   };
 
@@ -417,7 +544,7 @@ function ProfileContent() {
     }
 
     if (user.role === 'INSTRUCTOR') {
-      fieldsToCheck.push('education', 'experience', 'certificationUrls');
+      fieldsToCheck.push('education', 'experience');
       // Note: subjects field is not in the UI, so we don't check it
     }
 
@@ -608,6 +735,16 @@ function ProfileContent() {
                         <Text size="lg" fw={500} mt="md">
                           Professional Information
                         </Text>
+                        {user.instructorReviewStatus === "UNDER_REVIEW" && (
+                          <Alert color="yellow" variant="light" title="Account under review">
+                            You can edit your profile and upload verification files, but student interactions are locked until an admin approves your account.
+                          </Alert>
+                        )}
+                        {user.instructorReviewStatus === "APPROVED" && (
+                          <Badge color="green" variant="light" w="fit-content">
+                            Instructor Approved
+                          </Badge>
+                        )}
                         <Textarea
                           label="Education"
                           placeholder="Your educational background and qualifications (one per line)"
@@ -644,19 +781,72 @@ function ProfileContent() {
                         <Text size="xs" c="dimmed">
                           Enter each experience on a new line. You can leave empty lines while typing.
                         </Text>
-                        <TextInput
-                          label="Certification URLs"
-                          placeholder="Links to your certifications (comma-separated)"
-                          value={(user.certificationUrls || []).join(', ')}
-                          onChange={(e) => {
-                            const urls = e.target.value.split(',').map(url => url.trim()).filter(url => url !== '');
-                            setUser((prev) =>
-                              prev
-                                ? { ...prev, certificationUrls: urls }
-                                : null
-                            );
-                          }}
-                        />
+                        <Stack gap="xs" mt="sm">
+                          <Group justify="space-between" wrap="wrap">
+                            <Text fw={500}>Verification Documents</Text>
+                            <Button
+                              component="label"
+                              size="xs"
+                              variant="light"
+                              loading={documentUploadLoading}
+                            >
+                              Upload Files
+                              <input
+                                hidden
+                                type="file"
+                                multiple
+                                accept=".pdf,image/png,image/jpeg,image/jpg"
+                                onChange={(event) => {
+                                  void handleUploadVerificationDocuments(event.currentTarget.files);
+                                  event.currentTarget.value = "";
+                                }}
+                              />
+                            </Button>
+                          </Group>
+                          <Text size="xs" c="dimmed">
+                            Private review files (PDF/JPG/PNG, up to 5 per upload, 10MB each).
+                          </Text>
+                          {(user.verificationDocuments || []).length === 0 ? (
+                            <Text size="sm" c="dimmed">No verification documents uploaded yet.</Text>
+                          ) : (
+                            <Stack gap="xs">
+                              {(user.verificationDocuments || []).map((doc) => (
+                                <Group key={doc.id} justify="space-between" wrap="wrap">
+                                  <div>
+                                    <Text size="sm" fw={500}>{doc.fileName}</Text>
+                                    <Text size="xs" c="dimmed">
+                                      {doc.contentType} • {formatFileSize(doc.sizeBytes)} • {new Date(doc.createdAt).toLocaleDateString()}
+                                    </Text>
+                                  </div>
+                                  <Group gap="xs">
+                                    {doc.downloadUrl && (
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        component="a"
+                                        href={doc.downloadUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        Open
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="xs"
+                                      color="red"
+                                      variant="light"
+                                      leftSection={<Trash2 size={14} />}
+                                      loading={documentUploadLoading}
+                                      onClick={() => void handleDeleteVerificationDocument(doc.id)}
+                                    >
+                                      Remove
+                                    </Button>
+                                  </Group>
+                                </Group>
+                              ))}
+                            </Stack>
+                          )}
+                        </Stack>
                       </>
                     )}
 

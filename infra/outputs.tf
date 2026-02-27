@@ -126,6 +126,11 @@ output "dynamodb_region" {
   value       = module.dynamodb_dax.dynamodb_region
 }
 
+output "instructor_documents_bucket_name" {
+  description = "Private S3 bucket used for instructor verification documents"
+  value       = aws_s3_bucket.instructor_documents.bucket
+}
+
 # DAX outputs - commented out to reduce costs (using direct DynamoDB access)
 # output "dax_configuration_endpoint" {
 #   description = "DAX cluster configuration endpoint for clients."

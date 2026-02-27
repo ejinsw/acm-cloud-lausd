@@ -21,6 +21,7 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.750.0",
     "@prisma/client": "^6.2.1",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
@@ -34,7 +35,8 @@
     "morgan": "^1.10.0",
     "serverless-http": "^3.2.0",
     "ws": "^8.18.0",
-    "axios": "^1.7.9"
+    "axios": "^1.7.9",
+    "aws-sdk": "^2.1692.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

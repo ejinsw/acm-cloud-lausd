@@ -81,6 +81,11 @@ export default function InstructorQueuePage() {
     clearDeckAction,
   } = useQueueWebSocket(user);
 
+  const isUnderReview = user?.instructorReviewStatus === "UNDER_REVIEW";
+  const showConnectionError =
+    !!connectionError &&
+    !(isUnderReview && connectionError.toLowerCase().includes("under review"));
+
   const enrichedItems = useMemo(() => {
     const items: EnrichedQueueItem[] = [];
     for (const [cognitoId, item] of queueItems.entries()) {
@@ -121,6 +126,15 @@ export default function InstructorQueuePage() {
   }, [activeIndex, visibleDeck.length]);
 
   const handleAcceptStudent = async (queueItem: EnrichedQueueItem) => {
+    if (isUnderReview) {
+      notifications.show({
+        title: "Account under review",
+        message: "Queue interactions are disabled until an admin approves your instructor account.",
+        color: "yellow",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const token = await getToken();
@@ -152,9 +166,13 @@ export default function InstructorQueuePage() {
       );
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         notifications.show({
           title: "Error",
-          message: "Could not create a session. Please try again.",
+          message:
+            errorData?.code === "INSTRUCTOR_UNDER_REVIEW"
+              ? "Your instructor account is under review. Queue and session actions are disabled."
+              : "Could not create a session. Please try again.",
           color: "red",
           icon: <XCircle size={16} />,
         });
@@ -190,12 +208,14 @@ export default function InstructorQueuePage() {
   };
 
   const handlePass = () => {
+    if (isUnderReview) return;
     if (!currentCard) return;
     markDeckAction(currentCard.studentId, "PASS");
     setActiveIndex((i) => Math.min(i + 1, visibleDeck.length));
   };
 
   const handlePin = () => {
+    if (isUnderReview) return;
     if (!currentCard) return;
     const isPinned = queueDeckActions.get(currentCard.studentId) === "PIN";
     if (isPinned) {
@@ -207,6 +227,7 @@ export default function InstructorQueuePage() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (isUnderReview) return;
       if (!currentCard) return;
       if ((event.target as HTMLElement)?.tagName === "INPUT") return;
       if (event.key.toLowerCase() === "a") {
@@ -221,7 +242,7 @@ export default function InstructorQueuePage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [currentCard, queueDeckActions, visibleDeck.length]);
+  }, [currentCard, queueDeckActions, visibleDeck.length, isUnderReview]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     dragStartRef.current = { x: event.clientX, y: event.clientY };
@@ -285,6 +306,11 @@ export default function InstructorQueuePage() {
             <Badge size="lg" color="yellow" variant="light" leftSection={<Star size={12} />}>
               Your rating: {formatRating(user.averageRating)}
             </Badge>
+            {isUnderReview && (
+              <Badge size="lg" color="orange" variant="light">
+                Under Review
+              </Badge>
+            )}
             <Badge size="lg" color="blue" variant="light">
               {enrichedItems.length} waiting
             </Badge>
@@ -324,7 +350,7 @@ export default function InstructorQueuePage() {
         </Group>
       </Group>
 
-      {connectionError && (
+      {showConnectionError && (
         <Alert color="red" title="Queue Connection Error">
           <Group justify="space-between">
             <Text size="sm">{connectionError}</Text>
@@ -332,6 +358,12 @@ export default function InstructorQueuePage() {
               Retry
             </Button>
           </Group>
+        </Alert>
+      )}
+
+      {isUnderReview && (
+        <Alert color="yellow" title="Queue actions disabled">
+          Your instructor account is under review. You can access your profile and upload verification files, but queue interactions stay disabled until approval.
         </Alert>
       )}
 
@@ -412,6 +444,7 @@ export default function InstructorQueuePage() {
                     color="gray"
                     leftSection={<IconPlayerSkipForward size={15} />}
                     onClick={handlePass}
+                    disabled={isUnderReview}
                   >
                     Pass
                   </Button>
@@ -420,6 +453,7 @@ export default function InstructorQueuePage() {
                     color="yellow"
                     leftSection={<IconPin size={15} />}
                     onClick={handlePin}
+                    disabled={isUnderReview}
                   >
                     {queueDeckActions.get(currentCard.studentId) === "PIN" ? "Pinned" : "Pin"}
                   </Button>
@@ -428,6 +462,7 @@ export default function InstructorQueuePage() {
                     leftSection={<IconCheck size={15} />}
                     onClick={() => void handleAcceptStudent(currentCard)}
                     loading={isLoading}
+                    disabled={isUnderReview}
                   >
                     Accept
                   </Button>
@@ -488,13 +523,26 @@ export default function InstructorQueuePage() {
                           ? clearDeckAction(item.studentId)
                           : markDeckAction(item.studentId, "PIN")
                       }
+                      disabled={isUnderReview}
                     >
                       <IconPin size={16} />
                     </ActionIcon>
-                    <Button size="xs" variant="light" color="gray" onClick={() => markDeckAction(item.studentId, "PASS")}>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="gray"
+                      onClick={() => markDeckAction(item.studentId, "PASS")}
+                      disabled={isUnderReview}
+                    >
                       Pass
                     </Button>
-                    <Button size="xs" color="green" onClick={() => void handleAcceptStudent(item)} loading={isLoading}>
+                    <Button
+                      size="xs"
+                      color="green"
+                      onClick={() => void handleAcceptStudent(item)}
+                      loading={isLoading}
+                      disabled={isUnderReview}
+                    >
                       Accept
                     </Button>
                   </Group>

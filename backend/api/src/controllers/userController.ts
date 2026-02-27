@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { cognito } from '../lib/cognitoSDK';
+import { storageService } from '../services/storageService';
+import type { UploadedFile } from '../middleware/upload';
 
 const prisma = new PrismaClient();
 
@@ -32,7 +34,7 @@ export const getAllInstructors = expressAsyncHandler(
     const { name, subject } = req.query;
     const subjectFilter =
       typeof subject === 'string' && subject.trim() ? subject.trim().toLowerCase() : null;
-    const where: any = { role: 'INSTRUCTOR' };
+    const where: any = { role: 'INSTRUCTOR', instructorReviewStatus: 'APPROVED' };
     if (name) {
       where.OR = [
         { firstName: { contains: name, mode: 'insensitive' } },
@@ -68,14 +70,18 @@ export const getAllInstructors = expressAsyncHandler(
 export const getInstructorById = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const instructor = await prisma.user.findUnique({
-      where: { id },
+    const instructor = await prisma.user.findFirst({
+      where: {
+        id,
+        role: 'INSTRUCTOR',
+        instructorReviewStatus: 'APPROVED',
+      },
       include: {
         reviewsRecipient: true,
         instructorSessions: true,
       },
     });
-    if (!instructor || instructor.role !== 'INSTRUCTOR') {
+    if (!instructor) {
       res.status(404).json({ message: 'Instructor not found' });
       return;
     }
@@ -191,19 +197,171 @@ export const deleteInstructor = expressAsyncHandler(async (req: Request, res: Re
  * @access Private
  */
 export const getUserProfile = expressAsyncHandler(async (req: Request, res: Response) => {
-  // TODO: Implement get user profile
   const userId = (req.user as { sub: string })?.sub;
   if (!userId) {
     res.status(401);
     throw new Error('Not authorized');
   }
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      verificationDocuments: {
+        select: {
+          id: true,
+          fileName: true,
+          contentType: true,
+          sizeBytes: true,
+          createdAt: true,
+          s3Key: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+    },
+  });
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  res.json({ user });
+  const verificationDocuments = await Promise.all(
+    user.verificationDocuments.map(async doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      contentType: doc.contentType,
+      sizeBytes: doc.sizeBytes,
+      createdAt: doc.createdAt,
+      downloadUrl: await storageService.getSignedDownloadUrl(doc.s3Key),
+    }))
+  );
+
+  res.json({
+    user: {
+      ...user,
+      verificationDocuments,
+    },
+  });
+});
+
+export const uploadInstructorDocuments = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can upload verification documents' });
+    return;
+  }
+
+  if (!storageService.isConfigured()) {
+    res.status(500).json({ message: 'Document storage is not configured' });
+    return;
+  }
+
+  const files = (
+    (req as Request & { uploadedFiles?: UploadedFile[] }).uploadedFiles || []
+  ).filter(Boolean);
+  if (files.length === 0) {
+    res.status(400).json({ message: 'No documents were uploaded' });
+    return;
+  }
+
+  const uploadedDocuments = [];
+  for (const file of files) {
+    const stored = await storageService.uploadInstructorVerificationDocument(userId, file);
+    uploadedDocuments.push(stored);
+  }
+
+  await prisma.instructorVerificationDocument.createMany({
+    data: uploadedDocuments.map(doc => ({
+      userId,
+      s3Key: doc.s3Key,
+      fileName: doc.fileName,
+      contentType: doc.contentType,
+      sizeBytes: doc.sizeBytes,
+    })),
+  });
+
+  const documents = await prisma.instructorVerificationDocument.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      fileName: true,
+      contentType: true,
+      sizeBytes: true,
+      createdAt: true,
+      s3Key: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  const responseDocuments = await Promise.all(
+    documents.map(async doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      contentType: doc.contentType,
+      sizeBytes: doc.sizeBytes,
+      createdAt: doc.createdAt,
+      downloadUrl: await storageService.getSignedDownloadUrl(doc.s3Key),
+    }))
+  );
+
+  res.status(201).json({ message: 'Verification documents uploaded', documents: responseDocuments });
+});
+
+export const deleteInstructorDocument = expressAsyncHandler(async (req: Request, res: Response) => {
+  const userId = (req.user as { sub: string })?.sub;
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user || user.role !== 'INSTRUCTOR') {
+    res.status(403).json({ message: 'Only instructors can delete verification documents' });
+    return;
+  }
+
+  const { documentId } = req.params;
+  const existing = await prisma.instructorVerificationDocument.findFirst({
+    where: {
+      id: documentId,
+      userId,
+    },
+    select: {
+      id: true,
+      s3Key: true,
+    },
+  });
+
+  if (!existing) {
+    res.status(404).json({ message: 'Document not found' });
+    return;
+  }
+
+  await prisma.instructorVerificationDocument.delete({
+    where: { id: existing.id },
+  });
+
+  try {
+    await storageService.deleteDocument(existing.s3Key);
+  } catch (error) {
+    console.error('Failed to delete document from storage:', error);
+  }
+
+  res.status(200).json({ message: 'Document removed successfully' });
 });
 
 async function validateUserUpdatePayload(

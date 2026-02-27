@@ -8,6 +8,7 @@ import {
   getAllUsers,
   getUnverifiedInstructors,
   createAdminAccount,
+  createInstructorAccount,
   updateUserRole,
   getAdminStats,
   confirmUserAccount,
@@ -37,6 +38,7 @@ router.post('/admin/instructors/:id/verify', ...adminAuth, verifyInstructor);
 
 // Admin account creation
 router.post('/admin/accounts', ...adminAuth, createAdminAccount);
+router.post('/admin/accounts/instructor', ...adminAuth, createInstructorAccount);
 
 // Session management
 router.put('/admin/sessions/:id', ...adminAuth, adminUpdateSession);

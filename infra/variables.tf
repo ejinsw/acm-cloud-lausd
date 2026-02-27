@@ -82,4 +82,16 @@ variable "zoom_sdk_secret" {
   type        = string
   default     = ""
   sensitive   = true
-} 
+}
+
+variable "ses_from_email" {
+  description = "Verified SES sender email used for platform notifications"
+  type        = string
+  default     = ""
+}
+
+variable "notification_base_url" {
+  description = "Optional base URL used by notification templates"
+  type        = string
+  default     = "https://acm-cloud-lausd.vercel.app"
+}

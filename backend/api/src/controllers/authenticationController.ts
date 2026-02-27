@@ -14,6 +14,8 @@ import {
 import { prisma } from '../config/prisma';
 import crypto from 'crypto';
 import { getSettingsData, normalizeStringList } from '../services/settingsService';
+import { storageService } from '../services/storageService';
+import type { UploadedFile } from '../middleware/upload';
 // Request body interfaces
 interface SignupBody {
   email: string;
@@ -30,7 +32,7 @@ interface SignupBody {
   schoolName: string;
   birthdate: Date;
   grade?: string; // Optional for students
-  subjects?: string[]; // Optional for instructors
+  subjects?: string[] | string; // Optional for instructors
   parentEmail?: string;
 }
 
@@ -56,6 +58,35 @@ const generateSecretHash = (username: string, clientId: string, clientSecret: st
     .createHmac('sha256', clientSecret)
     .update(username + clientId)
     .digest('base64');
+};
+
+const parseSubjectsInput = (rawSubjects: SignupBody['subjects']) => {
+  if (Array.isArray(rawSubjects)) {
+    return rawSubjects;
+  }
+
+  if (typeof rawSubjects === 'string') {
+    try {
+      const parsed = JSON.parse(rawSubjects);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return rawSubjects
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const getVerificationFiles = (req: Request): UploadedFile[] => {
+  const files = (req as Request & { uploadedFiles?: UploadedFile[] }).uploadedFiles;
+  if (!files || !Array.isArray(files)) {
+    return [];
+  }
+
+  return files;
 };
 /**
  * @route POST /api/auth/signup
@@ -92,16 +123,32 @@ export const signup = expressAsyncHandler(
       country,
       schoolName,
     } = req.body;
+    const verificationFiles = getVerificationFiles(req);
+    const normalizedRole = typeof role === 'string' ? role.toLowerCase() : '';
+    const parsedSubjects = parseSubjectsInput(subjects);
 
-    if (!firstName || !lastName || !email || !password || !birthdate || !schoolName || !role) {
+    if (!firstName || !lastName || !email || !password || !birthdate || !schoolName || !normalizedRole) {
       res.status(400).json({
         error: 'Email, first name, last name, password, birthdate, and schoolName are required.',
       });
       return;
     }
 
-    let cognitoUserSub: string | undefined;
+    if (normalizedRole !== 'student' && normalizedRole !== 'instructor') {
+      res.status(400).json({ error: `Invalid role: ${role}` });
+      return;
+    }
+
+    if (verificationFiles.length > 0 && !storageService.isConfigured()) {
+      res.status(500).json({
+        error: 'Document uploads are temporarily unavailable. Please try again later.',
+      });
+      return;
+    }
+
+    let cognitoUserSub: string | undefined = undefined;
     let cognitoUserCreated = false;
+    const uploadedDocumentKeys: string[] = [];
 
     try {
       // Start database transaction
@@ -120,7 +167,10 @@ export const signup = expressAsyncHandler(
           SecretHash: hash,
           Username: email,
           Password: password,
-          UserAttributes: [{ Name: 'email', Value: email }],
+          UserAttributes: [
+            { Name: 'email', Value: email },
+            { Name: 'custom:role', Value: normalizedRole.toUpperCase() },
+          ],
         });
 
         console.log('Creating user in Cognito...');
@@ -130,16 +180,17 @@ export const signup = expressAsyncHandler(
           throw new Error('Failed to create Cognito user - no user sub returned');
         }
 
-        cognitoUserSub = response.UserSub;
+        const createdUserSub = response.UserSub;
+        cognitoUserSub = createdUserSub;
         cognitoUserCreated = true;
         console.log('Successfully created Cognito user with sub:', cognitoUserSub);
 
         // Step 2: Create user in PostgreSQL database
-        if (role === 'student') {
+        if (normalizedRole === 'student') {
           console.log('Creating student in database...');
           await tx.user.create({
             data: {
-              id: cognitoUserSub,
+              id: createdUserSub,
               firstName: firstName,
               lastName: lastName,
               grade: grade,
@@ -157,10 +208,10 @@ export const signup = expressAsyncHandler(
             },
           });
           console.log('Successfully created student in database');
-        } else if (role === 'instructor') {
+        } else if (normalizedRole === 'instructor') {
           console.log('Creating instructor in database...');
-          
-          const normalizedSubjects = normalizeStringList(subjects);
+
+          const normalizedSubjects = normalizeStringList(parsedSubjects);
           if (normalizedSubjects.length === 0) {
             throw new Error('Instructors must have at least one credentialed subject');
           }
@@ -178,7 +229,7 @@ export const signup = expressAsyncHandler(
 
           await tx.user.create({
             data: {
-              id: cognitoUserSub,
+              id: createdUserSub,
               firstName: firstName,
               lastName: lastName,
               email: email,
@@ -192,11 +243,32 @@ export const signup = expressAsyncHandler(
               schoolName: schoolName,
               subjects: normalizedSubjects,
               role: 'INSTRUCTOR',
+              instructorReviewStatus: 'UNDER_REVIEW',
             },
           });
+
+          if (verificationFiles.length > 0) {
+            const storedDocs = [];
+            for (const file of verificationFiles) {
+              const stored = await storageService.uploadInstructorVerificationDocument(createdUserSub, file);
+              uploadedDocumentKeys.push(stored.s3Key);
+              storedDocs.push(stored);
+            }
+
+            await tx.instructorVerificationDocument.createMany({
+              data: storedDocs.map(doc => ({
+                userId: createdUserSub,
+                s3Key: doc.s3Key,
+                fileName: doc.fileName,
+                contentType: doc.contentType,
+                sizeBytes: doc.sizeBytes,
+              })),
+            });
+          }
+
           console.log('Successfully created instructor in database');
         } else {
-          throw new Error(`Invalid role: ${role}`);
+          throw new Error(`Invalid role: ${normalizedRole}`);
         }
 
         console.log('Transaction completed successfully');
@@ -206,11 +278,23 @@ export const signup = expressAsyncHandler(
       res.status(201).json({ 
         message: 'Signup successful', 
         userSub: cognitoUserSub,
-        role: role 
+        role: normalizedRole 
       });
 
     } catch (error: any) {
       console.error('Signup error:', error);
+
+      if (uploadedDocumentKeys.length > 0) {
+        await Promise.all(
+          uploadedDocumentKeys.map(async key => {
+            try {
+              await storageService.deleteDocument(key);
+            } catch (cleanupError) {
+              console.error('Failed to cleanup uploaded document:', cleanupError);
+            }
+          })
+        );
+      }
 
       // If Cognito user was created but database failed, clean up Cognito user
       if (cognitoUserCreated && cognitoUserSub) {
@@ -443,6 +527,7 @@ export const getUserData = expressAsyncHandler(
           lastName: true,
           role: true,
           verified: true,
+          instructorReviewStatus: true,
           profilePicture: true,
           bio: true,
           averageRating: true,
@@ -458,6 +543,19 @@ export const getUserData = expressAsyncHandler(
           interests: true,
           learningGoals: true,
           sessionRequests: true,
+          verificationDocuments: {
+            select: {
+              id: true,
+              fileName: true,
+              contentType: true,
+              sizeBytes: true,
+              createdAt: true,
+              s3Key: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
         },
       });
 
@@ -466,7 +564,21 @@ export const getUserData = expressAsyncHandler(
         return;
       }
 
-      res.json(user);
+      const verificationDocuments = await Promise.all(
+        user.verificationDocuments.map(async doc => ({
+          id: doc.id,
+          fileName: doc.fileName,
+          contentType: doc.contentType,
+          sizeBytes: doc.sizeBytes,
+          createdAt: doc.createdAt,
+          downloadUrl: await storageService.getSignedDownloadUrl(doc.s3Key),
+        }))
+      );
+
+      res.json({
+        ...user,
+        verificationDocuments,
+      });
     } catch (error) {
       console.error('Error fetching user data:', error);
       res.status(500).json({ error: 'Internal server error' });

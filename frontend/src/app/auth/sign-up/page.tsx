@@ -16,7 +16,6 @@ import {
   Radio,
   Checkbox,
   Anchor,
-  Image,
   MultiSelect,
   Loader,
   Badge,
@@ -24,7 +23,7 @@ import {
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
-import { IconUpload, IconX, IconPhoto } from "@tabler/icons-react";
+import { IconUpload, IconX, IconFileText } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -46,7 +45,7 @@ interface SignUpFormData {
   schoolName: string;
   agreeToTerms: boolean;
   birthdate: Date | null;
-  instructorId?: FileWithPath | null;
+  verificationDocuments?: FileWithPath[];
   parentEmail?: string;
   credentialedSubjects?: string[];
   // Address fields
@@ -112,7 +111,7 @@ export default function SignUpPage() {
       schoolName: "",
       agreeToTerms: false,
       birthdate: null,
-      instructorId: null,
+      verificationDocuments: [],
       parentEmail: "",
       credentialedSubjects: [],
       // Address fields
@@ -156,8 +155,6 @@ export default function SignUpPage() {
         !value ? "You must agree to the terms and conditions" : null,
       birthdate: (value) =>
         !value ? "Please select your birthdate" : null,
-      instructorId: () =>
-        null, // Photo ID is optional
       parentEmail: (value, values) =>
         values.role === "student" && (!value || !/^\S+@\S+$/.test(value))
           ? "Please enter a valid parent email address"
@@ -175,33 +172,48 @@ export default function SignUpPage() {
     ? "__custom__"
     : form.values.schoolName || null;
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleSubmit = async (values: SignUpFormData) => {
     setLoading(true);
     try {
-      // Debug logging to see what we're getting
-      console.log("Form values:", values);
-      console.log("Credentialed subjects:", values.credentialedSubjects);
-      console.log("Student subjects:", values.subjects);
-      
-      // Prepare the data to send to the backend
-      const submitData = {
-        ...values,
-        // For instructors, use credentialedSubjects as subjects
-        // For students, use subjects as is
-        subjects: values.role === "instructor" ? values.credentialedSubjects : values.subjects,
-        // Remove the credentialedSubjects field as backend expects 'subjects'
-        credentialedSubjects: undefined,
-      };
+      const subjectsForRole =
+        values.role === "instructor" ? values.credentialedSubjects || [] : values.subjects || [];
 
-      console.log("Submit data:", submitData);
-      console.log("Subjects being sent:", submitData.subjects);
+      const formData = new FormData();
+      formData.append("email", values.email);
+      formData.append("password", values.password);
+      formData.append("firstName", values.firstName);
+      formData.append("lastName", values.lastName);
+      formData.append("role", values.role);
+      formData.append("schoolName", values.schoolName);
+      formData.append("birthdate", values.birthdate ? values.birthdate.toISOString() : "");
+      formData.append("street", values.street);
+      formData.append("apartment", values.apartment || "");
+      formData.append("city", values.city);
+      formData.append("state", values.state);
+      formData.append("zip", values.zip);
+      formData.append("country", values.country);
+      formData.append("subjects", JSON.stringify(subjectsForRole));
+
+      if (values.role === "student") {
+        formData.append("grade", values.grade || "");
+        formData.append("parentEmail", values.parentEmail || "");
+      }
+
+      if (values.role === "instructor" && values.verificationDocuments?.length) {
+        values.verificationDocuments.forEach((file) => {
+          formData.append("verificationDocuments", file);
+        });
+      }
 
       const response = await fetch('/api/auth/sign-up', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submitData),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -211,7 +223,10 @@ export default function SignUpPage() {
 
       notifications.show({
         title: "Success!",
-        message: "Your account has been created successfully. Now verify",
+        message:
+          values.role === "instructor"
+            ? "Your account was created and is now under review. Verify your email to continue."
+            : "Your account has been created successfully. Now verify your email.",
         color: "green",
         icon: <CheckCircle2 size={16} />,
         autoClose: 5000,
@@ -504,13 +519,20 @@ export default function SignUpPage() {
                         {...form.getInputProps("credentialedSubjects")}
                       />
 
-                      <Text size="sm" fw={500}>School ID Upload</Text>
-                      <Text size="xs" c="dimmed" mb={5}>Upload your school-issued ID (max 5MB)</Text>
+                      <Alert color="yellow" variant="light" title="Instructor review required">
+                        Instructor accounts are placed in <strong>Under Review</strong> after signup.
+                        You can sign in and manage your profile while admins review your credentials.
+                      </Alert>
+
+                      <Text size="sm" fw={500}>Verification Documents (Recommended)</Text>
+                      <Text size="xs" c="dimmed" mb={5}>
+                        Upload identity or credential files (PDF, JPG, PNG). Up to 5 files, 10MB each.
+                      </Text>
                       <Dropzone
-                        onDrop={(files) => form.setFieldValue("instructorId", files[0])}
-                        maxFiles={1}
-                        accept={["image/jpeg", "image/png", "image/jpg"]}
-                        maxSize={5 * 1024 ** 2}
+                        onDrop={(files) => form.setFieldValue("verificationDocuments", files)}
+                        maxFiles={5}
+                        accept={["application/pdf", "image/jpeg", "image/png", "image/jpg"]}
+                        maxSize={10 * 1024 ** 2}
                       >
                         <Group justify="center" gap="xl" style={{ minHeight: 100, pointerEvents: "none" }}>
                           <Dropzone.Accept>
@@ -520,30 +542,28 @@ export default function SignUpPage() {
                             <IconX size={32} stroke={1.5} />
                           </Dropzone.Reject>
                           <Dropzone.Idle>
-                            {form.values.instructorId ? (
-                              <Image
-                                src={URL.createObjectURL(form.values.instructorId)}
-                                alt="School ID preview"
-                                w={150}
-                                h={150}
-                                fit="contain"
-                                radius="md"
-                              />
-                            ) : (
-                              <IconPhoto size={32} stroke={1.5} />
-                            )}
+                            <IconFileText size={32} stroke={1.5} />
                           </Dropzone.Idle>
 
                           <div>
                             <Text size="xl" inline>
-                              {form.values.instructorId ? "File uploaded successfully" : "Drag your school ID here or click to select"}
+                              Drag files here or click to select
                             </Text>
                             <Text size="sm" c="dimmed" inline mt={7}>
-                              {form.values.instructorId ? "Click or drag to replace" : "File should not exceed 5MB"}
+                              Files should not exceed 10MB each
                             </Text>
                           </div>
                         </Group>
                       </Dropzone>
+                      {(form.values.verificationDocuments || []).length > 0 && (
+                        <Stack gap={4}>
+                          {(form.values.verificationDocuments || []).map((file) => (
+                            <Text key={`${file.name}-${file.size}`} size="xs" c="dimmed">
+                              {file.name} ({formatFileSize(file.size)})
+                            </Text>
+                          ))}
+                        </Stack>
+                      )}
                     </Stack>
                   )}
 

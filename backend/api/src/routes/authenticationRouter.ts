@@ -11,11 +11,12 @@ import {
   getUserData,
 } from '../controllers/authenticationController';
 import { authenticateToken } from '../middleware/auth';
+import { signupDocumentsUpload } from '../middleware/upload';
 
 const router = express.Router();
 
 // Public routes
-router.post('/auth/signup', signup);
+router.post('/auth/signup', ...signupDocumentsUpload, signup);
 router.post('/auth/login', login);
 router.post('/auth/verify-email', verifyEmail);
 router.post('/auth/resend-verification', resendVerification);

@@ -60,6 +60,23 @@ const STUDENT_QUEUE_MAX_WAIT_MS = 15 * 60 * 1000; // 15 min
 const STUDENT_QUEUE_CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 min
 const EMPTY_ROOM_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 
+const UNDER_REVIEW_BLOCKED_TYPES = new Set([
+  'CREATE_ROOM',
+  'JOIN_ROOM',
+  'SEND_MESSAGE',
+  'DELETE_MESSAGE',
+  'EDIT_MESSAGE',
+  'KICK_USER',
+  'UPDATE_SESSION',
+  'NOTIFY_SESSION_ENDED',
+  'SUBSCRIBE_QUEUE',
+  'ACCEPT_QUEUE',
+]);
+
+function isUnderReviewInstructorSocket(ws) {
+  return ws.isUnderReview === true && String(ws.userRole || '').toUpperCase() === 'INSTRUCTOR';
+}
+
 httpServer.listen(PORT, () => {
   console.log(`WebSocket server started on port ${PORT}`);
 });
@@ -136,6 +153,20 @@ server.on('connection', ws => {
         );
         return;
       }
+    }
+
+    if (isUnderReviewInstructorSocket(ws) && UNDER_REVIEW_BLOCKED_TYPES.has(type)) {
+      ws.send(
+        JSON.stringify({
+          type: 'ERROR',
+          payload: {
+            message:
+              'Your instructor account is under review. Queue and student interaction commands are disabled until approval.',
+            code: 'INSTRUCTOR_UNDER_REVIEW',
+          },
+        })
+      );
+      return;
     }
 
     try {

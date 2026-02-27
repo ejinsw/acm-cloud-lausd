@@ -185,6 +185,9 @@ function InstructorDashboardContent() {
     });
   };
 
+  const isUnderReview =
+    user?.role === "INSTRUCTOR" && user?.instructorReviewStatus === "UNDER_REVIEW";
+
   if (isLoading) {
     return (
       <Box py="xl">
@@ -226,8 +229,13 @@ function InstructorDashboardContent() {
               {totalSessions} sessions total, {hoursTutored} hours taught, {recipientReviews.length} feedback entries.
             </Text>
             <Group>
-              <Button component={Link} href={routes.instructorQueue} rightSection={<ArrowRight size={16} />}>
-                Open TutorDeck
+              <Button
+                component={Link}
+                href={routes.instructorQueue}
+                rightSection={<ArrowRight size={16} />}
+                disabled={isUnderReview}
+              >
+                {isUnderReview ? "TutorDeck Locked" : "Open TutorDeck"}
               </Button>
               <Button component={Link} href={routes.history} variant="light">
                 View History
@@ -238,23 +246,33 @@ function InstructorDashboardContent() {
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text fw={600}>Live readiness</Text>
-                <Badge color="green" variant="light">
-                  Ready
+                <Badge color={isUnderReview ? "orange" : "green"} variant="light">
+                  {isUnderReview ? "Under Review" : "Ready"}
                 </Badge>
               </Group>
               <Group gap="xs">
                 <Activity size={16} />
                 <Text size="sm" c="dimmed">
-                  Queue availability and live session controls are ready.
+                  {isUnderReview
+                    ? "Queue availability and student interaction controls are locked until approval."
+                    : "Queue availability and live session controls are ready."}
                 </Text>
               </Group>
-              <Alert color="green" variant="light">
-                Accept requests in TutorDeck and share a meeting link directly in session settings.
+              <Alert color={isUnderReview ? "yellow" : "green"} variant="light">
+                {isUnderReview
+                  ? "Your instructor account is under review. You can update your profile and verification documents while waiting for admin approval."
+                  : "Accept requests in TutorDeck and share a meeting link directly in session settings."}
               </Alert>
             </Stack>
           </Card>
         </SimpleGrid>
       </Card>
+
+      {isUnderReview && (
+        <Alert icon={<AlertCircle size={16} />} color="yellow" title="Instructor account under review">
+          Interaction actions are temporarily disabled. Once approved by an admin, TutorDeck and live session controls will unlock automatically.
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>

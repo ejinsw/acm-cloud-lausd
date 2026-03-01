@@ -71,6 +71,12 @@ export const routes = {
   terms: "/legal/terms",
   privacy: "/legal/privacy",
   history: "/history",
+
+  // Zoom App submission (public pages)
+  policy: "/policy",
+  termsOfService: "/terms",
+  support: "/support",
+  documentation: "/documentation",
 };
 
 export const routeMeta: Record<string, RouteMeta> = {

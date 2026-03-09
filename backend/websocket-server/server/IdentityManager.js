@@ -89,32 +89,37 @@ async function handleIdentify(ws, payload, connectedUsers) {
     return;
   }
 
-  // Fetch the actual user role from the API backend
-  try {
-    const apiUrl = process.env.API_URL || 'http://backend:8080';
-    const response = await fetch(`${apiUrl}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${payload.token}`,
-      },
-    });
+  // Use role from frontend if provided (frontend fetches from API); otherwise try API fetch
+  const clientRole = payload?.role;
+  if (clientRole && ['instructor', 'admin', 'student'].includes(String(clientRole).toLowerCase())) {
+    userData.type = clientRole.toLowerCase() === 'student' ? 'student' : 'instructor';
+    userData.role = clientRole.toUpperCase();
+  } else {
+    try {
+      const apiUrl = process.env.API_URL || 'http://backend:8080';
+      const response = await fetch(`${apiUrl}/api/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${payload.token}`,
+        },
+      });
 
-    if (response.ok) {
-      const dbUser = await response.json();
-      // Update userData with the correct role from database
-      userData.type =
-        dbUser.role === 'INSTRUCTOR' || dbUser.role === 'ADMIN' ? 'instructor' : 'student';
-      userData.role = dbUser.role || (userData.type === 'instructor' ? 'INSTRUCTOR' : 'STUDENT');
-      userData.isUnderReview =
-        dbUser.role === 'INSTRUCTOR' && dbUser.instructorReviewStatus === 'UNDER_REVIEW';
-      userData.username = `${dbUser.firstName} ${dbUser.lastName}`.trim() || userData.username;
-    } else {
-      console.warn(
-        `Failed to fetch user role from API (status ${response.status}), using default role from token`
-      );
+      if (response.ok) {
+        const dbUser = await response.json();
+        userData.type =
+          dbUser.role === 'INSTRUCTOR' || dbUser.role === 'ADMIN' ? 'instructor' : 'student';
+        userData.role = dbUser.role || (userData.type === 'instructor' ? 'INSTRUCTOR' : 'STUDENT');
+        userData.isUnderReview =
+          dbUser.role === 'INSTRUCTOR' && dbUser.instructorReviewStatus === 'UNDER_REVIEW';
+        userData.username = `${dbUser.firstName} ${dbUser.lastName}`.trim() || userData.username;
+      } else {
+        console.warn(
+          `Failed to fetch user role from API (status ${response.status}), using default role from token`
+        );
+      }
+    } catch (error) {
+      console.warn(`Error fetching user role from API: ${error.message}`);
+      // Continue with the role from token (which defaults to 'student')
     }
-  } catch (error) {
-    console.warn(`Error fetching user role from API: ${error.message}`);
-    // Continue with the role from token (which defaults to 'student')
   }
 
   // Simplified: Just replace the old connection silently without notifying or closing it

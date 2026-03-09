@@ -157,12 +157,15 @@ export function useQueueWebSocket(user: User | null): UseQueueWebSocketReturn {
         reconnectAttempts.current = 0;
         isConnecting.current = false; // Reset connecting flag
 
-        // Identify user with token
+        // Identify user with token and role (frontend has already fetched user from API)
         console.log("[WS] Sending IDENTIFY_USER message");
         ws.send(
           JSON.stringify({
             type: "IDENTIFY_USER",
-            payload: { token },
+            payload: {
+              token,
+              role: userRef.current?.role?.toLowerCase(),
+            },
           }),
         );
       };
